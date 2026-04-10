@@ -8,6 +8,7 @@ use App\Models\User;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
+use Database\Seeders\DepartmentSeeder;
 
 class DatabaseSeeder extends Seeder
 {
@@ -15,27 +16,42 @@ class DatabaseSeeder extends Seeder
 
     public function run(): void
     {
-        $this->call(RoleSeeder::class);
-
-        $admin = User::factory()->create([
-            'name'     => 'Admin',
-            'email'    => 'admin@sale-pro.test',
-            'password' => Hash::make('password'),
+        $this->call([
+            RoleSeeder::class,
+            DepartmentSeeder::class,
         ]);
-        $admin->assignRole('admin');
 
-        $manager = User::factory()->create([
-            'name'     => 'Manager',
-            'email'    => 'manager@sale-pro.test',
-            'password' => Hash::make('password'),
-        ]);
-        $manager->assignRole('manager');
+        $admin = User::firstOrCreate(
+            ['email' => 'admin@sale-pro.test'],
+            [
+                'name'     => 'System Admin',
+                'password' => Hash::make('password'),
+                'status'   => 'active',
+                'timezone' => 'UTC',
+            ]
+        );
+        $admin->syncRoles('admin');
 
-        $sales = User::factory()->create([
-            'name'     => 'Sales Rep',
-            'email'    => 'sales@sale-pro.test',
-            'password' => Hash::make('password'),
-        ]);
-        $sales->assignRole('sales');
+        $manager = User::firstOrCreate(
+            ['email' => 'manager@sale-pro.test'],
+            [
+                'name'     => 'Sales Manager',
+                'password' => Hash::make('password'),
+                'status'   => 'active',
+                'timezone' => 'UTC',
+            ]
+        );
+        $manager->syncRoles('manager');
+
+        $sales = User::firstOrCreate(
+            ['email' => 'sales@sale-pro.test'],
+            [
+                'name'     => 'Sales Rep',
+                'password' => Hash::make('password'),
+                'status'   => 'active',
+                'timezone' => 'UTC',
+            ]
+        );
+        $sales->syncRoles('sales');
     }
 }
