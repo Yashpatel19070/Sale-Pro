@@ -29,6 +29,10 @@ Reference files are at:
 ## Project location
 /Users/npc/sale-pro
 
+## Project Plans 
+Feature designs and architecture decisions are in `.claude/plans/`.
+Before implementing any feature, check if a plan exists there first.
+
 <!-- code-review-graph MCP tools -->
 ## MCP Tools: code-review-graph
 
