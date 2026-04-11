@@ -22,14 +22,13 @@ class CustomerController extends Controller
     {
         $this->authorize('viewAny', Customer::class);
 
-        $customers = $this->service->paginate(
-            $request->only(['search', 'status'])
-        );
+        $filters = $request->only(['search', 'status']);
+        $customers = $this->service->paginate($filters);
 
         return view('customers.index', [
             'customers' => $customers,
             'statuses' => CustomerStatus::cases(),
-            'filters' => $request->only(['search', 'status']),
+            'filters' => $filters,
         ]);
     }
 

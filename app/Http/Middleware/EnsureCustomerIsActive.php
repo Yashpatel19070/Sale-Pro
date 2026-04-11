@@ -36,6 +36,8 @@ class EnsureCustomerIsActive
                 ->withErrors(['email' => 'Your account has been deactivated. Please contact support.']);
         }
 
+        $request->attributes->set('portal_customer', $customer);
+
         return $next($request);
     }
 }

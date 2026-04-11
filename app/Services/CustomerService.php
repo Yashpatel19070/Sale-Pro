@@ -10,12 +10,11 @@ use App\Models\User;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\ValidationException;
 
 class CustomerService
 {
     /**
-     * Return a paginated list of customers.
-     *
      * @param  array{search?: string, status?: string}  $filters
      */
     public function paginate(array $filters): LengthAwarePaginator
@@ -35,8 +34,6 @@ class CustomerService
     }
 
     /**
-     * Create a new customer.
-     *
      * @param  array<string, mixed>  $data
      */
     public function store(array $data): Customer
@@ -45,37 +42,28 @@ class CustomerService
     }
 
     /**
-     * Update an existing customer.
-     *
      * @param  array<string, mixed>  $data
      */
     public function update(Customer $customer, array $data): Customer
     {
         $customer->update($data);
 
-        return $customer->fresh();
+        return $customer;
     }
 
-    /**
-     * Change the status of a customer.
-     */
     public function changeStatus(Customer $customer, CustomerStatus $status): Customer
     {
-        $customer->update(['status' => $status->value]);
+        $customer->update(['status' => $status]);
 
-        return $customer->fresh();
+        return $customer;
     }
 
-    /**
-     * Soft-delete a customer.
-     */
     public function delete(Customer $customer): void
     {
         $customer->delete();
     }
 
     /**
-     * Register a new customer from the portal.
      * Creates a User account + Customer record in a single transaction.
      *
      * @param  array{name: string, email: string, password: string, phone: string, company_name: ?string, address: string, city: string, state: string, postal_code: string, country: string}  $data
@@ -102,45 +90,42 @@ class CustomerService
                 'state' => $data['state'],
                 'postal_code' => $data['postal_code'],
                 'country' => $data['country'],
-                'status' => CustomerStatus::Active->value,
+                'status' => CustomerStatus::Active,
             ]);
         });
     }
 
-    /**
-     * Get the Customer profile linked to a User.
-     */
     public function getByUser(User $user): Customer
     {
         return Customer::where('user_id', $user->id)->firstOrFail();
     }
 
     /**
-     * Update the customer's own profile (portal use only).
-     * Does NOT allow email or status change — those are admin-only.
+     * Portal-only. Does NOT allow email or status changes — those are admin-only.
      *
      * @param  array{name: string, phone: string, company_name: ?string, address: string, city: string, state: string, postal_code: string, country: string}  $data
      */
     public function updateProfile(Customer $customer, array $data): Customer
     {
-        $customer->update([
-            'name' => $data['name'],
-            'phone' => $data['phone'],
-            'company_name' => $data['company_name'] ?? null,
-            'address' => $data['address'],
-            'city' => $data['city'],
-            'state' => $data['state'],
-            'postal_code' => $data['postal_code'],
-            'country' => $data['country'],
-        ]);
+        return DB::transaction(function () use ($customer, $data) {
+            $customer->update([
+                'name' => $data['name'],
+                'phone' => $data['phone'],
+                'company_name' => $data['company_name'] ?? null,
+                'address' => $data['address'],
+                'city' => $data['city'],
+                'state' => $data['state'],
+                'postal_code' => $data['postal_code'],
+                'country' => $data['country'],
+            ]);
 
-        $customer->user->update(['name' => $data['name']]);
+            $customer->user()->update(['name' => $data['name']]);
 
-        return $customer->fresh();
+            return $customer;
+        });
     }
 
     /**
-     * Force-verify the email of the customer's linked portal account.
      * No-op if the customer has no portal user or is already verified.
      */
     public function verifyEmail(Customer $customer): void
@@ -153,18 +138,16 @@ class CustomerService
     }
 
     /**
-     * Change the customer's password.
-     * Verifies current password before updating.
-     * Returns false if current password is wrong.
+     * @throws ValidationException if current password is wrong
      */
-    public function changePassword(User $user, string $currentPassword, string $newPassword): bool
+    public function changePassword(User $user, string $currentPassword, string $newPassword): void
     {
         if (! Hash::check($currentPassword, $user->password)) {
-            return false;
+            throw ValidationException::withMessages([
+                'current_password' => 'Current password is incorrect.',
+            ]);
         }
 
         $user->update(['password' => Hash::make($newPassword)]);
-
-        return true;
     }
 }

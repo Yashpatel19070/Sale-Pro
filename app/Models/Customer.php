@@ -30,14 +30,14 @@ class Customer extends Model
         'status',
     ];
 
+    protected $casts = [
+        'status' => CustomerStatus::class,
+    ];
+
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
     }
-
-    protected $casts = [
-        'status' => CustomerStatus::class,
-    ];
 
     public function scopeByStatus(Builder $query, CustomerStatus $status): Builder
     {

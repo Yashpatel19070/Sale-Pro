@@ -7,40 +7,34 @@ namespace App\Http\Controllers\Portal;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Portal\ChangePortalPasswordRequest;
 use App\Http\Requests\Portal\UpdatePortalProfileRequest;
+use App\Models\Customer;
 use App\Services\CustomerService;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\View\View;
 
 class ProfileController extends Controller
 {
     public function __construct(private readonly CustomerService $service) {}
 
-    public function dashboard(): View
+    public function dashboard(Request $request): View
     {
-        $customer = $this->service->getByUser(auth()->user());
-
-        return view('portal.dashboard', compact('customer'));
+        return view('portal.dashboard', ['customer' => $this->customer($request)]);
     }
 
-    public function show(): View
+    public function show(Request $request): View
     {
-        $customer = $this->service->getByUser(auth()->user());
-
-        return view('portal.profile.show', compact('customer'));
+        return view('portal.profile.show', ['customer' => $this->customer($request)]);
     }
 
-    public function edit(): View
+    public function edit(Request $request): View
     {
-        $customer = $this->service->getByUser(auth()->user());
-
-        return view('portal.profile.edit', compact('customer'));
+        return view('portal.profile.edit', ['customer' => $this->customer($request)]);
     }
 
     public function update(UpdatePortalProfileRequest $request): RedirectResponse
     {
-        $customer = $this->service->getByUser(auth()->user());
-
-        $this->service->updateProfile($customer, $request->validated());
+        $this->service->updateProfile($this->customer($request), $request->validated());
 
         return redirect()
             ->route('portal.profile.show')
@@ -54,18 +48,21 @@ class ProfileController extends Controller
 
     public function updatePassword(ChangePortalPasswordRequest $request): RedirectResponse
     {
-        $changed = $this->service->changePassword(
+        $this->service->changePassword(
             auth()->user(),
             $request->validated('current_password'),
             $request->validated('password')
         );
 
-        if (! $changed) {
-            return back()->withErrors(['current_password' => 'Current password is incorrect.']);
-        }
-
         return redirect()
             ->route('portal.profile.show')
             ->with('success', 'Password changed successfully.');
+    }
+
+    private function customer(Request $request): Customer
+    {
+        /** @var Customer */
+        return $request->attributes->get('portal_customer')
+            ?? $this->service->getByUser(auth()->user());
     }
 }

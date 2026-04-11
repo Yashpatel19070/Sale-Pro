@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Requests\Portal;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rules\Password;
 
 class ChangePortalPasswordRequest extends FormRequest
 {
@@ -17,7 +18,7 @@ class ChangePortalPasswordRequest extends FormRequest
     {
         return [
             'current_password' => ['required', 'string'],
-            'password' => ['required', 'string', 'min:8', 'confirmed'],
+            'password' => ['required', 'confirmed', Password::defaults()],
         ];
     }
 }

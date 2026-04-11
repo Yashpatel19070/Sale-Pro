@@ -87,7 +87,7 @@ Route::middleware('guest')->name('portal.')->group(function () {
 });
 
 // ── Portal Authenticated Routes ───────────────────────────────────────────────
-Route::middleware(['auth', 'verified:portal.verification.notice', 'role:customer', 'active'])
+Route::middleware(['auth', 'verified:portal.verification.notice', 'role:customer', 'active', 'customer.active'])
     ->name('portal.')->group(function () {
 
         // Email verification — exempt from the verified middleware
