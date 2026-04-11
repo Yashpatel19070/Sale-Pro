@@ -6,28 +6,25 @@ namespace App\Enums;
 
 enum CustomerStatus: string
 {
-    case Lead     = 'lead';
-    case Prospect = 'prospect';
-    case Active   = 'active';
-    case Churned  = 'churned';
+    case Active = 'active';
+    case Inactive = 'inactive';
+    case Blocked = 'blocked';
 
     public function label(): string
     {
         return match ($this) {
-            self::Lead     => 'Lead',
-            self::Prospect => 'Prospect',
-            self::Active   => 'Active Customer',
-            self::Churned  => 'Churned',
+            self::Active => 'Active',
+            self::Inactive => 'Inactive',
+            self::Blocked => 'Blocked',
         };
     }
 
     public function color(): string
     {
         return match ($this) {
-            self::Lead     => 'blue',
-            self::Prospect => 'yellow',
-            self::Active   => 'green',
-            self::Churned  => 'gray',
+            self::Active => 'green',
+            self::Inactive => 'yellow',
+            self::Blocked => 'red',
         };
     }
 }

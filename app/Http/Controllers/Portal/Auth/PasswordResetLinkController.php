@@ -1,0 +1,28 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Http\Controllers\Portal\Auth;
+
+use App\Http\Controllers\Controller;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Password;
+use Illuminate\View\View;
+
+class PasswordResetLinkController extends Controller
+{
+    public function create(): View
+    {
+        return view('portal.auth.forgot-password');
+    }
+
+    public function store(Request $request): RedirectResponse
+    {
+        $request->validate(['email' => ['required', 'email']]);
+
+        Password::sendResetLink($request->only('email'));
+
+        return back()->with('status', 'If that email exists, a reset link has been sent.');
+    }
+}

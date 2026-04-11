@@ -7,99 +7,164 @@ namespace App\Services;
 use App\Enums\CustomerStatus;
 use App\Models\Customer;
 use App\Models\User;
-use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 
 class CustomerService
 {
-    // ── Read ──────────────────────────────────────────────────────────────────
-
     /**
-     * Paginated, filtered customer list scoped to the requesting user's access.
+     * Return a paginated list of customers.
      *
-     * Role priority (checked in order): admin > manager > sales
-     * A user with multiple roles always gets the highest-privilege scope.
-     *
-     * @param array{
-     *   search?: string,
-     *   status?: string,
-     *   source?: string,
-     *   assigned_to?: int,
-     *   department_id?: int,
-     * } $filters
+     * @param  array{search?: string, status?: string}  $filters
      */
-    public function list(User $actor, array $filters = [], int $perPage = 20): LengthAwarePaginator
+    public function paginate(array $filters): LengthAwarePaginator
     {
-        $query = Customer::with(['assignedTo:id,name', 'department:id,name']);
-
-        // Scope by role priority — admin sees all, manager sees dept, sales sees assigned
-        if ($actor->hasRole('admin')) {
-            // No additional scope — admin sees everything
-        } elseif ($actor->hasRole('manager') && $actor->department_id !== null) {
-            $query->inDepartment($actor->department_id);
-        } else {
-            // Sales (or manager without dept) — scope to assigned only
-            $query->assignedTo($actor->id);
-        }
-
-        // Apply filters
-        $query
-            ->when(isset($filters['search']), fn ($q) => $q->search($filters['search']))
-            ->when(isset($filters['status']), fn ($q) => $q->where('status', $filters['status']))
-            ->when(isset($filters['source']), fn ($q) => $q->where('source', $filters['source']))
-            ->when(isset($filters['assigned_to']), fn ($q) => $q->where('assigned_to', $filters['assigned_to']))
-            ->when(isset($filters['department_id']), fn ($q) => $q->inDepartment($filters['department_id']))
-            ->latest();
-
-        return $query->paginate($perPage)->withQueryString();
+        return Customer::query()
+            ->when(
+                isset($filters['search']) && $filters['search'] !== '',
+                fn ($q) => $q->search($filters['search'])
+            )
+            ->when(
+                isset($filters['status']) && $filters['status'] !== '',
+                fn ($q) => $q->byStatus(CustomerStatus::from($filters['status']))
+            )
+            ->latest()
+            ->paginate(20)
+            ->withQueryString();
     }
 
-    // ── Write ─────────────────────────────────────────────────────────────────
-
-    public function create(array $data): Customer
+    /**
+     * Create a new customer.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    public function store(array $data): Customer
     {
-        // created_by / updated_by stamped by CustomerObserver.
-        // No defaults applied here — status and source are required fields validated
-        // by StoreCustomerRequest. Country is nullable and stored as-is.
         return Customer::create($data);
     }
 
+    /**
+     * Update an existing customer.
+     *
+     * @param  array<string, mixed>  $data
+     */
     public function update(Customer $customer, array $data): Customer
     {
-        // updated_by stamped by CustomerObserver
         $customer->update($data);
 
-        return $customer->refresh();
+        return $customer->fresh();
     }
 
+    /**
+     * Change the status of a customer.
+     */
     public function changeStatus(Customer $customer, CustomerStatus $status): Customer
     {
-        // updated_by stamped by CustomerObserver
-        $customer->update(['status' => $status]);
+        $customer->update(['status' => $status->value]);
 
-        return $customer->refresh();
+        return $customer->fresh();
     }
 
-    public function assign(Customer $customer, ?int $userId): Customer
-    {
-        // updated_by stamped by CustomerObserver
-        $customer->update(['assigned_to' => $userId]);
-
-        return $customer->refresh();
-    }
-
+    /**
+     * Soft-delete a customer.
+     */
     public function delete(Customer $customer): void
     {
         $customer->delete();
     }
 
-    public function restore(Customer $customer): Customer
+    /**
+     * Register a new customer from the portal.
+     * Creates a User account + Customer record in a single transaction.
+     *
+     * @param  array{name: string, email: string, password: string, phone: string, company_name: ?string, address: string, city: string, state: string, postal_code: string, country: string}  $data
+     */
+    public function register(array $data): Customer
     {
-        $customer->restore();
+        return DB::transaction(function () use ($data) {
+            $user = User::create([
+                'name' => $data['name'],
+                'email' => $data['email'],
+                'password' => Hash::make($data['password']),
+            ]);
 
-        return $customer->refresh();
+            $user->assignRole('customer');
+
+            return Customer::create([
+                'user_id' => $user->id,
+                'name' => $data['name'],
+                'email' => $data['email'],
+                'phone' => $data['phone'],
+                'company_name' => $data['company_name'] ?? null,
+                'address' => $data['address'],
+                'city' => $data['city'],
+                'state' => $data['state'],
+                'postal_code' => $data['postal_code'],
+                'country' => $data['country'],
+                'status' => CustomerStatus::Active->value,
+            ]);
+        });
     }
 
-    // ── Future: Import / Export ───────────────────────────────────────────────
-    // CSV import and export will be added as a dedicated ImportExport module.
-    // Do NOT add importCsv() or exportCsv() here.
+    /**
+     * Get the Customer profile linked to a User.
+     */
+    public function getByUser(User $user): Customer
+    {
+        return Customer::where('user_id', $user->id)->firstOrFail();
+    }
+
+    /**
+     * Update the customer's own profile (portal use only).
+     * Does NOT allow email or status change — those are admin-only.
+     *
+     * @param  array{name: string, phone: string, company_name: ?string, address: string, city: string, state: string, postal_code: string, country: string}  $data
+     */
+    public function updateProfile(Customer $customer, array $data): Customer
+    {
+        $customer->update([
+            'name' => $data['name'],
+            'phone' => $data['phone'],
+            'company_name' => $data['company_name'] ?? null,
+            'address' => $data['address'],
+            'city' => $data['city'],
+            'state' => $data['state'],
+            'postal_code' => $data['postal_code'],
+            'country' => $data['country'],
+        ]);
+
+        $customer->user->update(['name' => $data['name']]);
+
+        return $customer->fresh();
+    }
+
+    /**
+     * Force-verify the email of the customer's linked portal account.
+     * No-op if the customer has no portal user or is already verified.
+     */
+    public function verifyEmail(Customer $customer): void
+    {
+        if ($customer->user === null || $customer->user->hasVerifiedEmail()) {
+            return;
+        }
+
+        $customer->user->markEmailAsVerified();
+    }
+
+    /**
+     * Change the customer's password.
+     * Verifies current password before updating.
+     * Returns false if current password is wrong.
+     */
+    public function changePassword(User $user, string $currentPassword, string $newPassword): bool
+    {
+        if (! Hash::check($currentPassword, $user->password)) {
+            return false;
+        }
+
+        $user->update(['password' => Hash::make($newPassword)]);
+
+        return true;
+    }
 }

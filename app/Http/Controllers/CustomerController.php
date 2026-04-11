@@ -4,13 +4,11 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
-use App\Enums\CustomerSource;
 use App\Enums\CustomerStatus;
+use App\Http\Requests\ChangeCustomerStatusRequest;
 use App\Http\Requests\StoreCustomerRequest;
 use App\Http\Requests\UpdateCustomerRequest;
 use App\Models\Customer;
-use App\Models\Department;
-use App\Models\User;
 use App\Services\CustomerService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -20,92 +18,71 @@ class CustomerController extends Controller
 {
     public function __construct(private readonly CustomerService $service) {}
 
-    // ── Index ─────────────────────────────────────────────────────────────────
-
     public function index(Request $request): View
     {
         $this->authorize('viewAny', Customer::class);
 
-        $customers = $this->service->list(
-            actor:   $request->user(),
-            filters: $request->only(['search', 'status', 'source', 'assigned_to', 'department_id']),
+        $customers = $this->service->paginate(
+            $request->only(['search', 'status'])
         );
 
         return view('customers.index', [
-            'customers'   => $customers,
-            'statuses'    => CustomerStatus::cases(),
-            'sources'     => CustomerSource::cases(),
-            'salesUsers'  => User::role('sales')->orderBy('name')->get(['id', 'name']),
-            'departments' => Department::orderBy('name')->get(['id', 'name']),
+            'customers' => $customers,
+            'statuses' => CustomerStatus::cases(),
+            'filters' => $request->only(['search', 'status']),
         ]);
     }
-
-    // ── Create / Store ────────────────────────────────────────────────────────
 
     public function create(): View
     {
         $this->authorize('create', Customer::class);
 
         return view('customers.create', [
-            'statuses'    => CustomerStatus::cases(),
-            'sources'     => CustomerSource::cases(),
-            'salesUsers'  => User::role('sales')->orderBy('name')->get(['id', 'name']),
-            'departments' => Department::orderBy('name')->get(['id', 'name']),
+            'statuses' => CustomerStatus::cases(),
         ]);
     }
 
     public function store(StoreCustomerRequest $request): RedirectResponse
     {
-        $customer = $this->service->create($request->validated());
+        $this->authorize('create', Customer::class);
+
+        $this->service->store($request->validated());
 
         return redirect()
-            ->route('customers.show', $customer)
+            ->route('customers.index')
             ->with('success', 'Customer created successfully.');
     }
-
-    // ── Show ──────────────────────────────────────────────────────────────────
 
     public function show(Customer $customer): View
     {
         $this->authorize('view', $customer);
 
-        $customer->load([
-            'assignedTo:id,name',
-            'department:id,name',
-            'createdBy:id,name',
-            'updatedBy:id,name',
+        return view('customers.show', [
+            'customer' => $customer,
+            'statuses' => CustomerStatus::cases(),
         ]);
-
-        return view('customers.show', compact('customer'));
     }
-
-    // ── Edit / Update ─────────────────────────────────────────────────────────
 
     public function edit(Customer $customer): View
     {
         $this->authorize('update', $customer);
 
-        $customer->load(['assignedTo:id,name', 'department:id,name']);
-
         return view('customers.edit', [
-            'customer'    => $customer,
-            'statuses'    => CustomerStatus::cases(),
-            'sources'     => CustomerSource::cases(),
-            'salesUsers'  => User::role('sales')->orderBy('name')->get(['id', 'name']),
-            'departments' => Department::orderBy('name')->get(['id', 'name']),
+            'customer' => $customer,
+            'statuses' => CustomerStatus::cases(),
         ]);
     }
 
     public function update(UpdateCustomerRequest $request, Customer $customer): RedirectResponse
     {
+        $this->authorize('update', $customer);
+
         $this->service->update($customer, $request->validated());
 
         return redirect()
             ->route('customers.show', $customer)
             ->with('success', 'Customer updated successfully.');
     }
-
-    // ── Delete / Restore ──────────────────────────────────────────────────────
 
     public function destroy(Customer $customer): RedirectResponse
     {
@@ -115,57 +92,31 @@ class CustomerController extends Controller
 
         return redirect()
             ->route('customers.index')
-            ->with('success', 'Customer deleted.');
+            ->with('success', 'Customer deleted successfully.');
     }
 
-    public function restore(Customer $trashedCustomer): RedirectResponse
+    public function changeStatus(ChangeCustomerStatusRequest $request, Customer $customer): RedirectResponse
     {
-        $this->authorize('restore', $trashedCustomer);
-
-        $this->service->restore($trashedCustomer);
-
-        return redirect()
-            ->route('customers.show', $trashedCustomer)
-            ->with('success', 'Customer restored.');
-    }
-
-    // ── Assign ────────────────────────────────────────────────────────────────
-
-    public function assign(Request $request, Customer $customer): RedirectResponse
-    {
-        $this->authorize('assign', $customer);
-
-        $request->validate([
-            'assigned_to' => ['nullable', 'exists:users,id'],
-        ]);
-
-        // null clears the assignment; non-zero sets it
-        $userId = $request->filled('assigned_to') ? $request->integer('assigned_to') : null;
-
-        $this->service->assign($customer, $userId);
-
-        return back()->with('success', 'Customer assigned.');
-    }
-
-    // ── Status ────────────────────────────────────────────────────────────────
-
-    public function changeStatus(Request $request, Customer $customer): RedirectResponse
-    {
-        // Uses dedicated 'changeStatus' policy method — sales CANNOT change status
         $this->authorize('changeStatus', $customer);
-
-        $request->validate([
-            'status' => ['required', 'in:lead,prospect,active,churned'],
-        ]);
 
         $this->service->changeStatus(
             $customer,
-            CustomerStatus::from($request->string('status')->toString()),
+            CustomerStatus::from($request->validated('status'))
         );
 
-        return back()->with('success', 'Status updated.');
+        return redirect()
+            ->back()
+            ->with('success', 'Customer status updated.');
     }
 
-    // ── Future: Import / Export ───────────────────────────────────────────────
-    // importForm() and import() will be added when the ImportExport module is built.
+    public function verifyEmail(Customer $customer): RedirectResponse
+    {
+        $this->authorize('update', $customer);
+
+        $this->service->verifyEmail($customer);
+
+        return redirect()
+            ->back()
+            ->with('success', 'Email marked as verified.');
+    }
 }

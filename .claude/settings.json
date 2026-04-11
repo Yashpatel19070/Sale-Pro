@@ -1,5 +1,17 @@
 {
   "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/npc/sale-pro/.claude/hooks/php-guard.sh",
+            "timeout": 3000
+          }
+        ]
+      }
+    ],
     "PostToolUse": [
       {
         "matcher": "Edit|Write|Bash",
@@ -8,6 +20,16 @@
             "type": "command",
             "command": "code-review-graph update --quiet",
             "timeout": 5000
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/npc/sale-pro/.claude/hooks/pint-format.sh",
+            "timeout": 10000
           }
         ]
       }

@@ -8,7 +8,6 @@ use App\Models\User;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
-use Database\Seeders\DepartmentSeeder;
 
 class DatabaseSeeder extends Seeder
 {
@@ -19,16 +18,18 @@ class DatabaseSeeder extends Seeder
         $this->call([
             RoleSeeder::class,
             DepartmentSeeder::class,
+            CustomerRoleSeeder::class,
+            CustomerPermissionSeeder::class,
             CustomerSeeder::class,
         ]);
 
         $admin = User::firstOrCreate(
             ['email' => 'admin@sale-pro.test'],
             [
-                'name'              => 'System Admin',
-                'password'          => Hash::make('password'),
-                'status'            => 'active',
-                'timezone'          => 'UTC',
+                'name' => 'System Admin',
+                'password' => Hash::make('password'),
+                'status' => 'active',
+                'timezone' => 'UTC',
                 'email_verified_at' => now(),
             ]
         );
@@ -37,10 +38,10 @@ class DatabaseSeeder extends Seeder
         $manager = User::firstOrCreate(
             ['email' => 'manager@sale-pro.test'],
             [
-                'name'              => 'Sales Manager',
-                'password'          => Hash::make('password'),
-                'status'            => 'active',
-                'timezone'          => 'UTC',
+                'name' => 'Sales Manager',
+                'password' => Hash::make('password'),
+                'status' => 'active',
+                'timezone' => 'UTC',
                 'email_verified_at' => now(),
             ]
         );
@@ -49,10 +50,10 @@ class DatabaseSeeder extends Seeder
         $sales = User::firstOrCreate(
             ['email' => 'sales@sale-pro.test'],
             [
-                'name'              => 'Sales Rep',
-                'password'          => Hash::make('password'),
-                'status'            => 'active',
-                'timezone'          => 'UTC',
+                'name' => 'Sales Rep',
+                'password' => Hash::make('password'),
+                'status' => 'active',
+                'timezone' => 'UTC',
                 'email_verified_at' => now(),
             ]
         );
