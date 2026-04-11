@@ -23,6 +23,11 @@
                             {{ __('Departments') }}
                         </x-nav-link>
                     @endif
+                    @can('roles.view')
+                        <x-nav-link :href="route('roles.index')" :active="request()->routeIs('roles.*')">
+                            {{ __('Roles') }}
+                        </x-nav-link>
+                    @endcan
                 </div>
             </div>
 
@@ -86,6 +91,11 @@
                     {{ __('Departments') }}
                 </x-responsive-nav-link>
             @endif
+            @can('roles.view')
+                <x-responsive-nav-link :href="route('roles.index')" :active="request()->routeIs('roles.*')">
+                    {{ __('Roles') }}
+                </x-responsive-nav-link>
+            @endcan
         </div>
 
         <!-- Responsive Settings Options -->

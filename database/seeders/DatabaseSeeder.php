@@ -24,10 +24,11 @@ class DatabaseSeeder extends Seeder
         $admin = User::firstOrCreate(
             ['email' => 'admin@sale-pro.test'],
             [
-                'name'     => 'System Admin',
-                'password' => Hash::make('password'),
-                'status'   => 'active',
-                'timezone' => 'UTC',
+                'name'              => 'System Admin',
+                'password'          => Hash::make('password'),
+                'status'            => 'active',
+                'timezone'          => 'UTC',
+                'email_verified_at' => now(),
             ]
         );
         $admin->syncRoles('admin');
@@ -35,10 +36,11 @@ class DatabaseSeeder extends Seeder
         $manager = User::firstOrCreate(
             ['email' => 'manager@sale-pro.test'],
             [
-                'name'     => 'Sales Manager',
-                'password' => Hash::make('password'),
-                'status'   => 'active',
-                'timezone' => 'UTC',
+                'name'              => 'Sales Manager',
+                'password'          => Hash::make('password'),
+                'status'            => 'active',
+                'timezone'          => 'UTC',
+                'email_verified_at' => now(),
             ]
         );
         $manager->syncRoles('manager');
@@ -46,10 +48,11 @@ class DatabaseSeeder extends Seeder
         $sales = User::firstOrCreate(
             ['email' => 'sales@sale-pro.test'],
             [
-                'name'     => 'Sales Rep',
-                'password' => Hash::make('password'),
-                'status'   => 'active',
-                'timezone' => 'UTC',
+                'name'              => 'Sales Rep',
+                'password'          => Hash::make('password'),
+                'status'            => 'active',
+                'timezone'          => 'UTC',
+                'email_verified_at' => now(),
             ]
         );
         $sales->syncRoles('sales');

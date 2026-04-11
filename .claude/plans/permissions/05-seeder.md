@@ -1,3 +1,22 @@
+# Permissions Module — Permission Enum + RoleSeeder Updates
+
+## `app/Enums/Permission.php` — Add Roles Permissions
+
+Add two new constants:
+
+```php
+// Roles
+const ROLES_VIEW   = 'roles.view';
+const ROLES_MANAGE = 'roles.manage';
+```
+
+## `database/seeders/RoleSeeder.php` — Full Update
+
+- Seed `roles.view` and `roles.manage` permissions
+- Set `is_admin` / `is_super` flags on roles after creation
+- Clear role caches after seeding
+
+```php
 <?php
 
 declare(strict_types=1);
@@ -44,22 +63,21 @@ class RoleSeeder extends Seeder
         $admin = Role::firstOrCreate(['name' => 'admin', 'guard_name' => 'web']);
         $admin->update(['is_admin' => true, 'is_super' => false]);
         $admin->syncPermissions([
-            Permission::USERS_VIEW_ANY,       Permission::USERS_VIEW,
-            Permission::USERS_CREATE,         Permission::USERS_EDIT,
-            Permission::USERS_DELETE,         Permission::USERS_RESTORE,
-            Permission::USERS_CHANGE_STATUS,  Permission::USERS_RESET_PASSWORD,
+            Permission::USERS_VIEW_ANY, Permission::USERS_VIEW,
+            Permission::USERS_CREATE,   Permission::USERS_EDIT,
+            Permission::USERS_DELETE,   Permission::USERS_RESTORE,
+            Permission::USERS_CHANGE_STATUS, Permission::USERS_RESET_PASSWORD,
             Permission::DEPARTMENTS_VIEW_ANY, Permission::DEPARTMENTS_VIEW,
             Permission::DEPARTMENTS_CREATE,   Permission::DEPARTMENTS_EDIT,
             Permission::DEPARTMENTS_DELETE,   Permission::DEPARTMENTS_RESTORE,
-            Permission::ROLES_VIEW,           Permission::ROLES_MANAGE,
+            Permission::ROLES_VIEW,     Permission::ROLES_MANAGE,
         ]);
 
         // 3. Manager — is_admin=false
         $manager = Role::firstOrCreate(['name' => 'manager', 'guard_name' => 'web']);
         $manager->update(['is_admin' => false, 'is_super' => false]);
         $manager->syncPermissions([
-            Permission::USERS_VIEW_ANY,       Permission::USERS_VIEW,
-            Permission::USERS_EDIT,
+            Permission::USERS_VIEW_ANY, Permission::USERS_VIEW, Permission::USERS_EDIT,
             Permission::DEPARTMENTS_VIEW_ANY, Permission::DEPARTMENTS_VIEW,
         ]);
 
@@ -76,3 +94,4 @@ class RoleSeeder extends Seeder
         Cache::forget('roles.super');
     }
 }
+```

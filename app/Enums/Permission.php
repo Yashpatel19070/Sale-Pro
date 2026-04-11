@@ -23,4 +23,8 @@ class Permission
     const DEPARTMENTS_EDIT     = 'departments.edit';
     const DEPARTMENTS_DELETE   = 'departments.delete';
     const DEPARTMENTS_RESTORE  = 'departments.restore';
+
+    // Roles
+    const ROLES_VIEW   = 'roles.view';
+    const ROLES_MANAGE = 'roles.manage';
 }
