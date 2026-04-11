@@ -27,4 +27,13 @@ class Permission
     // Roles
     const ROLES_VIEW   = 'roles.view';
     const ROLES_MANAGE = 'roles.manage';
+
+    // Customers
+    const CUSTOMERS_VIEW_ANY = 'customers.view-any';
+    const CUSTOMERS_VIEW     = 'customers.view';
+    const CUSTOMERS_CREATE   = 'customers.create';
+    const CUSTOMERS_EDIT     = 'customers.edit';
+    const CUSTOMERS_DELETE   = 'customers.delete';
+    const CUSTOMERS_RESTORE  = 'customers.restore';
+    const CUSTOMERS_ASSIGN   = 'customers.assign';
 }

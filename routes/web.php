@@ -1,6 +1,7 @@
 <?php
 
 use App\Enums\Permission;
+use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\DepartmentController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\RoleController;
@@ -36,6 +37,26 @@ Route::middleware(['auth', 'load_perms', 'verified', 'active'])->group(function 
         ->name('departments.toggle-active');
     Route::post('departments/{trashedDepartment}/restore', [DepartmentController::class, 'restore'])
         ->name('departments.restore');
+
+    // Customers
+    // Static routes MUST come before /{customer} or Laravel captures them as an ID.
+    Route::get('customers',        [CustomerController::class, 'index'])  ->name('customers.index');
+    Route::get('customers/create', [CustomerController::class, 'create']) ->name('customers.create');
+    Route::post('customers',       [CustomerController::class, 'store'])  ->name('customers.store');
+
+    // Dynamic routes
+    Route::get('customers/{customer}',      [CustomerController::class, 'show'])    ->name('customers.show');
+    Route::get('customers/{customer}/edit', [CustomerController::class, 'edit'])    ->name('customers.edit');
+    Route::put('customers/{customer}',      [CustomerController::class, 'update'])  ->name('customers.update');
+    Route::delete('customers/{customer}',   [CustomerController::class, 'destroy']) ->name('customers.destroy');
+
+    // Custom actions on existing records
+    Route::post('customers/{customer}/assign', [CustomerController::class, 'assign'])       ->name('customers.assign');
+    Route::post('customers/{customer}/status', [CustomerController::class, 'changeStatus']) ->name('customers.change-status');
+
+    // Restore — {trashedCustomer} resolved via Route::bind in AppServiceProvider (no ->withTrashed() needed)
+    Route::post('customers/{trashedCustomer}/restore', [CustomerController::class, 'restore'])
+        ->name('customers.restore');
 
     // Roles (admin + permission-gated)
     Route::middleware(['admin', 'permission:' . Permission::ROLES_VIEW])->group(function () {

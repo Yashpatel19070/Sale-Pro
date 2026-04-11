@@ -34,6 +34,13 @@ class RoleSeeder extends Seeder
             Permission::DEPARTMENTS_RESTORE,
             Permission::ROLES_VIEW,
             Permission::ROLES_MANAGE,
+            Permission::CUSTOMERS_VIEW_ANY,
+            Permission::CUSTOMERS_VIEW,
+            Permission::CUSTOMERS_CREATE,
+            Permission::CUSTOMERS_EDIT,
+            Permission::CUSTOMERS_DELETE,
+            Permission::CUSTOMERS_RESTORE,
+            Permission::CUSTOMERS_ASSIGN,
         ];
 
         foreach ($permissions as $permission) {
@@ -52,6 +59,10 @@ class RoleSeeder extends Seeder
             Permission::DEPARTMENTS_CREATE,   Permission::DEPARTMENTS_EDIT,
             Permission::DEPARTMENTS_DELETE,   Permission::DEPARTMENTS_RESTORE,
             Permission::ROLES_VIEW,           Permission::ROLES_MANAGE,
+            Permission::CUSTOMERS_VIEW_ANY,   Permission::CUSTOMERS_VIEW,
+            Permission::CUSTOMERS_CREATE,     Permission::CUSTOMERS_EDIT,
+            Permission::CUSTOMERS_DELETE,     Permission::CUSTOMERS_RESTORE,
+            Permission::CUSTOMERS_ASSIGN,
         ]);
 
         // 3. Manager — is_admin=false
@@ -61,6 +72,9 @@ class RoleSeeder extends Seeder
             Permission::USERS_VIEW_ANY,       Permission::USERS_VIEW,
             Permission::USERS_EDIT,
             Permission::DEPARTMENTS_VIEW_ANY, Permission::DEPARTMENTS_VIEW,
+            Permission::CUSTOMERS_VIEW_ANY,   Permission::CUSTOMERS_VIEW,
+            Permission::CUSTOMERS_CREATE,     Permission::CUSTOMERS_EDIT,
+            Permission::CUSTOMERS_ASSIGN,
         ]);
 
         // 4. Sales — is_admin=false
@@ -69,6 +83,9 @@ class RoleSeeder extends Seeder
         $sales->syncPermissions([
             Permission::USERS_VIEW,
             Permission::USERS_EDIT,
+            Permission::CUSTOMERS_VIEW_ANY,
+            Permission::CUSTOMERS_VIEW,
+            Permission::CUSTOMERS_EDIT,
         ]);
 
         // 5. Clear middleware caches

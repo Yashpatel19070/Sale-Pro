@@ -23,6 +23,11 @@
                             {{ __('Departments') }}
                         </x-nav-link>
                     @endif
+                    @if(auth()->user()->hasAnyRole(['admin', 'manager', 'sales']))
+                        <x-nav-link :href="route('customers.index')" :active="request()->routeIs('customers.*')">
+                            {{ __('Customers') }}
+                        </x-nav-link>
+                    @endif
                     @can('roles.view')
                         <x-nav-link :href="route('roles.index')" :active="request()->routeIs('roles.*')">
                             {{ __('Roles') }}
@@ -89,6 +94,11 @@
                 </x-responsive-nav-link>
                 <x-responsive-nav-link :href="route('departments.index')" :active="request()->routeIs('departments.*')">
                     {{ __('Departments') }}
+                </x-responsive-nav-link>
+            @endif
+            @if(auth()->user()->hasAnyRole(['admin', 'manager', 'sales']))
+                <x-responsive-nav-link :href="route('customers.index')" :active="request()->routeIs('customers.*')">
+                    {{ __('Customers') }}
                 </x-responsive-nav-link>
             @endif
             @can('roles.view')
