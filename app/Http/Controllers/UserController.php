@@ -72,7 +72,7 @@ class UserController extends Controller
     {
         $this->authorize('view', $user);
 
-        $user->load(['department:id,name', 'roles:name', 'createdBy:id,name', 'updatedBy:id,name']);
+        $user->load(['department:id,name', 'roles.permissions', 'createdBy:id,name', 'updatedBy:id,name']);
 
         return view('users.show', compact('user'));
     }
