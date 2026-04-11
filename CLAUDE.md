@@ -11,10 +11,10 @@
 
 ## Skills
 Before any Laravel design, architecture, or implementation task, read and follow:
-/mnt/skills/user/laravel-system-design/SKILL.md
+/Users/npc/sale-pro/.claude/skills/laravel-system-design.md
 
 Reference files are at:
-/mnt/skills/user/laravel-system-design/references/
+/Users/npc/sale-pro/.claude/skills/references
 
 ## Rules
 - No Repository pattern. No DTOs. No Docker initially.
