@@ -28,6 +28,11 @@
                             {{ __('Customers') }}
                         </x-nav-link>
                     @endif
+                    @can('product_categories.viewAny')
+                        <x-nav-link :href="route('product-categories.index')" :active="request()->routeIs('product-categories.*')">
+                            {{ __('Categories') }}
+                        </x-nav-link>
+                    @endcan
                     @can('roles.view')
                         <x-nav-link :href="route('roles.index')" :active="request()->routeIs('roles.*')">
                             {{ __('Roles') }}
@@ -101,6 +106,11 @@
                     {{ __('Customers') }}
                 </x-responsive-nav-link>
             @endif
+            @can('product_categories.viewAny')
+                <x-responsive-nav-link :href="route('product-categories.index')" :active="request()->routeIs('product-categories.*')">
+                    {{ __('Categories') }}
+                </x-responsive-nav-link>
+            @endcan
             @can('roles.view')
                 <x-responsive-nav-link :href="route('roles.index')" :active="request()->routeIs('roles.*')">
                     {{ __('Roles') }}

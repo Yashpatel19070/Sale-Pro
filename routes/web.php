@@ -9,6 +9,7 @@ use App\Http\Controllers\Portal\Auth\NewPasswordController as PortalNewPasswordC
 use App\Http\Controllers\Portal\Auth\PasswordResetLinkController as PortalPasswordResetController;
 use App\Http\Controllers\Portal\Auth\RegisteredUserController as PortalRegisterController;
 use App\Http\Controllers\Portal\ProfileController as PortalProfileController;
+use App\Http\Controllers\ProductCategoryController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\UserController;
@@ -60,6 +61,9 @@ Route::prefix('admin')->group(function () {
             Route::patch('/{customer}/status', [CustomerController::class, 'changeStatus'])->name('changeStatus');
             Route::post('/{customer}/verify-email', [CustomerController::class, 'verifyEmail'])->name('verifyEmail');
         });
+
+        // Product Categories
+        Route::resource('product-categories', ProductCategoryController::class);
 
         // Roles (admin + permission-gated)
         Route::middleware(['admin', 'permission:'.Permission::ROLES_VIEW])->group(function () {

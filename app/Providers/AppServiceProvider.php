@@ -32,6 +32,7 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(Department::class, DepartmentPolicy::class);
         Gate::policy(User::class, UserPolicy::class);
         Gate::policy(Customer::class, CustomerPolicy::class);
+        Gate::policy(ProductCategory::class, ProductCategoryPolicy::class);
 
         User::observe(UserObserver::class);
 
