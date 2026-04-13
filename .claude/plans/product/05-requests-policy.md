@@ -1,7 +1,7 @@
 # Product Module — Requests & Policy
 
-## StoreProductRequest
-`app/Http/Requests/Product/StoreProductRequest.php`
+## ProductRequest (base class)
+`app/Http/Requests/Product/ProductRequest.php`
 
 ```php
 <?php
@@ -12,70 +12,21 @@ namespace App\Http\Requests\Product;
 
 use Illuminate\Foundation\Http\FormRequest;
 
-class StoreProductRequest extends FormRequest
+abstract class ProductRequest extends FormRequest
 {
-    public function authorize(): bool
+    // Uppercase SKU before validation so the unique rule checks the stored
+    // case-sensitive value correctly (DB stores uppercase only).
+    protected function prepareForValidation(): void
     {
-        return true; // controller calls $this->authorize()
+        if ($this->filled('sku')) {
+            $this->merge(['sku' => strtoupper($this->input('sku'))]);
+        }
     }
 
-    public function rules(): array
+    protected function sharedRules(): array
     {
         return [
             'category_id'    => ['nullable', 'integer', 'exists:product_categories,id'],
-            'sku'            => ['required', 'string', 'max:64', 'unique:products,sku', 'regex:/^[A-Za-z0-9\-\.]+$/'],
-            'name'           => ['required', 'string', 'max:200'],
-            'description'    => ['nullable', 'string', 'max:5000'],
-            'purchase_price' => ['nullable', 'numeric', 'min:0', 'max:9999999.99'],
-            'regular_price'  => ['required', 'numeric', 'min:0', 'max:9999999.99'],
-            'sale_price'     => ['nullable', 'numeric', 'min:0', 'max:9999999.99', 'lt:regular_price'],
-            'notes'          => ['nullable', 'string', 'max:500'],
-            'is_active'      => ['nullable', 'boolean'],
-        ];
-    }
-
-    public function messages(): array
-    {
-        return [
-            'sku.regex'        => 'SKU may only contain letters, numbers, hyphens, and dots.',
-            'sale_price.lt'    => 'Sale price must be less than the regular price.',
-        ];
-    }
-}
-```
-
----
-
-## UpdateProductRequest
-`app/Http/Requests/Product/UpdateProductRequest.php`
-
-```php
-<?php
-
-declare(strict_types=1);
-
-namespace App\Http\Requests\Product;
-
-use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Validation\Rule;
-
-class UpdateProductRequest extends FormRequest
-{
-    public function authorize(): bool
-    {
-        return true;
-    }
-
-    public function rules(): array
-    {
-        return [
-            'category_id'    => ['nullable', 'integer', 'exists:product_categories,id'],
-            // SKU is editable. Rule::unique()->ignore() allows saving the same SKU
-            // while still blocking another product from taking it.
-            // Changing SKU auto-regenerates slugs for all non-trashed listings.
-            'sku'            => ['required', 'string', 'max:64',
-                                 Rule::unique('products', 'sku')->ignore($this->product),
-                                 'regex:/^[A-Za-z0-9\-\.]+$/'],
             'name'           => ['required', 'string', 'max:200'],
             'description'    => ['nullable', 'string', 'max:5000'],
             'purchase_price' => ['nullable', 'numeric', 'min:0', 'max:9999999.99'],
@@ -92,6 +43,69 @@ class UpdateProductRequest extends FormRequest
             'sku.regex'     => 'SKU may only contain letters, numbers, hyphens, and dots.',
             'sale_price.lt' => 'Sale price must be less than the regular price.',
         ];
+    }
+}
+```
+
+---
+
+## StoreProductRequest
+`app/Http/Requests/Product/StoreProductRequest.php`
+
+```php
+<?php
+
+declare(strict_types=1);
+
+namespace App\Http\Requests\Product;
+
+class StoreProductRequest extends ProductRequest
+{
+    public function authorize(): bool
+    {
+        return $this->user()->can('create', \App\Models\Product::class);
+    }
+
+    public function rules(): array
+    {
+        return array_merge($this->sharedRules(), [
+            'sku' => ['required', 'string', 'max:64', 'unique:products,sku', 'regex:/^[A-Za-z0-9\-\.]+$/'],
+        ]);
+    }
+}
+```
+
+---
+
+## UpdateProductRequest
+`app/Http/Requests/Product/UpdateProductRequest.php`
+
+```php
+<?php
+
+declare(strict_types=1);
+
+namespace App\Http\Requests\Product;
+
+use Illuminate\Validation\Rule;
+
+class UpdateProductRequest extends ProductRequest
+{
+    public function authorize(): bool
+    {
+        return $this->user()->can('update', $this->route('product'));
+    }
+
+    public function rules(): array
+    {
+        return array_merge($this->sharedRules(), [
+            // SKU is editable. Rule::unique()->ignore() allows saving the same SKU
+            // while still blocking another product from taking it.
+            // prepareForValidation() uppercases before this rule runs.
+            'sku' => ['required', 'string', 'max:64',
+                      Rule::unique('products', 'sku')->ignore($this->route('product')),
+                      'regex:/^[A-Za-z0-9\-\.]+$/'],
+        ]);
     }
 }
 ```
@@ -169,9 +183,12 @@ Gate::policy(Product::class, ProductPolicy::class);
 ```
 
 ## Checklist
+- [ ] `ProductRequest` base — `prepareForValidation()` uppercases SKU before validation
+- [ ] `ProductRequest` base — `sharedRules()` covers all shared fields; `messages()` for sku.regex + sale_price.lt
+- [ ] `StoreProductRequest` — `authorize()` uses `$this->user()->can('create', Product::class)`
 - [ ] `StoreProductRequest` — SKU required + regex + unique
-- [ ] `UpdateProductRequest` — SKU present with `Rule::unique()->ignore($this->product)`
-- [ ] `UpdateProductRequest` — SKU regex matches store request
+- [ ] `UpdateProductRequest` — `authorize()` uses `$this->user()->can('update', $this->route('product'))`
+- [ ] `UpdateProductRequest` — SKU with `Rule::unique()->ignore($this->route('product'))`
 - [ ] `category_id` — nullable + exists in both requests
 - [ ] `regular_price` — required numeric
 - [ ] `purchase_price` — nullable numeric (internal)

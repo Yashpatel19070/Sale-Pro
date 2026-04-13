@@ -25,6 +25,8 @@ class Product extends Model
     /** @use HasFactory<ProductFactory> */
     use HasFactory, SoftDeletes;
 
+    protected $hidden = ['purchase_price'];
+
     protected $fillable = [
         'category_id',
         'sku',
@@ -51,7 +53,7 @@ class Product extends Model
 
     public function category(): BelongsTo
     {
-        return $this->belongsTo(ProductCategory::class, 'category_id');
+        return $this->belongsTo(ProductCategory::class);
     }
 
     public function listings(): HasMany
@@ -166,7 +168,8 @@ class ProductFactory extends Factory
 ```
 
 ## Checklist
-- [ ] `sku` in `$fillable`; immutable (never updated via service after creation)
+- [ ] `purchase_price` in `$hidden` — internal cost, not exposed via toArray()/JSON
+- [ ] `sku` in `$fillable`; editable — changing it triggers slug regeneration in ProductListingService
 - [ ] `purchase_price`, `regular_price`, `sale_price` all cast to `decimal:2`
 - [ ] `category()` BelongsTo ProductCategory
 - [ ] `listings()` HasMany ProductListing

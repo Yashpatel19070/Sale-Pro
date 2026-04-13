@@ -38,7 +38,7 @@ class ProductService
                 fn ($q) => $q->where('category_id', $filters['category_id'])
             )
             ->when(
-                isset($filters['active']),
+                isset($filters['active']) && $filters['active'] !== '',
                 fn ($q) => $q->where('is_active', (bool) $filters['active'])
             )
             ->orderBy('name')
@@ -99,14 +99,15 @@ class ProductService
      */
     public function delete(Product $product): void
     {
-        if ($product->hasActiveListings()) {
-            throw new RuntimeException(
-                "Cannot delete \"{$product->name}\" — it has active listings. Deactivate or delete the listings first."
-            );
-        }
-
         DB::transaction(function () use ($product): void {
-            // Soft-delete inactive listings too (no orphans)
+            // Guard inside transaction to prevent TOCTOU race — check and delete
+            // are atomic; no concurrent request can sneak an active listing in between.
+            if ($product->hasActiveListings()) {
+                throw new RuntimeException(
+                    "Cannot delete \"{$product->name}\" — it has active listings. Deactivate or delete the listings first."
+                );
+            }
+
             $product->listings()->delete();
             $product->delete();
         });
@@ -114,10 +115,10 @@ class ProductService
 
     /**
      * Restore a soft-deleted product.
+     * Route model binding resolves the trashed model via withTrashed() on the route.
      */
-    public function restore(int $id): Product
+    public function restore(Product $product): Product
     {
-        $product = Product::onlyTrashed()->findOrFail($id);
         $product->restore();
 
         return $product;
@@ -153,14 +154,14 @@ class ProductService
 | `create(data)` | Insert product; uppercases SKU in transaction |
 | `update(product, data)` | Update product (uppercases SKU); on SKU change calls `regenerateSlugsForProduct()`; returns fresh model with category |
 | `delete(product)` | Soft-delete; throws if active listings exist; soft-deletes inactive listings |
-| `restore(id)` | Restore soft-deleted product by ID |
+| `restore(product)` | Restore soft-deleted product (model resolved via withTrashed route binding) |
 | `toggleActive(product)` | Flip is_active; returns fresh model |
 | `dropdown()` | Active products for select inputs (id, sku, name) |
 
 ## Key Rules
 - SKU uppercased on both create and update
 - SKU change triggers `ProductListingService::regenerateSlugsForProduct()` — bulk slug regen + redirects, inside the same transaction
-- Delete blocked by `hasActiveListings()` — throw `RuntimeException` with friendly message
+- Delete blocked by `hasActiveListings()` — guard is **inside** the transaction (TOCTOU prevention)
 - All writes wrapped in `DB::transaction()`
 - `fresh('category')` after update to return eager-loaded data
 - Soft-deleting a product cascades to soft-delete its inactive listings

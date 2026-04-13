@@ -138,28 +138,48 @@ it('validates SKU uniqueness', function () {
 
 // ── Edit / Update ──────────────────────────────────────────────────────────
 
+it('admin can view product detail', function () {
+    $admin   = User::factory()->create()->assignRole('admin');
+    $product = Product::factory()->create();
+
+    $this->actingAs($admin)
+        ->get(route('products.show', $product))
+        ->assertOk()
+        ->assertViewIs('products.show');
+});
+
+it('admin can view product edit form', function () {
+    $admin   = User::factory()->create()->assignRole('admin');
+    $product = Product::factory()->create();
+
+    $this->actingAs($admin)
+        ->get(route('products.edit', $product))
+        ->assertOk()
+        ->assertViewIs('products.edit');
+});
+
 it('admin can edit a product', function () {
     $admin   = User::factory()->create()->assignRole('admin');
     $product = Product::factory()->create();
 
     $this->actingAs($admin)
         ->patch(route('products.update', $product), [
-            'name' => 'Updated Name', 'regular_price' => 25.00,
+            'sku' => $product->sku, 'name' => 'Updated Name', 'regular_price' => 25.00,
         ])
         ->assertRedirect(route('products.show', $product));
 
     $this->assertDatabaseHas('products', ['id' => $product->id, 'name' => 'Updated Name']);
 });
 
-it('does not update SKU even if passed', function () {
+it('updates and uppercases SKU when changed', function () {
     $admin   = User::factory()->create()->assignRole('admin');
     $product = Product::factory()->create(['sku' => 'ORIGINAL-SKU']);
 
     $this->actingAs($admin)->patch(route('products.update', $product), [
-        'sku' => 'NEW-SKU', 'name' => 'X', 'regular_price' => 10,
+        'sku' => 'new-sku', 'name' => 'X', 'regular_price' => 10,
     ]);
 
-    $this->assertDatabaseHas('products', ['id' => $product->id, 'sku' => 'ORIGINAL-SKU']);
+    $this->assertDatabaseHas('products', ['id' => $product->id, 'sku' => 'NEW-SKU']);
 });
 
 // ── Delete ─────────────────────────────────────────────────────────────────
@@ -242,12 +262,12 @@ it('creates a product and uppercases sku', function () {
         ->and($product->name)->toBe('Test');
 });
 
-it('update does not change sku', function () {
-    $product = Product::factory()->create(['sku' => 'KEEP-THIS']);
+it('updates sku and uppercases it', function () {
+    $product = Product::factory()->create(['sku' => 'OLD-SKU']);
 
-    $this->service->update($product, ['sku' => 'CHANGE', 'name' => 'New', 'regular_price' => 5]);
+    $this->service->update($product, ['sku' => 'new-sku', 'name' => 'New', 'regular_price' => 5]);
 
-    expect($product->fresh()->sku)->toBe('KEEP-THIS');
+    expect($product->fresh()->sku)->toBe('NEW-SKU');
 });
 
 it('throws when deleting product with active listings', function () {
@@ -282,7 +302,8 @@ it('restore undeletes a soft-deleted product', function () {
     $product = Product::factory()->create();
     $product->delete();
 
-    $restored = $this->service->restore($product->id);
+    $trashed  = Product::onlyTrashed()->findOrFail($product->id);
+    $restored = $this->service->restore($trashed);
     expect($restored->deleted_at)->toBeNull();
 });
 
@@ -308,15 +329,18 @@ it('currentPrice returns regular_price when no sale', function () {
 ## Checklist
 - [ ] Feature test: auth gates (unauthenticated redirect, role-based forbidden)
 - [ ] Feature test: index with search + category filter
+- [ ] Feature test: show GET — assertOk + assertViewIs('products.show')
+- [ ] Feature test: edit GET — assertOk + assertViewIs('products.edit')
 - [ ] Feature test: create + SKU uppercase; `regular_price` used (not `base_price`)
 - [ ] Feature test: `sale_price` must be less than `regular_price`
 - [ ] Feature test: SKU uniqueness validation
-- [ ] Feature test: update does NOT change SKU
+- [ ] Feature test: update uppercases changed SKU
 - [ ] Feature test: delete blocked by active listings
 - [ ] Feature test: toggleActive flips state
 - [ ] Feature test: restore works
 - [ ] Unit test: service::create uppercases SKU
-- [ ] Unit test: service::update strips SKU
+- [ ] Unit test: service::update uppercases changed SKU
 - [ ] Unit test: service::delete throws on active listings
 - [ ] Unit test: service::delete cascades inactive listings
+- [ ] Unit test: restore accepts Product model (resolved via withTrashed route binding)
 - [ ] Unit test: `currentPrice()` returns sale_price when set
