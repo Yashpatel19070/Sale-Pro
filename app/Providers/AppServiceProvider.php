@@ -9,6 +9,7 @@ use App\Models\Customer;
 use App\Models\Department;
 use App\Models\Product;
 use App\Models\ProductCategory;
+use App\Models\ProductListing;
 use App\Models\Role;
 use App\Models\User;
 use App\Observers\UserObserver;
@@ -16,6 +17,7 @@ use App\Policies\AuditLogPolicy;
 use App\Policies\CustomerPolicy;
 use App\Policies\DepartmentPolicy;
 use App\Policies\ProductCategoryPolicy;
+use App\Policies\ProductListingPolicy;
 use App\Policies\ProductPolicy;
 use App\Policies\UserPolicy;
 use Illuminate\Auth\Events\Failed;
@@ -46,12 +48,12 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(Product::class, ProductPolicy::class);
         Gate::policy(ProductCategory::class, ProductCategoryPolicy::class);
         Gate::policy(Activity::class, AuditLogPolicy::class);
+        Gate::policy(ProductListing::class, ProductListingPolicy::class);
 
         // Auth event listeners — log login, logout, failed attempts
-        Event::listen(Login::class,  [LogAuthActivity::class, 'handleLogin']);
+        Event::listen(Login::class, [LogAuthActivity::class, 'handleLogin']);
         Event::listen(Logout::class, [LogAuthActivity::class, 'handleLogout']);
         Event::listen(Failed::class, [LogAuthActivity::class, 'handleFailed']);
-
 
         User::observe(UserObserver::class);
 

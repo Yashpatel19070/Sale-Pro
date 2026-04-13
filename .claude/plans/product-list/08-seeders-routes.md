@@ -33,17 +33,14 @@ class ProductListingPermissionSeeder extends Seeder
             \Spatie\Permission\Models\Permission::firstOrCreate(['name' => $permission]);
         }
 
-        // Super Admin — all permissions
-        $superAdmin = Role::findByName('super-admin');
-        $superAdmin->givePermissionTo($permissions);
+        // Super Admin — all permissions (null-safe: role may not exist in all envs)
+        Role::where('name', 'super-admin')->first()?->givePermissionTo($permissions);
 
         // Admin — all permissions
-        $admin = Role::findByName('admin');
-        $admin->givePermissionTo($permissions);
+        Role::where('name', 'admin')->first()?->givePermissionTo($permissions);
 
-        // Staff — view only
-        $staff = Role::findByName('staff');
-        $staff->givePermissionTo([
+        // Sales — view only (maps to staff-level access in this project; tests use assignRole('sales'))
+        Role::where('name', 'sales')->first()?->givePermissionTo([
             Permission::PRODUCT_LISTINGS_VIEW_ANY,
             Permission::PRODUCT_LISTINGS_VIEW,
         ]);

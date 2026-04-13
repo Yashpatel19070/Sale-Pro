@@ -79,8 +79,22 @@ class Permission
     const PRODUCTS_DELETE = 'products.delete';
 
     const PRODUCTS_RESTORE = 'products.restore';
+
     // Audit Log
     const AUDIT_LOG_VIEW_ANY = 'audit-log.view-any';
 
     const AUDIT_LOG_VIEW = 'audit-log.view';
+
+    // Product Listings
+    const PRODUCT_LISTINGS_VIEW_ANY = 'product-listings.view-any';
+
+    const PRODUCT_LISTINGS_VIEW = 'product-listings.view';
+
+    const PRODUCT_LISTINGS_CREATE = 'product-listings.create';
+
+    const PRODUCT_LISTINGS_EDIT = 'product-listings.edit';
+
+    const PRODUCT_LISTINGS_DELETE = 'product-listings.delete';
+
+    const PRODUCT_LISTINGS_RESTORE = 'product-listings.restore';
 }

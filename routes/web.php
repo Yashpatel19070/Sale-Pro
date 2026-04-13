@@ -1,6 +1,7 @@
 <?php
 
 use App\Enums\Permission;
+use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\DepartmentController;
 use App\Http\Controllers\Portal\Auth\AuthenticatedSessionController as PortalSessionController;
@@ -9,9 +10,9 @@ use App\Http\Controllers\Portal\Auth\NewPasswordController as PortalNewPasswordC
 use App\Http\Controllers\Portal\Auth\PasswordResetLinkController as PortalPasswordResetController;
 use App\Http\Controllers\Portal\Auth\RegisteredUserController as PortalRegisterController;
 use App\Http\Controllers\Portal\ProfileController as PortalProfileController;
-use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\ProductCategoryController;
 use App\Http\Controllers\ProductController;
+use App\Http\Controllers\ProductListingController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\UserController;
@@ -73,6 +74,14 @@ Route::prefix('admin')->group(function () {
             ->name('products.toggle-active');
         Route::post('products/{product}/restore', [ProductController::class, 'restore'])
             ->name('products.restore')
+            ->withTrashed();
+
+        // Product Listings
+        Route::resource('product-listings', ProductListingController::class);
+        Route::post('product-listings/{productListing}/toggle-visibility', [ProductListingController::class, 'toggleVisibility'])
+            ->name('product-listings.toggle-visibility');
+        Route::post('product-listings/{productListing}/restore', [ProductListingController::class, 'restore'])
+            ->name('product-listings.restore')
             ->withTrashed();
 
         // Audit Log (read-only)

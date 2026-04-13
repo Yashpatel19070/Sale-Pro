@@ -1,27 +1,3 @@
-# ProductList Module — Controller
-
-## File
-`app/Http/Controllers/ProductListingController.php`
-
-## Named Routes
-
-| Action | Method | URL | Route Name |
-|--------|--------|-----|------------|
-| index | GET | `/admin/product-listings` | `product-listings.index` |
-| create | GET | `/admin/product-listings/create` | `product-listings.create` |
-| store | POST | `/admin/product-listings` | `product-listings.store` |
-| show | GET | `/admin/product-listings/{productListing}` | `product-listings.show` |
-| edit | GET | `/admin/product-listings/{productListing}/edit` | `product-listings.edit` |
-| update | PUT/PATCH | `/admin/product-listings/{productListing}` | `product-listings.update` |
-| destroy | DELETE | `/admin/product-listings/{productListing}` | `product-listings.destroy` |
-| toggleVisibility | POST | `/admin/product-listings/{productListing}/toggle-visibility` | `product-listings.toggle-visibility` |
-| restore | POST | `/admin/product-listings/{trashedProductListing}/restore` | `product-listings.restore` |
-
-> Note: can also create from a product's show page — `?product_id={id}` pre-selects the parent.
-
-## Full Implementation
-
-```php
 <?php
 
 declare(strict_types=1);
@@ -42,15 +18,15 @@ class ProductListingController extends Controller
 {
     public function __construct(
         private readonly ProductListingService $service,
-        private readonly ProductService        $productService,
+        private readonly ProductService $productService,
     ) {}
 
     public function index(Request $request): View
     {
         $this->authorize('viewAny', ProductListing::class);
 
-        $listings     = $this->service->list($request->only(['search', 'product_id', 'visibility', 'active']));
-        $products     = $this->productService->dropdown();
+        $listings = $this->service->list($request->only(['search', 'product_id', 'visibility', 'active']));
+        $products = $this->productService->dropdown();
         $visibilities = ListingVisibility::options();
 
         return view('product_listings.index', compact('listings', 'products', 'visibilities'));
@@ -60,8 +36,8 @@ class ProductListingController extends Controller
     {
         $this->authorize('create', ProductListing::class);
 
-        $products          = $this->productService->dropdown();
-        $visibilities      = ListingVisibility::options();
+        $products = $this->productService->dropdown();
+        $visibilities = ListingVisibility::options();
         $selectedProductId = $request->integer('product_id') ?: null;
 
         return view('product_listings.create', compact('products', 'visibilities', 'selectedProductId'));
@@ -94,7 +70,7 @@ class ProductListingController extends Controller
         $visibilities = ListingVisibility::options();
 
         return view('product_listings.edit', [
-            'listing'      => $productListing,
+            'listing' => $productListing,
             'visibilities' => $visibilities,
         ]);
     }
@@ -130,13 +106,15 @@ class ProductListingController extends Controller
         $this->authorize('update', $productListing);
 
         $listing = $this->service->toggleVisibility($productListing);
-        $state   = $listing->visibility->label();
+        $state = $listing->visibility->label();
 
         return back()->with('success', "Listing set to {$state}.");
     }
 
     public function restore(ProductListing $productListing): RedirectResponse
     {
+        abort_if(! $productListing->trashed(), 404);
+
         $this->authorize('restore', ProductListing::class);
 
         $listing = $this->service->restore($productListing);
@@ -146,11 +124,3 @@ class ProductListingController extends Controller
             ->with('success', 'Listing restored.');
     }
 }
-```
-
-## Notes
-- `create` accepts `?product_id` query param to pre-select product in create form
-- `show` eager loads full product (includes prices for display)
-- Edit form shows product name as read-only; only title + visibility are editable
-- `visibilities` passed from `ListingVisibility::options()` for select inputs
-- No adjustStock action — stock management is not part of this module

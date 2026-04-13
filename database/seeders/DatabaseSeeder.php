@@ -25,6 +25,8 @@ class DatabaseSeeder extends Seeder
             ProductCategorySeeder::class,
             ProductPermissionSeeder::class,
             ProductSeeder::class,
+            ProductListingPermissionSeeder::class,
+            ProductListingSeeder::class,
             AuditLogPermissionSeeder::class,
         ]);
 
