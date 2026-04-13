@@ -25,6 +25,7 @@ class DatabaseSeeder extends Seeder
             ProductCategorySeeder::class,
             ProductPermissionSeeder::class,
             ProductSeeder::class,
+            AuditLogPermissionSeeder::class,
         ]);
 
         $admin = User::firstOrCreate(

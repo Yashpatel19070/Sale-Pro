@@ -79,4 +79,8 @@ class Permission
     const PRODUCTS_DELETE = 'products.delete';
 
     const PRODUCTS_RESTORE = 'products.restore';
+    // Audit Log
+    const AUDIT_LOG_VIEW_ANY = 'audit-log.view-any';
+
+    const AUDIT_LOG_VIEW = 'audit-log.view';
 }

@@ -9,6 +9,7 @@ use App\Http\Controllers\Portal\Auth\NewPasswordController as PortalNewPasswordC
 use App\Http\Controllers\Portal\Auth\PasswordResetLinkController as PortalPasswordResetController;
 use App\Http\Controllers\Portal\Auth\RegisteredUserController as PortalRegisterController;
 use App\Http\Controllers\Portal\ProfileController as PortalProfileController;
+use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\ProductCategoryController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ProfileController;
@@ -73,6 +74,10 @@ Route::prefix('admin')->group(function () {
         Route::post('products/{product}/restore', [ProductController::class, 'restore'])
             ->name('products.restore')
             ->withTrashed();
+
+        // Audit Log (read-only)
+        Route::get('audit-log', [AuditLogController::class, 'index'])->name('audit-log.index');
+        Route::get('audit-log/{activity}', [AuditLogController::class, 'show'])->name('audit-log.show');
 
         // Roles (admin + permission-gated)
         Route::middleware(['admin', 'permission:'.Permission::ROLES_VIEW])->group(function () {

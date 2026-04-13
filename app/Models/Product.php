@@ -11,11 +11,21 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Spatie\Activitylog\Support\LogOptions;
+use Spatie\Activitylog\Models\Concerns\LogsActivity;
 
 class Product extends Model
 {
     /** @use HasFactory<ProductFactory> */
-    use HasFactory, SoftDeletes;
+    use HasFactory, LogsActivity, SoftDeletes;
+
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->logFillable()
+            ->logExcept(['purchase_price'])
+            ->logOnlyDirty();
+    }
 
     protected $hidden = ['purchase_price'];
 

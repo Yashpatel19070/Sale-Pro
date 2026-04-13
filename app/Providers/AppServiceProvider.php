@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Providers;
 
+use App\Listeners\LogAuthActivity;
 use App\Models\Customer;
 use App\Models\Department;
 use App\Models\Product;
@@ -11,21 +12,27 @@ use App\Models\ProductCategory;
 use App\Models\Role;
 use App\Models\User;
 use App\Observers\UserObserver;
+use App\Policies\AuditLogPolicy;
 use App\Policies\CustomerPolicy;
 use App\Policies\DepartmentPolicy;
 use App\Policies\ProductCategoryPolicy;
 use App\Policies\ProductPolicy;
 use App\Policies\UserPolicy;
+use Illuminate\Auth\Events\Failed;
+use Illuminate\Auth\Events\Login;
+use Illuminate\Auth\Events\Logout;
 use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Auth\Notifications\VerifyEmail;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\ServiceProvider;
+use Spatie\Activitylog\Models\Activity;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -38,6 +45,13 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(Customer::class, CustomerPolicy::class);
         Gate::policy(Product::class, ProductPolicy::class);
         Gate::policy(ProductCategory::class, ProductCategoryPolicy::class);
+        Gate::policy(Activity::class, AuditLogPolicy::class);
+
+        // Auth event listeners — log login, logout, failed attempts
+        Event::listen(Login::class,  [LogAuthActivity::class, 'handleLogin']);
+        Event::listen(Logout::class, [LogAuthActivity::class, 'handleLogout']);
+        Event::listen(Failed::class, [LogAuthActivity::class, 'handleFailed']);
+
 
         User::observe(UserObserver::class);
 
