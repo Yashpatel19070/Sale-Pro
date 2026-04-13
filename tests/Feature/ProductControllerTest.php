@@ -23,8 +23,8 @@ it('denies unauthenticated access to products index', function () {
     $this->get(route('products.index'))->assertRedirect(route('login'));
 });
 
-it('denies staff role from creating a product', function () {
-    $user = User::factory()->create()->assignRole('staff');
+it('denies sales role from creating a product', function () {
+    $user = User::factory()->create()->assignRole('sales');
     $this->actingAs($user)->get(route('products.create'))->assertForbidden();
 });
 
