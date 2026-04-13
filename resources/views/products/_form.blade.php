@@ -1,20 +1,15 @@
 {{-- $product = existing model on edit, null on create --}}
 <div class="space-y-5">
 
-    {{-- SKU: input on create, read-only display on edit --}}
+    {{-- SKU --}}
     <div>
         <x-input-label for="sku" value="SKU *" />
-        @if (isset($product) && $product !== null)
-            <p class="mt-1 font-mono text-sm font-medium text-gray-900">{{ $product->sku }}</p>
-            <p class="mt-0.5 text-xs text-gray-400">SKU cannot be changed after creation.</p>
-        @else
-            <x-text-input id="sku" name="sku" type="text" class="mt-1 block w-full uppercase"
-                          maxlength="64"
-                          value="{{ old('sku') }}"
-                          placeholder="e.g. WIDGET-001" required />
-            <p class="mt-1 text-xs text-gray-500">Letters, numbers, hyphens and dots only.</p>
-            <x-input-error :messages="$errors->get('sku')" class="mt-1" />
-        @endif
+        <x-text-input id="sku" name="sku" type="text" class="mt-1 block w-full uppercase"
+                      maxlength="64"
+                      value="{{ old('sku', $product->sku ?? '') }}"
+                      placeholder="e.g. WIDGET-001" required />
+        <p class="mt-1 text-xs text-gray-500">Letters, numbers, hyphens and dots only. Changing SKU will regenerate listing slugs.</p>
+        <x-input-error :messages="$errors->get('sku')" class="mt-1" />
     </div>
 
     {{-- Name --}}
