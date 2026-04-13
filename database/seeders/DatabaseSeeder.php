@@ -23,6 +23,8 @@ class DatabaseSeeder extends Seeder
             ProductCategoryPermissionSeeder::class,
             CustomerSeeder::class,
             ProductCategorySeeder::class,
+            ProductPermissionSeeder::class,
+            ProductSeeder::class,
         ]);
 
         $admin = User::firstOrCreate(

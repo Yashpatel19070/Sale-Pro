@@ -10,6 +10,7 @@ use App\Http\Controllers\Portal\Auth\PasswordResetLinkController as PortalPasswo
 use App\Http\Controllers\Portal\Auth\RegisteredUserController as PortalRegisterController;
 use App\Http\Controllers\Portal\ProfileController as PortalProfileController;
 use App\Http\Controllers\ProductCategoryController;
+use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\UserController;
@@ -64,6 +65,14 @@ Route::prefix('admin')->group(function () {
 
         // Product Categories
         Route::resource('product-categories', ProductCategoryController::class);
+
+        // Products
+        Route::resource('products', ProductController::class);
+        Route::post('products/{product}/toggle-active', [ProductController::class, 'toggleActive'])
+            ->name('products.toggle-active');
+        Route::post('products/{product}/restore', [ProductController::class, 'restore'])
+            ->name('products.restore')
+            ->withTrashed();
 
         // Roles (admin + permission-gated)
         Route::middleware(['admin', 'permission:'.Permission::ROLES_VIEW])->group(function () {

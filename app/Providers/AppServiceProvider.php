@@ -6,11 +6,15 @@ namespace App\Providers;
 
 use App\Models\Customer;
 use App\Models\Department;
+use App\Models\Product;
+use App\Models\ProductCategory;
 use App\Models\Role;
 use App\Models\User;
 use App\Observers\UserObserver;
 use App\Policies\CustomerPolicy;
 use App\Policies\DepartmentPolicy;
+use App\Policies\ProductCategoryPolicy;
+use App\Policies\ProductPolicy;
 use App\Policies\UserPolicy;
 use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Auth\Notifications\VerifyEmail;
@@ -32,6 +36,7 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(Department::class, DepartmentPolicy::class);
         Gate::policy(User::class, UserPolicy::class);
         Gate::policy(Customer::class, CustomerPolicy::class);
+        Gate::policy(Product::class, ProductPolicy::class);
         Gate::policy(ProductCategory::class, ProductCategoryPolicy::class);
 
         User::observe(UserObserver::class);

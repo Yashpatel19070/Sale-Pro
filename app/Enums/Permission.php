@@ -66,4 +66,17 @@ class Permission
     const CUSTOMERS_RESTORE = 'customers.restore';
 
     const CUSTOMERS_ASSIGN = 'customers.assign';
+
+    // Products
+    const PRODUCTS_VIEW_ANY = 'products.view-any';
+
+    const PRODUCTS_VIEW = 'products.view';
+
+    const PRODUCTS_CREATE = 'products.create';
+
+    const PRODUCTS_EDIT = 'products.edit';
+
+    const PRODUCTS_DELETE = 'products.delete';
+
+    const PRODUCTS_RESTORE = 'products.restore';
 }
