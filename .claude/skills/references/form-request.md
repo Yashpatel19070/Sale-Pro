@@ -88,11 +88,19 @@ public function authorize(): bool
     return $this->user()->can(Permission::ORDERS_CREATE);
 }
 
-// ✅ Route model binding available in authorize()
+// ✅ Update requests — pass the bound model, not just a permission string
 public function authorize(): bool
 {
-    return $this->user()->can(Permission::ORDERS_EDIT);
-    // If you need the model: $this->route('order') gives the bound Order
+    return $this->user()->can('update', $this->route('order'));
+    // Passes the model to the Policy — Policy's update() method fires
+}
+
+// ❌ Never return true — it bypasses the Policy entirely
+// The controller's $this->authorize() is a SEPARATE gate check.
+// FormRequest authorize() should ALSO enforce permissions.
+public function authorize(): bool
+{
+    return true; // WRONG — everyone can submit this form
 }
 
 // ❌ Never hardcode permission strings
@@ -105,6 +113,74 @@ public function authorize(): bool
 public function authorize(): bool
 {
     return $this->user()->hasRole('admin'); // wrong layer, wrong approach
+}
+```
+
+> **Critical:** `$this->authorize()` in the controller and `authorize()` in the FormRequest are
+> independent checks. Both must be correct. `return true` in FormRequest means anyone who can
+> reach the route can submit the form — the controller gate runs separately but too late if
+> the FormRequest already passed.
+
+---
+
+## prepareForValidation() — Normalise Input Before Rules Run
+
+Use `prepareForValidation()` when a field is always stored in a canonical form (uppercase, slug, trimmed).
+**Why it matters for unique rules:** if the DB stores `ABC-001` but the user submits `abc-001`, the
+`unique` rule sees them as different strings and passes a duplicate through. Normalise first.
+
+```php
+abstract class ProductRequest extends FormRequest
+{
+    // Runs before rules() — merges normalised value so unique rule checks correct case
+    protected function prepareForValidation(): void
+    {
+        if ($this->filled('sku')) {
+            $this->merge(['sku' => strtoupper($this->input('sku'))]);
+        }
+    }
+}
+```
+
+**Pattern: base FormRequest class for shared normalisation + shared rules**
+```php
+// Base class — normalisation + shared rules + messages
+abstract class ProductRequest extends FormRequest
+{
+    protected function prepareForValidation(): void { /* normalise */ }
+    protected function sharedRules(): array { /* common fields */ }
+    public function messages(): array { /* custom messages */ }
+}
+
+// Subclass — own authorize() + merge SKU rule
+class StoreProductRequest extends ProductRequest
+{
+    public function authorize(): bool
+    {
+        return $this->user()->can('create', Product::class);
+    }
+
+    public function rules(): array
+    {
+        return array_merge($this->sharedRules(), [
+            'sku' => ['required', 'unique:products,sku', ...],
+        ]);
+    }
+}
+
+class UpdateProductRequest extends ProductRequest
+{
+    public function authorize(): bool
+    {
+        return $this->user()->can('update', $this->route('product'));
+    }
+
+    public function rules(): array
+    {
+        return array_merge($this->sharedRules(), [
+            'sku' => ['required', Rule::unique('products', 'sku')->ignore($this->route('product')), ...],
+        ]);
+    }
 }
 ```
 
@@ -124,12 +200,13 @@ class UpdateUserRequest extends FormRequest
     {
         return [
             'name'  => ['required', 'string', 'max:255'],
-            // Ignore current user's ID when checking email uniqueness
+            // Ignore current record when checking email uniqueness
+            // ✅ Use $this->route('user') — not $this->user (magic property, PHPStan fails)
             'email' => [
                 'required',
                 'email',
                 'max:255',
-                Rule::unique('users', 'email')->ignore($this->route('user')->id),
+                Rule::unique('users', 'email')->ignore($this->route('user')),
             ],
             'is_active' => ['boolean'],
         ];

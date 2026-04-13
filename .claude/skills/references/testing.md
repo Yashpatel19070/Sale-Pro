@@ -237,6 +237,73 @@ $response->assertForbidden(); // 403
 $response->assertRedirect(route('login'));
 ```
 
+**Seed permissions before every test that uses roles:**
+```php
+beforeEach(function () {
+    $this->seed(RoleSeeder::class);         // creates roles first
+    $this->seed(ModulePermissionSeeder::class); // then module permissions
+});
+```
+RoleSeeder must run before any module permission seeder — permissions are assigned to roles inside
+the module seeder, which needs the roles to already exist.
+
+**Roles available after RoleSeeder:** `super-admin`, `admin`, `manager`, `sales`
+When you need a role that is **forbidden** from a resource, use `sales` — it has only customer/user
+view permissions and no access to products, departments, etc.
+
+---
+
+## Stub Future Module Dependencies Before Testing
+
+If the module you're implementing references a model or service from a **not-yet-built** module
+(e.g. Product → ProductListing), create minimal stubs so tests don't fail with class-not-found errors.
+
+**Required stub files:**
+```
+app/Models/XyzListing.php           ← minimal model: fillable, casts, SoftDeletes, BelongsTo back
+app/Services/XyzListingService.php  ← stub service: method signatures with no-op bodies
+database/migrations/xxxx_create_xyz_listings_table.php  ← minimal columns for FKs + assertions
+database/factories/XyzListingFactory.php  ← definition() + states the tests actually use
+```
+
+**Stub model example:**
+```php
+// app/Models/ProductListing.php
+// Stub — full implementation in the product-list module.
+class ProductListing extends Model
+{
+    use HasFactory, SoftDeletes;
+
+    protected $fillable = ['product_id', 'title', 'is_active'];
+
+    protected function casts(): array
+    {
+        return ['is_active' => 'boolean'];
+    }
+
+    public function product(): BelongsTo
+    {
+        return $this->belongsTo(Product::class);
+    }
+}
+```
+
+**Stub service example:**
+```php
+// app/Services/ProductListingService.php
+// Stub — full implementation in the product-list module.
+class ProductListingService
+{
+    public function regenerateSlugsForProduct(Product $product): void
+    {
+        // no-op until product-list module is implemented
+    }
+}
+```
+
+Mark all stub files with a `// Stub — full implementation in the <module> module.` comment so
+they're easy to identify and replace later.
+
 ---
 
 ## Useful Pest Assertions

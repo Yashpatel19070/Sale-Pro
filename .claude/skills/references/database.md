@@ -64,6 +64,16 @@ $table->unsignedInteger('price_cents'); // always store in cents, never float
 // Display: $order->price_cents / 100
 ```
 
+### Decimal Columns (prices stored as decimal, not cents)
+```php
+// ✅ CORRECT — unsignedDecimal() was removed in Laravel 10
+$table->decimal('price', 10, 2)->unsigned();
+$table->decimal('price', 10, 2)->unsigned()->nullable();
+
+// ❌ WRONG — does not exist in Laravel 10+, throws BadMethodCallException
+$table->unsignedDecimal('price', 10, 2);
+```
+
 ---
 
 ## Indexes — Deep Dive

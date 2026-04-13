@@ -34,6 +34,28 @@ public function update(Order $order, array $data): Order { }
 
 // ✅ Void only for true fire-and-forget deletes
 public function delete(Order $order): void { }
+
+// ✅ restore() accepts the model directly — route binding with withTrashed() resolves it
+public function restore(Order $order): Order
+{
+    $order->restore();
+    return $order;
+}
+
+// ❌ Never accept int for restore — redundant findOrFail when route binding already resolved it
+public function restore(int $id): Order
+{
+    $order = Order::onlyTrashed()->findOrFail($id); // unnecessary
+    $order->restore();
+    return $order;
+}
+```
+
+Route definition for restore must use `->withTrashed()` so binding resolves soft-deleted records:
+```php
+Route::post('orders/{order}/restore', [OrderController::class, 'restore'])
+    ->name('orders.restore')
+    ->withTrashed();
 ```
 
 ---
@@ -295,15 +317,71 @@ class ProcessOrderJob implements ShouldQueue
 
 ---
 
+## TOCTOU — Business Rule Guards Must Be Inside the Transaction
+
+If you check a condition then act on it, another request can change the condition
+between your check and your action. Put the guard **inside** the transaction.
+
+```php
+// ❌ TOCTOU race — guard outside transaction
+public function delete(Product $product): void
+{
+    if ($product->hasActiveListings()) {       // checked here
+        throw new \DomainException('...');
+    }
+    DB::transaction(function () use ($product) {  // gap — another request could add a listing
+        $product->listings()->delete();
+        $product->delete();
+    });
+}
+
+// ✅ Atomic — guard inside transaction
+public function delete(Product $product): void
+{
+    DB::transaction(function () use ($product): void {
+        if ($product->hasActiveListings()) {   // check + action atomic
+            throw new \DomainException('...');
+        }
+        $product->listings()->delete();
+        $product->delete();
+    });
+}
+```
+
+---
+
+## Boolean Filters From HTML Selects — Guard Against Empty String
+
+HTML `<select>` sends `active=` (empty string) for the "All" option.
+`isset()` alone passes it through; `(bool)''` = `false`, filtering to inactive only.
+
+```php
+// ❌ Empty string from "All" option passes isset(), casts to false → wrong filter
+->when(isset($filters['active']), fn ($q) => $q->where('is_active', (bool) $filters['active']))
+
+// ✅ Reject empty string explicitly
+->when(
+    isset($filters['active']) && $filters['active'] !== '',
+    fn ($q) => $q->where('is_active', (bool) $filters['active'])
+)
+```
+
+Apply the same `!== ''` guard to any filter whose value comes from a `<select>`.
+
+---
+
 ## Quick Reference
 
 ```
 - All business logic lives in the service — no exceptions
 - Multi-table writes → always DB::transaction()
+- Guard checks (hasActive*, isBlocked, etc.) must be INSIDE the transaction — TOCTOU
 - Fire events AFTER transaction, never inside
 - Accept models not IDs — (Order $order) not (int $orderId)
+- restore() accepts model (route binding resolves withTrashed) — not int ID
 - Accept $user as argument — never access $request inside service
 - Throw \DomainException for expected failures
 - Return the model — controller needs it
+- Boolean filter from HTML select: isset() && !== '' — not just isset()
 - Service is HTTP-agnostic — works from controller, job, command, test
 ```

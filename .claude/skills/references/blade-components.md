@@ -351,6 +351,41 @@ Usage:
 
 ---
 
+## Edit Forms — Required Fields Must Always Submit
+
+**If a field is `required` in the FormRequest, it must be submitted with the form — even on edit.**
+Displaying a value as plain text (a `<p>` tag) does not submit it. The form will fail validation
+silently and the page reloads looking like nothing saved.
+
+```blade
+{{-- ❌ WRONG — SKU displayed as text on edit, nothing submitted, validation fails silently --}}
+@if ($product)
+    <p>{{ $product->sku }}</p>   {{-- no <input>, no submission --}}
+@else
+    <input name="sku" ...>
+@endif
+
+{{-- ✅ CORRECT — always render an <input> so the value is submitted --}}
+<input name="sku" value="{{ old('sku', $product->sku ?? '') }}" ...>
+```
+
+If you want a field to appear read-only in the UI but still submit:
+```blade
+{{-- Visually read-only but still submits --}}
+<input name="sku" value="{{ old('sku', $product->sku ?? '') }}"
+       class="bg-gray-100 cursor-not-allowed" readonly />
+
+{{-- Or: hidden input + visible display --}}
+<input type="hidden" name="sku" value="{{ $product->sku }}">
+<p class="font-mono">{{ $product->sku }}</p>
+```
+
+**Checklist before writing any edit form:**
+- Every `required` field in UpdateXxxRequest has a corresponding `<input>` or `<select>` in the form
+- Every field that could change has `value="{{ old('field', $model->field ?? '') }}"` so it repopulates on validation failure
+
+---
+
 ## Quick Reference
 
 ```
