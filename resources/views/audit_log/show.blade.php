@@ -61,7 +61,7 @@
             </div>
 
             {{-- Changed values (model events) --}}
-            @if($activity->properties->has('attributes') && count($activity->properties->get('attributes', [])) > 0)
+            @if($activity->attribute_changes?->has('attributes') && count($activity->attribute_changes->get('attributes', [])) > 0)
                 <div class="mt-6 overflow-hidden rounded-lg bg-white shadow">
                     <div class="px-6 py-4">
                         <h3 class="text-sm font-medium text-gray-700">Changed Values</h3>
@@ -75,11 +75,11 @@
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-gray-200 bg-white">
-                            @foreach($activity->properties->get('attributes', []) as $field => $newValue)
+                            @foreach($activity->attribute_changes->get('attributes', []) as $field => $newValue)
                                 <tr>
                                     <td class="whitespace-nowrap px-6 py-3 text-sm font-medium text-gray-900">{{ $field }}</td>
                                     <td class="px-6 py-3 text-sm text-red-600">
-                                        {{ $activity->properties->get('old')[$field] ?? '—' }}
+                                        {{ $activity->attribute_changes->get('old')[$field] ?? '—' }}
                                     </td>
                                     <td class="px-6 py-3 text-sm text-green-700">{{ $newValue }}</td>
                                 </tr>
