@@ -27,7 +27,7 @@ class User extends Authenticatable implements MustVerifyEmail
     {
         return LogOptions::defaults()
             ->logFillable()
-            ->logExcept(['password', 'email_verified_at'])
+            ->logExcept(['password', 'remember_token', 'email_verified_at'])
             ->logOnlyDirty();
     }
 

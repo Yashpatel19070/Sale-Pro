@@ -45,7 +45,7 @@
                             <div class="grid grid-cols-3 gap-4 py-3">
                                 <dt class="text-sm font-medium text-gray-500">Model</dt>
                                 <dd class="col-span-2 text-sm text-gray-900">
-                                    {{ \App\Services\AuditLogService::SUBJECT_TYPES[$activity->subject_type] ?? class_basename($activity->subject_type) }}
+                                    {{ $subjectTypes[$activity->subject_type] ?? class_basename($activity->subject_type) }}
                                     #{{ $activity->subject_id }}
                                 </dd>
                             </div>
@@ -89,17 +89,7 @@
                 </div>
             @endif
 
-            {{-- Auth event details --}}
-            @if($activity->log_name === 'auth' && $activity->properties->isNotEmpty())
-                <div class="mt-6 overflow-hidden rounded-lg bg-white shadow">
-                    <div class="px-6 py-4">
-                        <h3 class="text-sm font-medium text-gray-700">Details</h3>
-                    </div>
-                    <div class="px-6 pb-5">
-                        <pre class="overflow-x-auto rounded bg-gray-50 p-4 text-sm">{{ json_encode($activity->properties, JSON_PRETTY_PRINT) }}</pre>
-                    </div>
-                </div>
-            @endif
+
 
         </div>
     </div>

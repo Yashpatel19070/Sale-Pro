@@ -34,12 +34,12 @@ class LogAuthActivity
 
     public function handleFailed(Failed $event): void
     {
-        // causer is unknown on failed — log email attempt + IP only
+        // causer is unknown on failed — log IP only
+        // DO NOT log $event->credentials['email'] — if a user accidentally
+        // types their password into the email field, it would be stored
+        // in plain text and exposed to any admin with audit-log.view
         activity('auth')
-            ->withProperties([
-                'ip'    => request()->ip(),
-                'email' => $event->credentials['email'] ?? null,
-            ])
+            ->withProperties(['ip' => request()->ip()])
             ->log('login-failed');
     }
 }
@@ -87,7 +87,7 @@ Failed login row:
   description:  'login-failed'
   causer_type:  null           ← unknown user
   causer_id:    null
-  properties:   { "ip": "127.0.0.1", "email": "attacker@example.com" }
+  properties:   { "ip": "127.0.0.1" }
 ```
 
 ---
@@ -106,4 +106,4 @@ Failed login row:
 - [ ] `handleLogin`, `handleLogout`, `handleFailed` methods implemented
 - [ ] `Event::listen` registered for all 3 events in `AppServiceProvider::boot()`
 - [ ] Auth events use `log_name = 'auth'`
-- [ ] Failed login records attempted email in properties (not as causer)
+- [ ] Failed login records IP only — never log the attempted email (credential leak risk)

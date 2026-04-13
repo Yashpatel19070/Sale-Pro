@@ -90,7 +90,7 @@
                         </td>
                         <td>
                             @if($activity->subject_type)
-                                {{ \App\Services\AuditLogService::SUBJECT_TYPES[$activity->subject_type] ?? class_basename($activity->subject_type) }}
+                                {{ $subjectTypes[$activity->subject_type] ?? class_basename($activity->subject_type) }}
                             @else
                                 <span class="text-gray-400">—</span>
                             @endif
@@ -158,7 +158,7 @@
                 <dt class="font-medium text-gray-500">Model</dt>
                 <dd class="col-span-2">
                     @if($activity->subject_type)
-                        {{ \App\Services\AuditLogService::SUBJECT_TYPES[$activity->subject_type] ?? class_basename($activity->subject_type) }}
+                        {{ $subjectTypes[$activity->subject_type] ?? class_basename($activity->subject_type) }}
                         #{{ $activity->subject_id }}
                     @else
                         <span class="text-gray-400">—</span>
@@ -177,8 +177,9 @@
             @endif
         </dl>
 
-        {{-- Changed values --}}
-        @if($activity->properties->has('attributes') && count($activity->properties->get('attributes', [])) > 0)
+        {{-- Changed values (model events) --}}
+        {{-- v5: before/after values are in attribute_changes, NOT properties --}}
+        @if($activity->attribute_changes?->has('attributes') && count($activity->attribute_changes->get('attributes', [])) > 0)
             <div class="mt-6">
                 <h3 class="font-semibold mb-3">Changed Values</h3>
                 <table class="table w-full text-sm">
@@ -190,11 +191,11 @@
                         </tr>
                     </thead>
                     <tbody>
-                        @foreach($activity->properties->get('attributes', []) as $field => $newValue)
+                        @foreach($activity->attribute_changes->get('attributes', []) as $field => $newValue)
                             <tr>
                                 <td class="font-medium">{{ $field }}</td>
                                 <td class="text-red-600">
-                                    {{ $activity->properties->get('old')[$field] ?? '—' }}
+                                    {{ $activity->attribute_changes->get('old')[$field] ?? '—' }}
                                 </td>
                                 <td class="text-green-600">{{ $newValue }}</td>
                             </tr>
@@ -204,13 +205,9 @@
             </div>
         @endif
 
-        {{-- Auth event properties (no old/new, just raw) --}}
-        @if($activity->log_name === 'auth' && $activity->properties->isNotEmpty())
-            <div class="mt-6">
-                <h3 class="font-semibold mb-3">Details</h3>
-                <pre class="bg-gray-50 rounded p-4 text-sm overflow-x-auto">{{ json_encode($activity->properties, JSON_PRETTY_PRINT) }}</pre>
-            </div>
-        @endif
+        {{-- Auth event details — render known-safe keys only, never json_encode dump --}}
+        {{-- properties holds manual withProperties() data: ip for auth events --}}
+        {{-- DO NOT dump $activity->properties as raw JSON — exposes any future field additions --}}
     </div>
 </x-app-layout>
 ```
@@ -221,8 +218,9 @@
 
 - [ ] `audit_log/index.blade.php` — table with 6 filters (log_name, subject_type, event, causer, date_from, date_to)
 - [ ] Index: event badge uses color-coding
-- [ ] Index: subject_type resolved to human label via `AuditLogService::SUBJECT_TYPES`
-- [ ] `audit_log/show.blade.php` — meta + changed values table + auth details block
-- [ ] Show: "Before / After" table only renders when `attributes` property exists
-- [ ] Show: auth event shows raw JSON properties block
+- [ ] Index: subject_type resolved via `$subjectTypes` variable (passed from controller, not service constant in Blade)
+- [ ] `audit_log/show.blade.php` — meta card + changed values table
+- [ ] Show: "Before / After" table reads from `$activity->attribute_changes` (v5), not `$activity->properties`
+- [ ] Show: IP rendered from `$activity->properties->get('ip')` in meta card — no raw JSON dump
+- [ ] Show: controller passes `$subjectTypes` so Blade doesn't reference `AuditLogService::` directly
 - [ ] Back link to index on show page

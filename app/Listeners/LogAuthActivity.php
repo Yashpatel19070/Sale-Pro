@@ -29,10 +29,7 @@ class LogAuthActivity
     public function handleFailed(Failed $event): void
     {
         activity('auth')
-            ->withProperties([
-                'ip' => request()->ip(),
-                'email' => $event->credentials['email'] ?? null,
-            ])
+            ->withProperties(['ip' => request()->ip()])
             ->log('login-failed');
     }
 }

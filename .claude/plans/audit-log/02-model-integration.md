@@ -12,20 +12,27 @@ The options are the same for every model — log all fillable fields, only when 
 
 ## Standard options block (copy to every model)
 
+> **v5 namespaces** — the trait and LogOptions moved in v5:
+
 ```php
-use Spatie\Activitylog\Traits\LogsActivity;
-use Spatie\Activitylog\LogOptions;
+use Spatie\Activitylog\Models\Concerns\LogsActivity;  // NOT Traits\LogsActivity
+use Spatie\Activitylog\Support\LogOptions;              // NOT Spatie\Activitylog\LogOptions
 ```
 
 ```php
 public function getActivitylogOptions(): LogOptions
 {
     return LogOptions::defaults()
-        ->logFillable()       // log all $fillable fields
-        ->logOnlyDirty()      // only record fields that actually changed
-        ->dontSubmitEmptyLogs(); // skip saves that change nothing
+        ->logFillable()    // log all $fillable fields
+        ->logOnlyDirty();  // only record fields that actually changed
+    // NOTE: dontSubmitEmptyLogs() does NOT exist in v5 — omit it
+    // logEmptyChanges defaults to true in v5 (logs even if no dirty attrs)
 }
 ```
+
+> **attribute_changes vs properties** — in v5, model before/after values are stored in
+> the `attribute_changes` column (not `properties`). Manual `.withProperties()` data
+> goes into `properties`. Access them as separate fields in Blade/code.
 
 ---
 
@@ -34,24 +41,24 @@ public function getActivitylogOptions(): LogOptions
 `app/Models/User.php`
 
 ```php
-// Add to imports:
-use Spatie\Activitylog\Traits\LogsActivity;
-use Spatie\Activitylog\LogOptions;
+use Spatie\Activitylog\Models\Concerns\LogsActivity;
+use Spatie\Activitylog\Support\LogOptions;
+```
 
-// Add to use statement:
-use HasFactory, Notifiable, LogsActivity;
+```php
+use HasFactory, HasRoles, LogsActivity, Notifiable, SoftDeletes;
 
-// Add method:
 public function getActivitylogOptions(): LogOptions
 {
     return LogOptions::defaults()
         ->logFillable()
-        ->logOnlyDirty()
-        ->dontSubmitEmptyLogs();
+        ->logExcept(['password', 'remember_token', 'email_verified_at'])
+        ->logOnlyDirty();
 }
 ```
 
-> Note: `password` should NOT be in `$fillable` — it will not be logged. This is correct by design.
+> `password` and `remember_token` are in `$fillable` — must be explicitly excluded via `logExcept`.
+> Without this, sensitive tokens appear in the audit log.
 
 ---
 
@@ -60,8 +67,8 @@ public function getActivitylogOptions(): LogOptions
 `app/Models/Customer.php`
 
 ```php
-use Spatie\Activitylog\Traits\LogsActivity;
-use Spatie\Activitylog\LogOptions;
+use Spatie\Activitylog\Models\Concerns\LogsActivity;
+use Spatie\Activitylog\Support\LogOptions;
 ```
 
 ```php
@@ -71,8 +78,7 @@ public function getActivitylogOptions(): LogOptions
 {
     return LogOptions::defaults()
         ->logFillable()
-        ->logOnlyDirty()
-        ->dontSubmitEmptyLogs();
+        ->logOnlyDirty();
 }
 ```
 
@@ -83,8 +89,8 @@ public function getActivitylogOptions(): LogOptions
 `app/Models/Department.php`
 
 ```php
-use Spatie\Activitylog\Traits\LogsActivity;
-use Spatie\Activitylog\LogOptions;
+use Spatie\Activitylog\Models\Concerns\LogsActivity;
+use Spatie\Activitylog\Support\LogOptions;
 ```
 
 ```php
@@ -94,8 +100,7 @@ public function getActivitylogOptions(): LogOptions
 {
     return LogOptions::defaults()
         ->logFillable()
-        ->logOnlyDirty()
-        ->dontSubmitEmptyLogs();
+        ->logOnlyDirty();
 }
 ```
 
@@ -106,8 +111,8 @@ public function getActivitylogOptions(): LogOptions
 `app/Models/Product.php`
 
 ```php
-use Spatie\Activitylog\Traits\LogsActivity;
-use Spatie\Activitylog\LogOptions;
+use Spatie\Activitylog\Models\Concerns\LogsActivity;
+use Spatie\Activitylog\Support\LogOptions;
 ```
 
 ```php
@@ -117,8 +122,7 @@ public function getActivitylogOptions(): LogOptions
 {
     return LogOptions::defaults()
         ->logFillable()
-        ->logOnlyDirty()
-        ->dontSubmitEmptyLogs();
+        ->logOnlyDirty();
 }
 ```
 
@@ -129,8 +133,8 @@ public function getActivitylogOptions(): LogOptions
 `app/Models/ProductListing.php`
 
 ```php
-use Spatie\Activitylog\Traits\LogsActivity;
-use Spatie\Activitylog\LogOptions;
+use Spatie\Activitylog\Models\Concerns\LogsActivity;
+use Spatie\Activitylog\Support\LogOptions;
 ```
 
 ```php
@@ -140,8 +144,7 @@ public function getActivitylogOptions(): LogOptions
 {
     return LogOptions::defaults()
         ->logFillable()
-        ->logOnlyDirty()
-        ->dontSubmitEmptyLogs();
+        ->logOnlyDirty();
 }
 ```
 
@@ -154,8 +157,8 @@ public function getActivitylogOptions(): LogOptions
 `app/Models/ProductCategory.php`
 
 ```php
-use Spatie\Activitylog\Traits\LogsActivity;
-use Spatie\Activitylog\LogOptions;
+use Spatie\Activitylog\Models\Concerns\LogsActivity;
+use Spatie\Activitylog\Support\LogOptions;
 ```
 
 ```php
@@ -165,8 +168,7 @@ public function getActivitylogOptions(): LogOptions
 {
     return LogOptions::defaults()
         ->logFillable()
-        ->logOnlyDirty()
-        ->dontSubmitEmptyLogs();
+        ->logOnlyDirty();
 }
 ```
 
@@ -183,10 +185,11 @@ activity_log row for Customer update:
   subject_id:   5
   causer_type:  'App\Models\User'
   causer_id:    2
-  properties:   {
+  attribute_changes: {
     "old":        { "status": "lead" },
     "attributes": { "status": "active" }
   }
+  properties:   {}   ← only holds manual withProperties() data (e.g. IP)
 ```
 
 Only the dirty fields appear — not the full model.
@@ -201,5 +204,9 @@ Only the dirty fields appear — not the full model.
 - [ ] `LogsActivity` trait added to `Product`
 - [ ] `LogsActivity` trait added to `ProductListing`
 - [ ] `LogsActivity` trait added to `ProductCategory`
-- [ ] `getActivitylogOptions()` uses `logFillable()` + `logOnlyDirty()` + `dontSubmitEmptyLogs()` on all models
-- [ ] `LogOptions` imported on all models
+- [ ] `getActivitylogOptions()` uses `logFillable()` + `logOnlyDirty()` on all models (no `dontSubmitEmptyLogs` — v5 removed it)
+- [ ] `LogOptions` imported from `Spatie\Activitylog\Support\LogOptions` on all models
+- [ ] `LogsActivity` imported from `Spatie\Activitylog\Models\Concerns\LogsActivity` on all models
+- [ ] User model excludes `password`, `remember_token`, `email_verified_at` via `logExcept`
+- [ ] Product model excludes `purchase_price` via `logExcept`
+- [ ] Blade views use `$activity->attribute_changes` for before/after values, not `$activity->properties`

@@ -11,6 +11,7 @@ use App\Models\ProductCategory;
 use App\Models\ProductListing;
 use App\Models\User;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Database\Eloquent\Collection;
 use Spatie\Activitylog\Models\Activity;
 
 class AuditLogService
@@ -60,11 +61,11 @@ class AuditLogService
     {
         return Activity::with(['causer'])
             ->when(
-                isset($filters['log_name']) && $filters['log_name'] !== '',
+                isset($filters['log_name']) && in_array($filters['log_name'], ['default', 'auth'], true),
                 fn ($q) => $q->where('log_name', $filters['log_name'])
             )
             ->when(
-                isset($filters['subject_type']) && $filters['subject_type'] !== '',
+                isset($filters['subject_type']) && array_key_exists($filters['subject_type'], self::SUBJECT_TYPES),
                 fn ($q) => $q->where('subject_type', $filters['subject_type'])
             )
             ->when(
@@ -73,7 +74,7 @@ class AuditLogService
                     ->where('causer_type', User::class)
             )
             ->when(
-                isset($filters['event']) && $filters['event'] !== '',
+                isset($filters['event']) && array_key_exists($filters['event'], self::EVENTS),
                 fn ($q) => $q->where('description', $filters['event'])
             )
             ->when(
@@ -88,5 +89,15 @@ class AuditLogService
             ->orderByDesc('id')
             ->paginate($perPage)
             ->withQueryString();
+    }
+
+    /**
+     * Users who have caused at least one activity (for the filter dropdown).
+     *
+     * @return Collection<int, User>
+     */
+    public function causers(): Collection
+    {
+        return User::orderBy('name')->get(['id', 'name']);
     }
 }

@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
-use App\Models\User;
 use App\Services\AuditLogService;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -25,7 +24,7 @@ class AuditLogController extends Controller
         );
         $subjectTypes = AuditLogService::SUBJECT_TYPES;
         $events = AuditLogService::EVENTS;
-        $causers = User::orderBy('name')->get(['id', 'name']);
+        $causers = $this->service->causers();
 
         return view('audit_log.index', compact('activities', 'subjectTypes', 'events', 'causers'));
     }
@@ -34,8 +33,11 @@ class AuditLogController extends Controller
     {
         $this->authorize('view', $activity);
 
-        $activity->load('causer');
+        $activity = Activity::with('causer')->findOrFail($activity->getKey());
 
-        return view('audit_log.show', compact('activity'));
+        return view('audit_log.show', [
+            'activity'     => $activity,
+            'subjectTypes' => AuditLogService::SUBJECT_TYPES,
+        ]);
     }
 }

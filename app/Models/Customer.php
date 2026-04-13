@@ -23,8 +23,6 @@ class Customer extends Model
             ->logFillable()
             ->logOnlyDirty();
     }
-    use SoftDeletes;
-
     protected $fillable = [
         'user_id',
         'name',
