@@ -42,7 +42,7 @@ class ProductListingService
                 fn ($q) => $q->where('visibility', $filters['visibility'])
             )
             ->when(
-                isset($filters['active']),
+                isset($filters['active']) && $filters['active'] !== '',
                 fn ($q) => $q->where('is_active', (bool) $filters['active'])
             )
             ->orderBy('product_id')
@@ -119,9 +119,8 @@ class ProductListingService
     /**
      * Restore a soft-deleted listing.
      */
-    public function restore(int $id): ProductListing
+    public function restore(ProductListing $listing): ProductListing
     {
-        $listing = ProductListing::onlyTrashed()->findOrFail($id);
         $listing->restore();
 
         return $listing;

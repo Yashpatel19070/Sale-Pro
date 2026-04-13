@@ -28,12 +28,12 @@ it('denies unauthenticated access', function () {
 });
 
 it('denies staff from creating a listing', function () {
-    $user = User::factory()->create()->assignRole('staff');
+    $user = User::factory()->create()->assignRole('sales');
     $this->actingAs($user)->get(route('product-listings.create'))->assertForbidden();
 });
 
 it('allows staff to view listings', function () {
-    $user = User::factory()->create()->assignRole('staff');
+    $user = User::factory()->create()->assignRole('sales');
     $this->actingAs($user)->get(route('product-listings.index'))->assertOk();
 });
 

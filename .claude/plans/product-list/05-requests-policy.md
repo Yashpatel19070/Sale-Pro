@@ -18,7 +18,7 @@ class StoreProductListingRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return true;
+        return $this->user()->can('create', ProductListing::class);
     }
 
     public function rules(): array
@@ -53,7 +53,7 @@ class UpdateProductListingRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return true;
+        return $this->user()->can('update', $this->route('product_listing'));
     }
 
     public function rules(): array
