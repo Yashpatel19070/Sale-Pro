@@ -125,6 +125,24 @@ it('sales can view serial detail', function () {
         ->assertOk();
 });
 
+it('admin can see purchase price on show page', function () {
+    $serial = makeSerial(['purchase_price' => '199.99']);
+
+    $this->actingAs(serialAdminUser())
+        ->get(route('inventory-serials.show', $serial))
+        ->assertOk()
+        ->assertSee('199.99');
+});
+
+it('sales cannot see purchase price on show page', function () {
+    $serial = makeSerial(['purchase_price' => '199.99']);
+
+    $this->actingAs(serialSalesUser())
+        ->get(route('inventory-serials.show', $serial))
+        ->assertOk()
+        ->assertDontSee('199.99');
+});
+
 // ── Create / Receive ───────────────────────────────────────────────────────────
 
 it('admin can view receive form', function () {
