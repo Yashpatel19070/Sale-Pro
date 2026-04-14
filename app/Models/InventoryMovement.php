@@ -16,6 +16,15 @@ class InventoryMovement extends Model
 {
     use HasFactory;
 
+    // Movement type constants — avoids raw strings scattered across the codebase
+    const TYPE_RECEIVE = 'receive';
+
+    const TYPE_TRANSFER = 'transfer';
+
+    const TYPE_ADJUSTMENT = 'adjustment';
+
+    const TYPE_SALE = 'sale';
+
     protected $fillable = [
         'inventory_serial_id',
         'from_location_id',

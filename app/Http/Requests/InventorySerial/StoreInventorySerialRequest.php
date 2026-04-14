@@ -6,6 +6,7 @@ namespace App\Http\Requests\InventorySerial;
 
 use App\Models\InventorySerial;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class StoreInventorySerialRequest extends FormRequest
 {
@@ -28,7 +29,7 @@ class StoreInventorySerialRequest extends FormRequest
         return [
             'product_id' => ['required', 'integer', 'exists:products,id'],
             'inventory_location_id' => ['required', 'integer', 'exists:inventory_locations,id'],
-            'serial_number' => ['required', 'string', 'max:100', 'unique:inventory_serials,serial_number'],
+            'serial_number' => ['required', 'string', 'max:100', Rule::unique('inventory_serials', 'serial_number')->withoutTrashed()],
             'purchase_price' => ['required', 'numeric', 'min:0', 'max:9999999.99'],
             'received_at' => ['required', 'date', 'before_or_equal:today'],
             'supplier_name' => ['nullable', 'string', 'max:150'],

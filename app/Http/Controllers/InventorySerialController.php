@@ -45,6 +45,7 @@ class InventorySerialController extends Controller
         ]);
 
         $movements = $inventorySerial->movements()
+            ->select(['id', 'inventory_serial_id', 'from_location_id', 'to_location_id', 'type', 'notes', 'user_id', 'created_at'])
             ->with(['fromLocation:id,code,name', 'toLocation:id,code,name', 'user:id,name'])
             ->latest()
             ->paginate(15);

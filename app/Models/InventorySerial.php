@@ -31,6 +31,8 @@ class InventorySerial extends Model
             ->useLogName('inventory_serial');
     }
 
+    protected $hidden = ['purchase_price'];
+
     protected $fillable = [
         'product_id',
         'inventory_location_id',

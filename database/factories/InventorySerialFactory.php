@@ -37,7 +37,6 @@ class InventorySerialFactory extends Factory
     {
         return $this->state([
             'status' => SerialStatus::InStock->value,
-            'inventory_location_id' => InventoryLocation::factory(),
         ]);
     }
 

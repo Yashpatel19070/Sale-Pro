@@ -53,10 +53,8 @@ enum SerialStatus: string
     /** Returns all cases as [value => label] for select dropdowns. */
     public static function options(): array
     {
-        return array_reduce(
-            self::cases(),
-            static fn (array $carry, self $case) => $carry + [$case->value => $case->label()],
-            [],
-        );
+        return collect(self::cases())
+            ->mapWithKeys(fn (self $case) => [$case->value => $case->label()])
+            ->all();
     }
 }

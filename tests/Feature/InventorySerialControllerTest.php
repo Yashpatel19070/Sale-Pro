@@ -243,6 +243,22 @@ it('admin can view edit form', function () {
         ->assertViewIs('inventory.serials.edit');
 });
 
+it('sales is denied access to edit form', function () {
+    $this->actingAs(serialSalesUser())
+        ->get(route('inventory-serials.edit', makeSerial()))
+        ->assertForbidden();
+});
+
+it('sales is denied update', function () {
+    $serial = makeSerial(['notes' => 'original']);
+
+    $this->actingAs(serialSalesUser())
+        ->put(route('inventory-serials.update', $serial), ['notes' => 'hacked'])
+        ->assertForbidden();
+
+    $this->assertDatabaseHas('inventory_serials', ['id' => $serial->id, 'notes' => 'original']);
+});
+
 it('admin can update notes and supplier_name', function () {
     $serial = makeSerial(['notes' => 'original', 'supplier_name' => 'OldCo']);
 
