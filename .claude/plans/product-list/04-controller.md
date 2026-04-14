@@ -82,7 +82,7 @@ class ProductListingController extends Controller
     {
         $this->authorize('view', $productListing);
 
-        $productListing->load('product');
+        $productListing->load(['product', 'product.category']);
 
         return view('product_listings.show', ['listing' => $productListing]);
     }
@@ -91,6 +91,7 @@ class ProductListingController extends Controller
     {
         $this->authorize('update', $productListing);
 
+        $productListing->loadMissing(['product', 'product.category']);
         $visibilities = ListingVisibility::options();
 
         return view('product_listings.edit', [
@@ -137,6 +138,8 @@ class ProductListingController extends Controller
 
     public function restore(ProductListing $productListing): RedirectResponse
     {
+        abort_if(! $productListing->trashed(), 404);
+
         $this->authorize('restore', ProductListing::class);
 
         $listing = $this->service->restore($productListing);
@@ -150,7 +153,9 @@ class ProductListingController extends Controller
 
 ## Notes
 - `create` accepts `?product_id` query param to pre-select product in create form
-- `show` eager loads full product (includes prices for display)
+- `show` + `edit`: eager-load `product.category` so SKU, category name, prices are all available in views
+- `restore`: guard with `abort_if(!trashed(), 404)` before authorize — prevents non-deleted model enumeration
+- `update`: explicit `$this->authorize('update', $productListing)` required even though `UpdateProductListingRequest::authorize()` also checks it — belt-and-suspenders
 - Edit form shows product name as read-only; only title + visibility are editable
 - `visibilities` passed from `ListingVisibility::options()` for select inputs
 - No adjustStock action — stock management is not part of this module

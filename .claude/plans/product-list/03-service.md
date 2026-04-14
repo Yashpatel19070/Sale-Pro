@@ -28,7 +28,7 @@ class ProductListingService
      */
     public function list(array $filters = [], int $perPage = 20): LengthAwarePaginator
     {
-        return ProductListing::with(['product:id,sku,name,regular_price,sale_price'])
+        return ProductListing::with(['product:id,category_id,sku,name,regular_price,sale_price', 'product.category:id,name'])
             ->when(
                 isset($filters['search']) && $filters['search'] !== '',
                 fn ($q) => $q->search($filters['search'])
@@ -64,9 +64,10 @@ class ProductListingService
 
             $listing = new ProductListing($data);
             $listing->setRelation('product', $product);
-            $listing->save(); // sluggable fires here
+            $listing->generateSlug(); // explicit — survives WithoutModelEvents contexts (e.g. DatabaseSeeder)
+            $listing->save();
 
-            return $listing->load('product:id,sku,name,regular_price,sale_price');
+            return $listing->load(['product:id,category_id,sku,name,regular_price,sale_price', 'product.category:id,name']);
         });
     }
 
@@ -99,20 +100,15 @@ class ProductListingService
                 $listing->update($data);
             }
 
-            return $listing->fresh('product:id,sku,name,regular_price,sale_price');
+            return $listing->fresh(['product:id,category_id,sku,name,regular_price,sale_price', 'product.category:id,name']);
         });
     }
 
     /**
-     * Soft-delete a listing. Throws if it has active orders (future guard).
+     * Soft-delete a listing.
      */
     public function delete(ProductListing $listing): void
     {
-        // Future: check for active order line items here
-        // if ($listing->orderLines()->whereIn('status', ['pending','processing'])->exists()) {
-        //     throw new RuntimeException("Cannot delete listing with active orders.");
-        // }
-
         $listing->delete();
     }
 
@@ -135,9 +131,10 @@ class ProductListingService
             ? ListingVisibility::Draft
             : ListingVisibility::Public;
 
-        $listing->update(['visibility' => $next->value]);
+        $listing->visibility = $next;
+        $listing->save();
 
-        return $listing->fresh();
+        return $listing;
     }
 
     /**
@@ -148,8 +145,22 @@ class ProductListingService
      */
     public function regenerateSlugsForProduct(Product $product): void
     {
-        // Copy full implementation from product-slug/03-service.md
-        // Do NOT leave this as a stub — must be implemented before running tests
+        $listings = ProductListing::where('product_id', $product->id)->get();
+
+        foreach ($listings as $listing) {
+            $oldSlug = $listing->slug;
+
+            $listing->setRelation('product', $product);
+            $listing->generateSlug();
+            $listing->save();
+
+            if ($oldSlug && $oldSlug !== $listing->slug) {
+                ProductListingSlugRedirect::firstOrCreate(
+                    ['old_slug' => $oldSlug],
+                    ['listing_id' => $listing->id],
+                );
+            }
+        }
     }
 
 }
@@ -169,9 +180,10 @@ class ProductListingService
 
 ## Key Rules
 - `product_id` immutable after creation — stripped in `update()`
-- Slug managed by `spatie/laravel-sluggable` — no manual generation code in service
-- `create()`: must set product relation on model before save so `getSlugOptions()` can read `product->sku`
+- `create()`: call `$listing->generateSlug()` explicitly before `save()` — do NOT rely on the `creating` event; `DatabaseSeeder` uses `WithoutModelEvents` which suppresses it
+- `create()`: must set product relation before `generateSlug()` so `getSlugOptions()` can read `product->sku`
 - `update()`: uses `doNotGenerateSlugsOnUpdate()` option — only regens when service explicitly calls `$listing->generateSlug()`
 - Old slug saved via `ProductListingSlugRedirect::firstOrCreate()` — idempotent, no duplicate redirects
-- Eager load includes `regular_price` + `sale_price` from product for display
+- `toggleVisibility()`: direct property assignment + `save()` — avoids `->value` unwrap and extra DB round-trip from `fresh()`
+- Eager load always includes `product.category` (needs `category_id` in the product column select)
 - All writes in `DB::transaction()`

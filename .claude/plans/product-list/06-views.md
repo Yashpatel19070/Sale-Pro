@@ -25,9 +25,12 @@ All views extend `layouts.admin` and use Tailwind CSS v3.
   - Product dropdown — `?product_id=` (pre-selected if coming from product show page)
   - Visibility select — `?visibility=`
   - Active filter — `?active=1|0`
-- Table columns: Title | Product | Regular Price | Sale Price | Visibility | Status | Actions
+- Table columns: Title | SKU | Product | Category | Regular Price | Sale Price | Visibility | Status | Actions
+  - SKU: monospaced, from `$listing->product->sku`
+  - Product: `$listing->product->name` (link to `products.show`)
+  - Category: `$listing->product->category?->name` (null-safe, shows `—` if unset)
   - Regular Price + Sale Price: read from `$listing->product` (no price on listing itself)
-  - Visibility: badge (green=public, yellow=private, gray=draft)
+  - Visibility: badge via `$listing->visibility->badgeClass()` + `->label()`
   - Status: green/gray badge
   - Actions: View, Edit, Toggle Visibility, Delete
 - Empty state
@@ -43,9 +46,12 @@ All views extend `layouts.admin` and use Tailwind CSS v3.
 - Back link: to index (or parent product if `?from=product`)
 - Header: listing title + visibility badge + status badge
 - Details grid:
-  - Parent product (link to `products.show`)
+  - Product name (link to `products.show`)
+  - SKU (monospaced, from `$listing->product->sku`)
+  - Category (`$listing->product->category?->name`)
   - Slug (read-only)
   - Visibility
+  - Status
   - Prices (from parent product):
     - Regular Price: `$listing->product->regular_price`
     - Sale Price: `$listing->product->sale_price` (shown only if set)
@@ -85,9 +91,10 @@ All views extend `layouts.admin` and use Tailwind CSS v3.
 | Visibility | select | from `$visibilities` (ListingVisibility::options()) |
 | Active | checkbox | |
 
-**Price info block (read-only, shown on create + edit):**
-- On create: after selecting a product via JS, show the product's `regular_price` and `sale_price` as a read-only info box — "This listing will display prices from the selected product."
-- On edit: show the parent product's current prices as read-only reference panel.
+**Product context panel (read-only, shown on edit):**
+- Line 1: `SKU: TSHIRT-001  ·  Category: Apparel`
+- Line 2: `Regular: $14.99  ·  Sale: $9.99  (prices managed on the product)`
+- On create: JS price-info box appears after product select (shows regular + sale price only — no category yet since dropdown doesn't carry it)
 
 **Form action:**
 - Create: `POST /admin/product-listings`
@@ -101,20 +108,27 @@ All views extend `layouts.admin` and use Tailwind CSS v3.
 On the edit form, show parent product as read-only text (not a select).
 Do not pass `product_id` back to the controller.
 
-### Prices are read-only on listing form
-Listing forms have no price inputs. Prices are always inherited from the parent product.
-Show a read-only info panel: "Prices are managed on the product. Regular: $X.XX / Sale: $X.XX"
+### All product context is read-only on listing views
+Listings carry NO own price, SKU, or category fields. Everything is read from `$listing->product`.
+Index, show, and edit views all display SKU + Category + prices from the eager-loaded product.
+
+### Visibility badges
+Use `$listing->visibility->badgeClass()` + `->label()` — do NOT inline `@if/@elseif/@else` blocks.
 
 ### Slug
 Auto-generated — never shown or editable in the form. Shown read-only on the show page.
 
+### One SKU → one category (current design)
+`Product` has a single `category_id` (BelongsTo). All listings for a product inherit that same category.
+If multi-category is ever needed, the decision point is: add a pivot on `Product ↔ ProductCategory`
+(product appears in multiple categories) OR move `category_id` to `ProductListing` (each listing
+can be in a different category). See architectural note in `00-overview.md`.
+
 ## Checklist
-- [ ] index: filter by product, visibility, active, search
-- [ ] index: prices from `$listing->product` (eager loaded)
-- [ ] show: prices displayed as read-only from product
-- [ ] show: slug displayed as read-only
-- [ ] _form: product select on create only; text on edit
-- [ ] _form: no price, stock, or attribute inputs
-- [ ] _form: read-only price info panel showing product's prices
-- [ ] All forms use `@csrf` + correct `@method` for PATCH
-- [ ] Validation errors shown with `@error` on each field
+- [x] index: filter by product, visibility, active, search
+- [x] index: SKU column (monospaced), Product name, Category, prices — all from eager-loaded product
+- [x] show: SKU, Category, slug, prices displayed as read-only from product
+- [x] _form: product select on create only; read-only panel (SKU + category + prices) on edit
+- [x] _form: no price, stock, or attribute inputs
+- [x] All forms use `@csrf` + correct `@method` for PATCH
+- [x] Validation errors shown with `x-input-error` on each field
