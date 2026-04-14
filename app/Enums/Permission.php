@@ -110,4 +110,17 @@ class Permission
     const INVENTORY_LOCATIONS_DELETE = 'inventory-locations.delete';
 
     const INVENTORY_LOCATIONS_RESTORE = 'inventory-locations.restore';
+
+    // Inventory Serials
+    const INVENTORY_SERIALS_VIEW_ANY = 'inventory-serials.view-any';
+
+    const INVENTORY_SERIALS_VIEW = 'inventory-serials.view';
+
+    const INVENTORY_SERIALS_CREATE = 'inventory-serials.create';
+
+    const INVENTORY_SERIALS_EDIT = 'inventory-serials.edit';
+
+    const INVENTORY_SERIALS_MARK_DAMAGED = 'inventory-serials.mark-damaged';
+
+    const INVENTORY_SERIALS_MARK_MISSING = 'inventory-serials.mark-missing';
 }

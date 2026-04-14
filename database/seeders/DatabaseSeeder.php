@@ -30,6 +30,8 @@ class DatabaseSeeder extends Seeder
             AuditLogPermissionSeeder::class,
             InventoryLocationPermissionSeeder::class,
             InventoryLocationSeeder::class,
+            InventorySerialPermissionSeeder::class,
+            InventorySerialSeeder::class,
         ]);
 
         $admin = User::firstOrCreate(

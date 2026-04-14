@@ -5,6 +5,7 @@ use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\DepartmentController;
 use App\Http\Controllers\InventoryLocationController;
+use App\Http\Controllers\InventorySerialController;
 use App\Http\Controllers\Portal\Auth\AuthenticatedSessionController as PortalSessionController;
 use App\Http\Controllers\Portal\Auth\EmailVerificationController;
 use App\Http\Controllers\Portal\Auth\NewPasswordController as PortalNewPasswordController;
@@ -95,6 +96,16 @@ Route::prefix('admin')->group(function () {
             Route::put('/{inventoryLocation}', [InventoryLocationController::class, 'update'])->name('update');
             Route::delete('/{inventoryLocation}', [InventoryLocationController::class, 'destroy'])->name('destroy');
             Route::post('/{inventoryLocation}/restore', [InventoryLocationController::class, 'restore'])->name('restore')->withTrashed();
+        });
+
+        // Inventory Serials
+        Route::prefix('inventory-serials')->name('inventory-serials.')->group(function () {
+            Route::get('/', [InventorySerialController::class, 'index'])->name('index');
+            Route::get('/create', [InventorySerialController::class, 'create'])->name('create');
+            Route::post('/', [InventorySerialController::class, 'store'])->name('store');
+            Route::get('/{inventorySerial}', [InventorySerialController::class, 'show'])->name('show');
+            Route::get('/{inventorySerial}/edit', [InventorySerialController::class, 'edit'])->name('edit');
+            Route::put('/{inventorySerial}', [InventorySerialController::class, 'update'])->name('update');
         });
 
         // Audit Log (read-only)
