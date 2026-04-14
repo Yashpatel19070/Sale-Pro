@@ -35,17 +35,25 @@
             <x-input-label value="Product" />
             <p class="mt-1 text-sm text-gray-900">
                 <a href="{{ route('products.show', $listing->product) }}" class="text-indigo-600 hover:underline">
-                    {{ $listing->product->sku }} — {{ $listing->product->name }}
+                    {{ $listing->product->name }}
                 </a>
                 <span class="ml-2 text-xs text-gray-400">(cannot be changed)</span>
             </p>
-            {{-- Prices read-only info panel --}}
-            <div class="mt-2 rounded-md bg-blue-50 p-3 text-sm text-blue-800">
-                Prices are managed on the product —
-                Regular: <span class="font-medium">${{ $listing->product->regular_price }}</span>
-                @if ($listing->product->sale_price)
-                    / Sale: <span class="font-medium text-green-700">${{ $listing->product->sale_price }}</span>
-                @endif
+            {{-- Read-only product context panel --}}
+            <div class="mt-2 rounded-md bg-blue-50 p-3 text-sm text-blue-800 space-y-1">
+                <div>
+                    <span class="font-medium">SKU:</span> {{ $listing->product->sku }}
+                    @if ($listing->product->category)
+                        &nbsp;·&nbsp; <span class="font-medium">Category:</span> {{ $listing->product->category->name }}
+                    @endif
+                </div>
+                <div>
+                    <span class="font-medium">Regular:</span> ${{ $listing->product->regular_price }}
+                    @if ($listing->product->sale_price)
+                        &nbsp;·&nbsp; <span class="font-medium text-green-700">Sale: ${{ $listing->product->sale_price }}</span>
+                    @endif
+                    <span class="text-xs text-blue-600">(prices managed on the product)</span>
+                </div>
             </div>
         </div>
     @endif

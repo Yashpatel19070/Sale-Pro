@@ -20,7 +20,7 @@ class ProductListingService
      */
     public function list(array $filters = [], int $perPage = 20): LengthAwarePaginator
     {
-        return ProductListing::with(['product:id,sku,name,regular_price,sale_price'])
+        return ProductListing::with(['product:id,category_id,sku,name,regular_price,sale_price', 'product.category:id,name'])
             ->when(
                 isset($filters['search']) && $filters['search'] !== '',
                 fn ($q) => $q->search($filters['search'])
@@ -59,7 +59,7 @@ class ProductListingService
             $listing->generateSlug(); // explicit — survives WithoutModelEvents contexts
             $listing->save();
 
-            return $listing->load('product:id,sku,name,regular_price,sale_price');
+            return $listing->load(['product:id,category_id,sku,name,regular_price,sale_price', 'product.category:id,name']);
         });
     }
 
@@ -91,7 +91,7 @@ class ProductListingService
                 $listing->update($data);
             }
 
-            return $listing->fresh('product:id,sku,name,regular_price,sale_price');
+            return $listing->fresh(['product:id,category_id,sku,name,regular_price,sale_price', 'product.category:id,name']);
         });
     }
 

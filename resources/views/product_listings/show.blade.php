@@ -53,13 +53,23 @@
                 <div class="p-6">
                     <dl class="grid grid-cols-1 gap-4 sm:grid-cols-2">
                         <div>
-                            <dt class="text-xs font-medium uppercase text-gray-500">Parent Product</dt>
+                            <dt class="text-xs font-medium uppercase text-gray-500">Product</dt>
                             <dd class="mt-1 text-sm text-gray-900">
                                 <a href="{{ route('products.show', $listing->product) }}"
                                    class="text-indigo-600 hover:underline">
-                                    {{ $listing->product->sku }} — {{ $listing->product->name }}
+                                    {{ $listing->product->name }}
                                 </a>
                             </dd>
+                        </div>
+
+                        <div>
+                            <dt class="text-xs font-medium uppercase text-gray-500">SKU</dt>
+                            <dd class="mt-1 font-mono text-sm text-gray-900">{{ $listing->product->sku }}</dd>
+                        </div>
+
+                        <div>
+                            <dt class="text-xs font-medium uppercase text-gray-500">Category</dt>
+                            <dd class="mt-1 text-sm text-gray-900">{{ $listing->product->category?->name ?? '—' }}</dd>
                         </div>
 
                         <div>

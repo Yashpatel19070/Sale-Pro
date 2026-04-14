@@ -58,7 +58,7 @@ class ProductListingController extends Controller
     {
         $this->authorize('view', $productListing);
 
-        $productListing->load('product');
+        $productListing->load(['product', 'product.category']);
 
         return view('product_listings.show', ['listing' => $productListing]);
     }
@@ -67,6 +67,7 @@ class ProductListingController extends Controller
     {
         $this->authorize('update', $productListing);
 
+        $productListing->loadMissing(['product', 'product.category']);
         $visibilities = ListingVisibility::options();
 
         return view('product_listings.edit', [
