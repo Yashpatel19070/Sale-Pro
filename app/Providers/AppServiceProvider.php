@@ -7,6 +7,7 @@ namespace App\Providers;
 use App\Listeners\LogAuthActivity;
 use App\Models\Customer;
 use App\Models\Department;
+use App\Models\InventoryLocation;
 use App\Models\Product;
 use App\Models\ProductCategory;
 use App\Models\ProductListing;
@@ -16,6 +17,7 @@ use App\Observers\UserObserver;
 use App\Policies\AuditLogPolicy;
 use App\Policies\CustomerPolicy;
 use App\Policies\DepartmentPolicy;
+use App\Policies\InventoryLocationPolicy;
 use App\Policies\ProductCategoryPolicy;
 use App\Policies\ProductListingPolicy;
 use App\Policies\ProductPolicy;
@@ -49,6 +51,7 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(ProductCategory::class, ProductCategoryPolicy::class);
         Gate::policy(Activity::class, AuditLogPolicy::class);
         Gate::policy(ProductListing::class, ProductListingPolicy::class);
+        Gate::policy(InventoryLocation::class, InventoryLocationPolicy::class);
 
         // Auth event listeners — log login, logout, failed attempts
         Event::listen(Login::class, [LogAuthActivity::class, 'handleLogin']);

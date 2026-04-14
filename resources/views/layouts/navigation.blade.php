@@ -33,6 +33,11 @@
                             {{ __('Products') }}
                         </x-nav-link>
                     @endcan
+                    @can('viewAny', App\Models\InventoryLocation::class)
+                        <x-nav-link :href="route('inventory-locations.index')" :active="request()->routeIs('inventory-locations.*')">
+                            {{ __('Inventory') }}
+                        </x-nav-link>
+                    @endcan
                     @can('product_categories.viewAny')
                         <x-nav-link :href="route('product-categories.index')" :active="request()->routeIs('product-categories.*')">
                             {{ __('Categories') }}
@@ -114,6 +119,11 @@
             @can('products.view-any')
                 <x-responsive-nav-link :href="route('products.index')" :active="request()->routeIs('products.*')">
                     {{ __('Products') }}
+                </x-responsive-nav-link>
+            @endcan
+            @can('viewAny', App\Models\InventoryLocation::class)
+                <x-responsive-nav-link :href="route('inventory-locations.index')" :active="request()->routeIs('inventory-locations.*')">
+                    {{ __('Inventory') }}
                 </x-responsive-nav-link>
             @endcan
             @can('product_categories.viewAny')

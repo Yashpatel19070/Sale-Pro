@@ -97,4 +97,17 @@ class Permission
     const PRODUCT_LISTINGS_DELETE = 'product-listings.delete';
 
     const PRODUCT_LISTINGS_RESTORE = 'product-listings.restore';
+
+    // Inventory Locations
+    const INVENTORY_LOCATIONS_VIEW_ANY = 'inventory-locations.view-any';
+
+    const INVENTORY_LOCATIONS_VIEW = 'inventory-locations.view';
+
+    const INVENTORY_LOCATIONS_CREATE = 'inventory-locations.create';
+
+    const INVENTORY_LOCATIONS_EDIT = 'inventory-locations.edit';
+
+    const INVENTORY_LOCATIONS_DELETE = 'inventory-locations.delete';
+
+    const INVENTORY_LOCATIONS_RESTORE = 'inventory-locations.restore';
 }

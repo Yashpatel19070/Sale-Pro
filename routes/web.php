@@ -4,6 +4,7 @@ use App\Enums\Permission;
 use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\DepartmentController;
+use App\Http\Controllers\InventoryLocationController;
 use App\Http\Controllers\Portal\Auth\AuthenticatedSessionController as PortalSessionController;
 use App\Http\Controllers\Portal\Auth\EmailVerificationController;
 use App\Http\Controllers\Portal\Auth\NewPasswordController as PortalNewPasswordController;
@@ -83,6 +84,18 @@ Route::prefix('admin')->group(function () {
         Route::post('product-listings/{productListing}/restore', [ProductListingController::class, 'restore'])
             ->name('product-listings.restore')
             ->withTrashed();
+
+        // Inventory Locations
+        Route::prefix('inventory-locations')->name('inventory-locations.')->group(function () {
+            Route::get('/', [InventoryLocationController::class, 'index'])->name('index');
+            Route::get('/create', [InventoryLocationController::class, 'create'])->name('create');
+            Route::post('/', [InventoryLocationController::class, 'store'])->name('store');
+            Route::get('/{inventoryLocation}', [InventoryLocationController::class, 'show'])->name('show');
+            Route::get('/{inventoryLocation}/edit', [InventoryLocationController::class, 'edit'])->name('edit');
+            Route::put('/{inventoryLocation}', [InventoryLocationController::class, 'update'])->name('update');
+            Route::delete('/{inventoryLocation}', [InventoryLocationController::class, 'destroy'])->name('destroy');
+            Route::post('/{inventoryLocation}/restore', [InventoryLocationController::class, 'restore'])->name('restore')->withTrashed();
+        });
 
         // Audit Log (read-only)
         Route::get('audit-log', [AuditLogController::class, 'index'])->name('audit-log.index');
