@@ -25,12 +25,12 @@ beforeEach(function () {
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
-function adminUser(): User
+function serialAdminUser(): User
 {
     return User::factory()->create()->assignRole('admin');
 }
 
-function salesUser(): User
+function serialSalesUser(): User
 {
     return User::factory()->create()->assignRole('sales');
 }
@@ -47,13 +47,13 @@ it('denies unauthenticated access to serials index', function () {
 });
 
 it('allows admin to access serials index', function () {
-    $this->actingAs(adminUser())
+    $this->actingAs(serialAdminUser())
         ->get(route('inventory-serials.index'))
         ->assertOk();
 });
 
 it('allows sales to access serials index', function () {
-    $this->actingAs(salesUser())
+    $this->actingAs(serialSalesUser())
         ->get(route('inventory-serials.index'))
         ->assertOk();
 });
@@ -61,7 +61,7 @@ it('allows sales to access serials index', function () {
 // ── Index / Filtering ──────────────────────────────────────────────────────────
 
 it('lists serials paginated', function () {
-    $admin = adminUser();
+    $admin = serialAdminUser();
     InventorySerial::factory()->count(3)->create();
 
     $this->actingAs($admin)
@@ -72,7 +72,7 @@ it('lists serials paginated', function () {
 });
 
 it('filters serials by serial number search', function () {
-    $admin = adminUser();
+    $admin = serialAdminUser();
     InventorySerial::factory()->create(['serial_number' => 'SN-ALPHA-001']);
     InventorySerial::factory()->create(['serial_number' => 'SN-BETA-002']);
 
@@ -83,7 +83,7 @@ it('filters serials by serial number search', function () {
 });
 
 it('filters serials by status', function () {
-    $admin = adminUser();
+    $admin = serialAdminUser();
     InventorySerial::factory()->inStock()->create(['serial_number' => 'SN-STOCK-001']);
     InventorySerial::factory()->sold()->create(['serial_number' => 'SN-SOLD-002']);
 
@@ -94,7 +94,7 @@ it('filters serials by status', function () {
 });
 
 it('filters serials by product', function () {
-    $admin   = adminUser();
+    $admin   = serialAdminUser();
     $product = Product::factory()->create();
     $other   = Product::factory()->create();
     InventorySerial::factory()->forProduct($product)->create(['serial_number' => 'SN-P1-001']);
@@ -107,7 +107,7 @@ it('filters serials by product', function () {
 });
 
 it('filters serials by location', function () {
-    $admin    = adminUser();
+    $admin    = serialAdminUser();
     $location = InventoryLocation::factory()->create();
     $other    = InventoryLocation::factory()->create();
     InventorySerial::factory()->atLocation($location)->create(['serial_number' => 'SN-LOC-001']);
@@ -122,7 +122,7 @@ it('filters serials by location', function () {
 // ── Show ───────────────────────────────────────────────────────────────────────
 
 it('admin can view serial detail', function () {
-    $admin  = adminUser();
+    $admin  = serialAdminUser();
     $serial = makeSerial();
 
     $this->actingAs($admin)
@@ -132,7 +132,7 @@ it('admin can view serial detail', function () {
 });
 
 it('sales can view serial detail', function () {
-    $this->actingAs(salesUser())
+    $this->actingAs(serialSalesUser())
         ->get(route('inventory-serials.show', makeSerial()))
         ->assertOk();
 });
@@ -140,20 +140,20 @@ it('sales can view serial detail', function () {
 // ── Create / Receive ───────────────────────────────────────────────────────────
 
 it('admin can view receive form', function () {
-    $this->actingAs(adminUser())
+    $this->actingAs(serialAdminUser())
         ->get(route('inventory-serials.create'))
         ->assertOk()
         ->assertViewIs('inventory.serials.create');
 });
 
 it('sales can view receive form', function () {
-    $this->actingAs(salesUser())
+    $this->actingAs(serialSalesUser())
         ->get(route('inventory-serials.create'))
         ->assertOk();
 });
 
 it('admin can receive a new serial', function () {
-    $admin    = adminUser();
+    $admin    = serialAdminUser();
     $product  = Product::factory()->create();
     $location = InventoryLocation::factory()->create();
 
@@ -175,7 +175,7 @@ it('admin can receive a new serial', function () {
 });
 
 it('receiving a serial creates an inventory movement', function () {
-    $admin    = adminUser();
+    $admin    = serialAdminUser();
     $product  = Product::factory()->create();
     $location = InventoryLocation::factory()->create();
 
@@ -197,13 +197,13 @@ it('receiving a serial creates an inventory movement', function () {
 });
 
 it('validates required fields on receive', function () {
-    $this->actingAs(adminUser())
+    $this->actingAs(serialAdminUser())
         ->post(route('inventory-serials.store'), [])
         ->assertSessionHasErrors(['product_id', 'inventory_location_id', 'serial_number', 'purchase_price', 'received_at']);
 });
 
 it('validates serial_number uniqueness', function () {
-    $admin   = adminUser();
+    $admin   = serialAdminUser();
     $serial  = makeSerial(['serial_number' => 'SN-DUP-001']);
     $product = Product::factory()->create();
     $loc     = InventoryLocation::factory()->create();
@@ -220,7 +220,7 @@ it('validates serial_number uniqueness', function () {
 });
 
 it('validates received_at cannot be in the future', function () {
-    $admin    = adminUser();
+    $admin    = serialAdminUser();
     $product  = Product::factory()->create();
     $location = InventoryLocation::factory()->create();
 
@@ -236,7 +236,7 @@ it('validates received_at cannot be in the future', function () {
 });
 
 it('uppercases serial_number on store', function () {
-    $admin    = adminUser();
+    $admin    = serialAdminUser();
     $product  = Product::factory()->create();
     $location = InventoryLocation::factory()->create();
 
@@ -254,14 +254,30 @@ it('uppercases serial_number on store', function () {
 // ── Edit / Update ──────────────────────────────────────────────────────────────
 
 it('admin can view edit form', function () {
-    $this->actingAs(adminUser())
+    $this->actingAs(serialAdminUser())
         ->get(route('inventory-serials.edit', makeSerial()))
         ->assertOk()
         ->assertViewIs('inventory.serials.edit');
 });
 
+it('sales is denied access to edit form', function () {
+    $this->actingAs(serialSalesUser())
+        ->get(route('inventory-serials.edit', makeSerial()))
+        ->assertForbidden();
+});
+
+it('sales is denied update', function () {
+    $serial = makeSerial(['notes' => 'original']);
+
+    $this->actingAs(serialSalesUser())
+        ->put(route('inventory-serials.update', $serial), ['notes' => 'hacked'])
+        ->assertForbidden();
+
+    $this->assertDatabaseHas('inventory_serials', ['id' => $serial->id, 'notes' => 'original']);
+});
+
 it('admin can update notes and supplier_name', function () {
-    $admin  = adminUser();
+    $admin  = serialAdminUser();
     $serial = makeSerial(['notes' => 'original', 'supplier_name' => 'OldCo']);
 
     $this->actingAs($admin)
@@ -279,7 +295,7 @@ it('admin can update notes and supplier_name', function () {
 });
 
 it('update does not change serial_number even if submitted', function () {
-    $admin  = adminUser();
+    $admin  = serialAdminUser();
     $serial = makeSerial(['serial_number' => 'ORIGINAL-SN']);
 
     // Attempt to inject serial_number — it must be stripped by the FormRequest.
@@ -295,7 +311,7 @@ it('update does not change serial_number even if submitted', function () {
 });
 
 it('update does not change purchase_price even if submitted', function () {
-    $admin  = adminUser();
+    $admin  = serialAdminUser();
     $serial = makeSerial(['purchase_price' => '99.99']);
 
     $this->actingAs($admin)->put(route('inventory-serials.update', $serial), [
@@ -463,7 +479,7 @@ it('rolls back serial creation if movement insert fails', function () {
     });
 
     try {
-        $this->service->receive([], $user);
+        app(InventorySerialService::class)->receive([], $user);
     } catch (\RuntimeException) {
         // Expected
     }

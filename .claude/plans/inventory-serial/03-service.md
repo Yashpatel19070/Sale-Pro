@@ -95,7 +95,7 @@ class InventorySerialService
                 'inventory_serial_id'    => $serial->id,
                 'from_location_id'       => null,                          // external (supplier)
                 'to_location_id'         => $serial->inventory_location_id,
-                'type'                   => 'receive',
+                'type'                   => InventoryMovement::TYPE_RECEIVE,
                 'quantity'               => 1,
                 'reference'              => $serial->supplier_name,
                 'notes'                  => "Received serial {$serial->serial_number}.",
@@ -119,7 +119,7 @@ class InventorySerialService
     public function updateNotes(InventorySerial $serial, array $data): InventorySerial
     {
         $serial->update([
-            'notes'         => $data['notes'] ?? null,
+            'notes'         => $data['notes'] ?? $serial->notes,
             'supplier_name' => $data['supplier_name'] ?? $serial->supplier_name,
         ]);
         return $serial->fresh(['product', 'location']);
@@ -130,7 +130,7 @@ class InventorySerialService
     // Do NOT add markDamaged/markMissing here — all status changes must create a movement row.
 
     /**
-     * Find a single serial by its serial_number string (case-insensitive).
+     * Find a single serial by its serial_number string (case-sensitive, stored uppercase).
      * Returns null if not found.
      */
     public function findBySerial(string $serialNumber): ?InventorySerial
@@ -141,7 +141,7 @@ class InventorySerialService
             'receivedBy:id,name,email',
             'movements' => fn ($q) => $q->orderByDesc('created_at')->limit(20),
         ])
-            ->where('serial_number', $serialNumber)
+            ->where('serial_number', strtoupper($serialNumber))
             ->first();
     }
 }

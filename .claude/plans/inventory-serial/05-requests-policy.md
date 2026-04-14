@@ -11,6 +11,7 @@ namespace App\Http\Requests\InventorySerial;
 
 use App\Models\InventorySerial;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class StoreInventorySerialRequest extends FormRequest
 {
@@ -33,7 +34,7 @@ class StoreInventorySerialRequest extends FormRequest
         return [
             'product_id'             => ['required', 'integer', 'exists:products,id'],
             'inventory_location_id'  => ['required', 'integer', 'exists:inventory_locations,id'],
-            'serial_number'          => ['required', 'string', 'max:100', 'unique:inventory_serials,serial_number'],
+            'serial_number'          => ['required', 'string', 'max:100', Rule::unique('inventory_serials', 'serial_number')->withoutTrashed()],
             'purchase_price'         => ['required', 'numeric', 'min:0', 'max:9999999.99'],
             'received_at'            => ['required', 'date', 'before_or_equal:today'],
             'supplier_name'          => ['nullable', 'string', 'max:150'],
@@ -236,7 +237,8 @@ the other in future without a schema change.
 - [ ] `product()`, `location()`, `receivedBy()`, `movements()` relations defined and typed
 - [ ] `movements()` relation only added after inventory-movement module is built
 - [ ] `inStock()` scope filters `where('status', SerialStatus::InStock)`
-- [ ] `LogsActivity` trait present; `logExcept` excludes `['purchase_price', 'inventory_location_id', 'status']` — those are tracked by movement ledger
+- [ ] `LogsActivity` trait present; `logExcept` excludes `['purchase_price', 'inventory_location_id', 'status']` — those are tracked by movement ledger; `->useLogName('inventory_serial')`
+- [ ] `$hidden = ['purchase_price']` — prevents cost data leaking in JSON serialization
 
 ### Service Layer
 - [ ] `receive()` creates serial with status=InStock AND creates a movement row (type=Receive) in the same `DB::transaction()`
@@ -252,6 +254,7 @@ the other in future without a schema change.
 - [ ] `serial_number` and `purchase_price` are ABSENT from `UpdateInventorySerialRequest::rules()` — immutability enforced here
 - [ ] `$request->validated()` used in controller — never `$request->all()`
 - [ ] `prepareForValidation()` uppercases and trims serial_number before uniqueness check
+- [ ] `serial_number` unique rule uses `Rule::unique('inventory_serials', 'serial_number')->withoutTrashed()` — not the bare string form
 
 ### Controller
 - [ ] `index()` calls `$this->authorize('viewAny', InventorySerial::class)`
@@ -261,7 +264,7 @@ the other in future without a schema change.
 - [ ] `edit()` calls `$this->authorize('update', $inventorySerial)`
 - [ ] `update()` calls `$this->authorize('update', $inventorySerial)`
 - [ ] Constructor injects both `InventorySerialService` and `InventoryLocationService`
-- [ ] `show()` loads movement history as a separate paginated query — not via eager load on the serial
+- [ ] `show()` loads movement history as a separate paginated query — not via eager load on the serial; uses `->select([...])` to avoid loading unnecessary columns
 - [ ] NO `markDamaged` or `markMissing` actions on this controller
 
 ### Policy & Permissions
@@ -269,6 +272,7 @@ the other in future without a schema change.
 - [ ] `viewPurchasePrice()` policy method checks `hasRole(['admin', 'manager'])` — not a permission constant (UI-only gate)
 - [ ] `InventorySerialPolicy` registered in `AppServiceProvider` via `Gate::policy()`
 - [ ] `sales` role gets VIEW_ANY, VIEW, CREATE only — not EDIT, MARK_DAMAGED, MARK_MISSING
+- [ ] Feature tests confirm `sales` gets 403 on `edit` and `update` actions
 
 ### Views
 - [ ] `@csrf` on store and update forms

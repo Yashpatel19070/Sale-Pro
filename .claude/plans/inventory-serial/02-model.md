@@ -17,8 +17,8 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
-use Spatie\Activitylog\LogOptions;
 use Spatie\Activitylog\Models\Concerns\LogsActivity;
+use Spatie\Activitylog\Support\LogOptions;
 
 class InventorySerial extends Model
 {
@@ -32,9 +32,11 @@ class InventorySerial extends Model
             ->logExcept(['purchase_price', 'inventory_location_id', 'status'])
             // purchase_price: sensitive cost data — never logged
             // inventory_location_id + status: already captured by InventoryMovement ledger
-            // Logging them here would create duplicate audit entries for every transfer/sale/adjustment
-            ->logOnlyDirty();
+            ->logOnlyDirty()
+            ->useLogName('inventory_serial');
     }
+
+    protected $hidden = ['purchase_price'];
 
     protected $fillable = [
         'product_id',
@@ -201,8 +203,7 @@ class InventorySerialFactory extends Factory
     public function inStock(): static
     {
         return $this->state([
-            'status'                => SerialStatus::InStock->value,
-            'inventory_location_id' => InventoryLocation::factory(),
+            'status' => SerialStatus::InStock->value,
         ]);
     }
 

@@ -56,6 +56,7 @@ class InventorySerialController extends Controller
         // Movements are loaded as a separate paginated query — NOT eager-loaded on the model.
         // This prevents unbounded collection sizes on serials with long movement history.
         $movements = $inventorySerial->movements()
+            ->select(['id', 'inventory_serial_id', 'from_location_id', 'to_location_id', 'type', 'notes', 'user_id', 'created_at'])
             ->with(['fromLocation:id,code,name', 'toLocation:id,code,name', 'user:id,name'])
             ->latest()
             ->paginate(15);
