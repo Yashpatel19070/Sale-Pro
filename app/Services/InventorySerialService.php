@@ -4,12 +4,8 @@ declare(strict_types=1);
 
 namespace App\Services;
 
-use App\Enums\SerialStatus;
-use App\Models\InventoryMovement;
 use App\Models\InventorySerial;
-use App\Models\User;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
-use Illuminate\Support\Facades\DB;
 
 class InventorySerialService
 {
@@ -44,51 +40,6 @@ class InventorySerialService
             ->orderByDesc('id')
             ->paginate($perPage)
             ->withQueryString();
-    }
-
-    /**
-     * Receive a new physical unit into the warehouse.
-     *
-     * Creates the InventorySerial row and an InventoryMovement of type 'receive'
-     * inside a single DB transaction.
-     *
-     * @param  array{product_id: int, inventory_location_id: int, serial_number: string, purchase_price: numeric-string|float, received_at: string, supplier_name?: string|null, notes?: string|null}  $data
-     * @param  User  $receivedBy  The authenticated user logging the receipt.
-     */
-    public function receive(array $data, User $receivedBy): InventorySerial
-    {
-        return DB::transaction(function () use ($data, $receivedBy): InventorySerial {
-            $serial = InventorySerial::create([
-                'product_id' => $data['product_id'],
-                'inventory_location_id' => $data['inventory_location_id'],
-                'serial_number' => $data['serial_number'],
-                'purchase_price' => $data['purchase_price'],
-                'received_at' => $data['received_at'],
-                'supplier_name' => $data['supplier_name'] ?? null,
-                'received_by_user_id' => $receivedBy->id,
-                'status' => SerialStatus::InStock->value,
-                'notes' => $data['notes'] ?? null,
-            ]);
-
-            // Create the initial receive movement so the ledger stays consistent.
-            // Product is accessible via inventory_serial_id → inventory_serials.product_id.
-            InventoryMovement::create([
-                'inventory_serial_id' => $serial->id,
-                'from_location_id' => null,
-                'to_location_id' => $serial->inventory_location_id,
-                'type' => InventoryMovement::TYPE_RECEIVE,
-                'quantity' => 1,
-                'reference' => $serial->supplier_name,
-                'notes' => "Received serial {$serial->serial_number}.",
-                'user_id' => $receivedBy->id,
-            ]);
-
-            return $serial->load([
-                'product:id,sku,name',
-                'location:id,code,name',
-                'receivedBy:id,name,email',
-            ]);
-        });
     }
 
     /**

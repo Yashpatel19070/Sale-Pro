@@ -20,18 +20,6 @@ class InventoryMovement extends Model
 
     // ── NO SoftDeletes — movements are immutable by design ──────────────────────
 
-    // @deprecated — use MovementType enum instead. Kept only for InventorySerialService::receive().
-    const TYPE_RECEIVE = 'receive';
-
-    /** @deprecated Use MovementType::Transfer->value */
-    const TYPE_TRANSFER = 'transfer';
-
-    /** @deprecated Use MovementType::Sale->value */
-    const TYPE_SALE = 'sale';
-
-    /** @deprecated Use MovementType::Adjustment->value */
-    const TYPE_ADJUSTMENT = 'adjustment';
-
     protected $fillable = [
         'inventory_serial_id',
         'type',

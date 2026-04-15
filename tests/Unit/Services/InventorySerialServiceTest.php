@@ -6,10 +6,8 @@ use App\Enums\SerialStatus;
 use App\Models\InventoryLocation;
 use App\Models\InventorySerial;
 use App\Models\Product;
-use App\Models\User;
 use App\Services\InventorySerialService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\DB;
 
 uses(RefreshDatabase::class);
 
@@ -59,99 +57,6 @@ it('filters by location_id', function () {
     InventorySerial::factory()->count(1)->create();
 
     expect($this->service->list(['location_id' => $location->id])->total())->toBe(2);
-});
-
-// ── receive() ─────────────────────────────────────────────────────────────────
-
-it('creates an InventorySerial with status in_stock', function () {
-    $user = User::factory()->create();
-    $product = Product::factory()->create();
-    $location = InventoryLocation::factory()->create();
-
-    $serial = $this->service->receive([
-        'product_id' => $product->id,
-        'inventory_location_id' => $location->id,
-        'serial_number' => 'SN-RECV-001',
-        'purchase_price' => 25.00,
-        'received_at' => now()->format('Y-m-d'),
-        'supplier_name' => 'TestCo',
-    ], $user);
-
-    expect($serial->status)->toBe(SerialStatus::InStock)
-        ->and($serial->serial_number)->toBe('SN-RECV-001')
-        ->and($serial->received_by_user_id)->toBe($user->id);
-});
-
-it('creates an InventoryMovement of type receive', function () {
-    $user = User::factory()->create();
-    $product = Product::factory()->create();
-    $location = InventoryLocation::factory()->create();
-
-    $serial = $this->service->receive([
-        'product_id' => $product->id,
-        'inventory_location_id' => $location->id,
-        'serial_number' => 'SN-RECV-002',
-        'purchase_price' => 10.00,
-        'received_at' => now()->format('Y-m-d'),
-    ], $user);
-
-    $this->assertDatabaseHas('inventory_movements', [
-        'inventory_serial_id' => $serial->id,
-        'type' => 'receive',
-        'to_location_id' => $location->id,
-        'from_location_id' => null,
-        'quantity' => 1,
-    ]);
-});
-
-it('rolls back serial creation if movement insert fails', function () {
-    $user = User::factory()->create();
-    $product = Product::factory()->create();
-    $location = InventoryLocation::factory()->create();
-
-    $this->instance(InventorySerialService::class, new class extends InventorySerialService
-    {
-        public function receive(array $data, $receivedBy): InventorySerial
-        {
-            return DB::transaction(function () use ($data): InventorySerial {
-                InventorySerial::create($data + ['status' => 'in_stock']);
-                throw new RuntimeException('Forced failure');
-            });
-        }
-    });
-
-    try {
-        app(InventorySerialService::class)->receive([
-            'product_id' => $product->id,
-            'inventory_location_id' => $location->id,
-            'serial_number' => 'SN-ROLLBACK',
-            'purchase_price' => 1.00,
-            'received_at' => now()->format('Y-m-d'),
-            'received_by_user_id' => $user->id,
-        ], $user);
-    } catch (RuntimeException) {
-        // expected
-    }
-
-    $this->assertDatabaseMissing('inventory_serials', ['serial_number' => 'SN-ROLLBACK']);
-});
-
-it('receive eager loads product, location, and receivedBy', function () {
-    $user = User::factory()->create();
-    $product = Product::factory()->create();
-    $location = InventoryLocation::factory()->create();
-
-    $serial = $this->service->receive([
-        'product_id' => $product->id,
-        'inventory_location_id' => $location->id,
-        'serial_number' => 'SN-EAGER-001',
-        'purchase_price' => 5.00,
-        'received_at' => now()->format('Y-m-d'),
-    ], $user);
-
-    expect($serial->relationLoaded('product'))->toBeTrue()
-        ->and($serial->relationLoaded('location'))->toBeTrue()
-        ->and($serial->relationLoaded('receivedBy'))->toBeTrue();
 });
 
 // ── updateNotes() ─────────────────────────────────────────────────────────────

@@ -153,15 +153,21 @@ class InventorySerialService
 
 ## Design Notes
 
+### Scope — read + non-stock edits only
+`InventorySerialService` owns: listing, searching, finding, and updating non-stock fields.
+It does NOT own any operation that changes `status` or `inventory_location_id` — those
+all go through `InventoryMovementService` so every stock mutation creates a movement row.
+
+### receive() — MOVED to InventoryMovementService
+`receive()` was originally here but has been moved to `InventoryMovementService::receive()`
+because it creates an `InventoryMovement` row. Keeping all stock mutations in one service
+is the single-source-of-truth for future POS/order consumers.
+`InventorySerialController::store()` now injects `InventoryMovementService` to call `receive()`.
+
 ### updateNotes — Simple Update
 `updateNotes` uses a direct `update()` call restricted to `notes` and `supplier_name`.
 Immutability of `serial_number` and `purchase_price` is enforced by `UpdateInventorySerialRequest`
 which excludes those fields from `validated()` — they never reach the service.
-
-### receive — Transaction Guarantee
-`receive()` creates both the `InventorySerial` and the `InventoryMovement` atomically.
-If the movement insert fails (e.g. FK constraint), the serial row is also rolled back.
-This keeps the ledger consistent with serial counts.
 
 ### markDamaged / markMissing — Delegated to Movement Module
 Status changes (damaged, missing) are NOT handled here. They must go through

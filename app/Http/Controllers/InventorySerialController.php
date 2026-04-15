@@ -10,6 +10,7 @@ use App\Http\Requests\InventorySerial\UpdateInventorySerialRequest;
 use App\Models\InventorySerial;
 use App\Models\Product;
 use App\Services\InventoryLocationService;
+use App\Services\InventoryMovementService;
 use App\Services\InventorySerialService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -20,6 +21,7 @@ class InventorySerialController extends Controller
     public function __construct(
         private readonly InventorySerialService $service,
         private readonly InventoryLocationService $locationService,
+        private readonly InventoryMovementService $movementService,
     ) {}
 
     public function index(Request $request): View
@@ -70,7 +72,7 @@ class InventorySerialController extends Controller
     {
         $this->authorize('create', InventorySerial::class);
 
-        $serial = $this->service->receive($request->validated(), $request->user());
+        $serial = $this->movementService->receive($request->validated(), $request->user());
 
         return redirect()
             ->route('inventory-serials.show', $serial)

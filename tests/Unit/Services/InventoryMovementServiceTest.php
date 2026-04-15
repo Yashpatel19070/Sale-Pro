@@ -10,6 +10,7 @@ use App\Models\Product;
 use App\Models\User;
 use App\Services\InventoryMovementService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 
 uses(RefreshDatabase::class);
 
@@ -25,6 +26,83 @@ beforeEach(function () {
         'inventory_location_id' => $this->locationA->id,
         'status' => 'in_stock',
     ]);
+});
+
+// ── receive() ─────────────────────────────────────────────────────────────────
+
+it('receive() creates an InventorySerial with status in_stock', function () {
+    $serial = $this->service->receive([
+        'product_id' => $this->product->id,
+        'inventory_location_id' => $this->locationA->id,
+        'serial_number' => 'SN-RECV-001',
+        'purchase_price' => 25.00,
+        'received_at' => now()->format('Y-m-d'),
+        'supplier_name' => 'TestCo',
+    ], $this->user);
+
+    expect($serial->status->value)->toBe('in_stock')
+        ->and($serial->serial_number)->toBe('SN-RECV-001')
+        ->and($serial->received_by_user_id)->toBe($this->user->id);
+});
+
+it('receive() creates an InventoryMovement of type receive', function () {
+    $serial = $this->service->receive([
+        'product_id' => $this->product->id,
+        'inventory_location_id' => $this->locationA->id,
+        'serial_number' => 'SN-RECV-002',
+        'purchase_price' => 10.00,
+        'received_at' => now()->format('Y-m-d'),
+    ], $this->user);
+
+    $this->assertDatabaseHas('inventory_movements', [
+        'inventory_serial_id' => $serial->id,
+        'type' => 'receive',
+        'to_location_id' => $this->locationA->id,
+        'from_location_id' => null,
+    ]);
+});
+
+it('receive() rolls back serial if movement insert fails', function () {
+    $this->instance(InventoryMovementService::class, new class extends InventoryMovementService
+    {
+        public function receive(array $data, User $receivedBy): InventorySerial
+        {
+            return DB::transaction(function () use ($data, $receivedBy): InventorySerial {
+                InventorySerial::create(array_merge($data, [
+                    'received_by_user_id' => $receivedBy->id,
+                    'status' => 'in_stock',
+                ]));
+                throw new RuntimeException('Forced failure');
+            });
+        }
+    });
+
+    try {
+        app(InventoryMovementService::class)->receive([
+            'product_id' => $this->product->id,
+            'inventory_location_id' => $this->locationA->id,
+            'serial_number' => 'SN-ROLLBACK',
+            'purchase_price' => 1.00,
+            'received_at' => now()->format('Y-m-d'),
+        ], $this->user);
+    } catch (RuntimeException) {
+    }
+
+    $this->assertDatabaseMissing('inventory_serials', ['serial_number' => 'SN-ROLLBACK']);
+});
+
+it('receive() eager loads product, location, and receivedBy', function () {
+    $serial = $this->service->receive([
+        'product_id' => $this->product->id,
+        'inventory_location_id' => $this->locationA->id,
+        'serial_number' => 'SN-EAGER-001',
+        'purchase_price' => 5.00,
+        'received_at' => now()->format('Y-m-d'),
+    ], $this->user);
+
+    expect($serial->relationLoaded('product'))->toBeTrue()
+        ->and($serial->relationLoaded('location'))->toBeTrue()
+        ->and($serial->relationLoaded('receivedBy'))->toBeTrue();
 });
 
 // ── transfer() ────────────────────────────────────────────────────────────────

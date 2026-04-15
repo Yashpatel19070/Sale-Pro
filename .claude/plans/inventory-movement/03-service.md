@@ -244,6 +244,65 @@ class InventoryMovementService
 
 ---
 
+## receive() — Moved from InventorySerialService
+
+```php
+/**
+ * Receive a new physical unit into the warehouse.
+ *
+ * Creates the InventorySerial row and an InventoryMovement of type 'receive'
+ * inside a single DB transaction. Serial status defaults to in_stock.
+ *
+ * @param  array{product_id: int, inventory_location_id: int, serial_number: string,
+ *               purchase_price: numeric-string|float, received_at: string,
+ *               supplier_name?: string|null, notes?: string|null}  $data
+ * @param  User  $receivedBy
+ */
+public function receive(array $data, User $receivedBy): InventorySerial
+{
+    return DB::transaction(function () use ($data, $receivedBy): InventorySerial {
+        $serial = InventorySerial::create([
+            'product_id'            => $data['product_id'],
+            'inventory_location_id' => $data['inventory_location_id'],
+            'serial_number'         => $data['serial_number'],
+            'purchase_price'        => $data['purchase_price'],
+            'received_at'           => $data['received_at'],
+            'supplier_name'         => $data['supplier_name'] ?? null,
+            'received_by_user_id'   => $receivedBy->id,
+            'status'                => SerialStatus::InStock->value,
+            'notes'                 => $data['notes'] ?? null,
+        ]);
+
+        InventoryMovement::create([
+            'inventory_serial_id' => $serial->id,
+            'from_location_id'    => null,
+            'to_location_id'      => $serial->inventory_location_id,
+            'type'                => MovementType::Receive,
+            'reference'           => $serial->supplier_name,
+            'notes'               => "Received serial {$serial->serial_number}.",
+            'user_id'             => $receivedBy->id,
+        ]);
+
+        return $serial->load([
+            'product:id,sku,name',
+            'location:id,code,name',
+            'receivedBy:id,name,email',
+        ]);
+    });
+}
+```
+
+**Why here and not in InventorySerialService:**
+- `receive()` always creates an `InventoryMovement` row — it IS a movement operation
+- All stock mutations (`receive`, `transfer`, `sale`, `adjustment`) owned by one service
+- Future `OrderService` / `POSService` only needs to inject `InventoryMovementService`
+- Removes the `InventoryMovement::TYPE_RECEIVE` string constant (replaced by `MovementType::Receive` enum)
+
+**Controller impact:** `InventorySerialController::store()` injects `InventoryMovementService`
+(in addition to keeping `InventorySerialService` for `list()`, `findBySerial()`, `updateNotes()`).
+
+---
+
 ## Critical Rules
 
 ### 1. TOCTOU — ALL guards are inside the transaction
