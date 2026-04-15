@@ -26,10 +26,22 @@ class InventoryService
     public function overview(): Collection
     {
         return InventorySerial::with('product')
+            ->whereHas('product')
             ->where('status', SerialStatus::InStock)
             ->orderBy('product_id')
             ->get()
             ->groupBy('product_id');
+    }
+
+    /**
+     * Count of in_stock serials whose product has been soft-deleted.
+     * Used to render the orphaned-serials warning notice on the stock overview dashboard.
+     */
+    public function orphanedSerialCount(): int
+    {
+        return InventorySerial::whereDoesntHave('product')
+            ->where('status', SerialStatus::InStock)
+            ->count();
     }
 
     /**

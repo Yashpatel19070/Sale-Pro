@@ -46,11 +46,28 @@ class InventoryService
         // Acceptable for V1 small-to-medium warehouses (under ~5,000 total serials).
         // V2: Replace with a DB-level GROUP BY aggregation query + pagination
         // when the warehouse grows beyond that threshold.
+        //
+        // whereHas('product') excludes serials whose product has been soft-deleted.
+        // Those serials are surfaced separately via orphanedSerialCount() and shown
+        // as a warning notice in the view — they are not silently hidden.
         return InventorySerial::with('product')
+            ->whereHas('product')
             ->where('status', SerialStatus::InStock)
             ->orderBy('product_id')
             ->get()
             ->groupBy('product_id');
+    }
+
+    /**
+     * Count of in_stock serials whose product has been soft-deleted.
+     * Used to render the orphaned-serials notice on the stock overview dashboard.
+     * Returns 0 when all products are active.
+     */
+    public function orphanedSerialCount(): int
+    {
+        return InventorySerial::whereDoesntHave('product')
+            ->where('status', SerialStatus::InStock)
+            ->count();
     }
 
     /**
@@ -97,7 +114,8 @@ class InventoryService
 
 | Method | Accepts | Returns | Notes |
 |--------|---------|---------|-------|
-| `overview()` | — | `Collection<int, Collection<int, InventorySerial>>` | Keyed by product_id |
+| `overview()` | — | `Collection<int, Collection<int, InventorySerial>>` | Keyed by product_id. Excludes serials with soft-deleted products. |
+| `orphanedSerialCount()` | — | `int` | Count of in_stock serials whose product is soft-deleted. 0 = no orphans. |
 | `stockBySku(Product $product)` | Eloquent model | `Collection<int, Collection<int, InventorySerial>>` | Keyed by location_id |
 | `stockBySkuAtLocation(Product $product, InventoryLocation $location)` | Two Eloquent models | `Collection<int, InventorySerial>` | Flat, ordered by serial_number |
 
@@ -107,7 +125,7 @@ class InventoryService
 
 | Method | Eager loads |
 |--------|-------------|
-| `overview()` | `product` (to get sku/name for each row) |
+| `overview()` | `product` via `whereHas('product')` — serials with soft-deleted products are excluded and counted separately by `orphanedSerialCount()` |
 | `stockBySku()` | `location` (to get code/name for each group header) |
 | `stockBySkuAtLocation()` | `product`, `location` (both needed for the detail view header) |
 
@@ -119,7 +137,10 @@ Never access `$serial->product` or `$serial->location` without eager loading.
 
 - Does not filter by `is_active` on Product or InventoryLocation — the stock dashboard
   shows stock reality, not product visibility. A product may be inactive but still
-  have physical serials on shelves. Show them.
+  have physical serials on shelves. However, **soft-deleted products** are excluded from
+  `overview()` to prevent a null-access crash in the view (product relation returns null
+  for deleted records). These orphaned serials are surfaced via `orphanedSerialCount()`
+  and shown as a yellow warning notice in the view so admins are aware of them.
 - Does not paginate — the collections are grouped in PHP after a single DB query.
   For very large warehouses, pagination can be added in a V2 iteration.
 - Does not write anything — no `DB::transaction()`, no model mutations.

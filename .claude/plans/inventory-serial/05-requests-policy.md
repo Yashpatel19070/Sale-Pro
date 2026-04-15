@@ -33,7 +33,13 @@ class StoreInventorySerialRequest extends FormRequest
     {
         return [
             'product_id'             => ['required', 'integer', 'exists:products,id'],
-            'inventory_location_id'  => ['required', 'integer', 'exists:inventory_locations,id'],
+            'inventory_location_id'  => [
+                'required',
+                'integer',
+                Rule::exists('inventory_locations', 'id')
+                    ->where('is_active', true)
+                    ->whereNull('deleted_at'),
+            ],
             'serial_number'          => ['required', 'string', 'max:100', Rule::unique('inventory_serials', 'serial_number')->withoutTrashed()],
             'purchase_price'         => ['required', 'numeric', 'min:0', 'max:9999999.99'],
             'received_at'            => ['required', 'date', 'before_or_equal:today'],
@@ -47,7 +53,7 @@ class StoreInventorySerialRequest extends FormRequest
         return [
             'serial_number.unique'          => 'This serial number already exists in the system.',
             'received_at.before_or_equal'   => 'Received date cannot be in the future.',
-            'inventory_location_id.exists'  => 'The selected shelf location does not exist.',
+            'inventory_location_id.exists'  => 'The selected shelf location does not exist or is no longer active.',
         ];
     }
 }
@@ -206,6 +212,22 @@ Gate::policy(\App\Models\InventorySerial::class, \App\Policies\InventorySerialPo
 
 ## Design Notes
 
+### notes max length
+`notes` is capped at **5000 characters** in both `StoreInventorySerialRequest` and `UpdateInventorySerialRequest`.
+This is intentional — 5000 gives enough room for detailed condition notes without being unbounded.
+
+### inventory_location_id — soft-delete and active guard
+The bare `exists:inventory_locations,id` rule queries the table directly and **ignores soft deletes**.
+Use `Rule::exists()->where('is_active', true)->whereNull('deleted_at')` so that:
+- Soft-deleted (decommissioned) shelves are rejected
+- Inactive shelves (temporarily paused) are rejected
+This prevents serials from being received to locations that no longer exist in the system.
+
+### serial_number — globally unique
+Serial numbers are globally unique across all products. Two different products cannot share
+the same serial number. This matches real-world hardware (IMEI, device S/N) where serial
+numbers are physically stamped by manufacturers and never repeated across items.
+
 ### prepareForValidation — serial_number normalization
 Serial numbers are uppercased and trimmed before uniqueness validation. This prevents
 `sn-00001` and `SN-00001` from both passing the unique check when they represent the same
@@ -255,6 +277,7 @@ the other in future without a schema change.
 - [ ] `$request->validated()` used in controller — never `$request->all()`
 - [ ] `prepareForValidation()` uppercases and trims serial_number before uniqueness check
 - [ ] `serial_number` unique rule uses `Rule::unique('inventory_serials', 'serial_number')->withoutTrashed()` — not the bare string form
+- [ ] `inventory_location_id` uses `Rule::exists()->where('is_active', true)->whereNull('deleted_at')` — bare `exists:inventory_locations,id` does NOT exclude soft-deleted or inactive locations
 
 ### Controller
 - [ ] `index()` calls `$this->authorize('viewAny', InventorySerial::class)`

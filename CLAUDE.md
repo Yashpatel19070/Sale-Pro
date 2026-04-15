@@ -101,6 +101,16 @@ Reference files are at:
 
 ## Rules
 
+### Review Mode (CRITICAL)
+When the user asks you to **check**, **review**, **audit**, **inspect**, or **report** on code,
+tests, or any files — you MUST:
+1. Read and analyse the relevant files
+2. Produce a detailed written report (findings, issues, risks, recommendations)
+3. **STOP — do NOT edit, write, or create any file**
+
+Only proceed to make changes if the user explicitly says so AFTER reading the report
+(e.g. "yes fix it", "go ahead", "update it"). A review request is never implicit permission to edit.
+
 ### File Edit Approval (CRITICAL)
 Before editing or creating any file, you MUST:
 1. Show the user exactly what you plan to change (file path + a brief description of the change)

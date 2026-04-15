@@ -28,7 +28,13 @@ class StoreInventorySerialRequest extends FormRequest
     {
         return [
             'product_id' => ['required', 'integer', 'exists:products,id'],
-            'inventory_location_id' => ['required', 'integer', 'exists:inventory_locations,id'],
+            'inventory_location_id' => [
+                'required',
+                'integer',
+                Rule::exists('inventory_locations', 'id')
+                    ->where('is_active', true)
+                    ->whereNull('deleted_at'),
+            ],
             'serial_number' => ['required', 'string', 'max:100', Rule::unique('inventory_serials', 'serial_number')->withoutTrashed()],
             'purchase_price' => ['required', 'numeric', 'min:0', 'max:9999999.99'],
             'received_at' => ['required', 'date', 'before_or_equal:today'],
@@ -42,7 +48,7 @@ class StoreInventorySerialRequest extends FormRequest
         return [
             'serial_number.unique' => 'This serial number already exists in the system.',
             'received_at.before_or_equal' => 'Received date cannot be in the future.',
-            'inventory_location_id.exists' => 'The selected shelf location does not exist.',
+            'inventory_location_id.exists' => 'The selected shelf location does not exist or is no longer active.',
         ];
     }
 }

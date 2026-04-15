@@ -303,7 +303,16 @@ $allowedStatuses = [SerialStatus::Damaged->value, SerialStatus::Missing->value];
 
 This keeps the guard in sync with the `SerialStatus` enum automatically.
 
-### 8. Boolean / empty string filter guard
+### 8. `historyForSerial()` is intentionally unpaginated
+
+`historyForSerial()` returns a flat `Collection`, not a `LengthAwarePaginator`. This is by design:
+- The serial timeline is a secondary detail view, not a primary list
+- A single serial rarely has more than a few dozen movements in its lifetime
+- Pagination adds complexity (view links, controller query changes) for minimal gain at this scale
+
+If a serial ever accumulates hundreds of movements, add `->paginate(25)` at that point.
+
+### 9. Boolean / empty string filter guard
 
 `listMovements()` uses `isset() && !== ''` (not just `isset()`) for select-based filters
 (`location_id`, `type`). This prevents the "All" select option (empty string) from

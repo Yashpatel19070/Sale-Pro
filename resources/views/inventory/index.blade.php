@@ -10,6 +10,16 @@
 
             @include('partials.flash')
 
+            @if ($orphanedSerialCount > 0)
+                <div class="mb-4 rounded-lg border border-yellow-300 bg-yellow-50 p-4">
+                    <p class="text-sm text-yellow-800">
+                        <strong>{{ $orphanedSerialCount }}</strong>
+                        {{ Str::plural('serial', $orphanedSerialCount) }} not shown — their product has been archived.
+                        Contact an admin to reassign or write them off.
+                    </p>
+                </div>
+            @endif
+
             @if ($stockOverview->isEmpty())
                 <div class="rounded-lg bg-white p-8 text-center shadow">
                     <p class="text-sm text-gray-500">No stock on hand. No serials with status <em>in_stock</em> found.</p>

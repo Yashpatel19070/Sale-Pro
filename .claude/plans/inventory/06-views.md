@@ -31,6 +31,17 @@ Each row links to `route('inventory.by-sku', $product)`.
 
             @include('partials.flash')
 
+            {{-- Orphaned serials notice — shown when in_stock serials exist for soft-deleted products --}}
+            @if ($orphanedSerialCount > 0)
+                <div class="mb-4 rounded-lg border border-yellow-300 bg-yellow-50 p-4">
+                    <p class="text-sm text-yellow-800">
+                        <strong>{{ $orphanedSerialCount }}</strong>
+                        {{ Str::plural('serial', $orphanedSerialCount) }} not shown — their product has been archived.
+                        Contact an admin to reassign or write them off.
+                    </p>
+                </div>
+            @endif
+
             @if ($stockOverview->isEmpty())
                 <div class="rounded-lg bg-white p-8 text-center shadow">
                     <p class="text-sm text-gray-500">No stock on hand. No serials with status <em>in_stock</em> found.</p>
@@ -76,8 +87,9 @@ Each row links to `route('inventory.by-sku', $product)`.
 </x-app-layout>
 ```
 
-> **Note:** The controller passes `$stockOverview` (keyed by product_id). Each value is a Collection
-> of `InventorySerial` models with `product` eager-loaded.
+> **Note:** The controller passes `$stockOverview` (keyed by product_id) AND `$orphanedSerialCount` (int).
+> `$stockOverview` only contains serials with active (non-soft-deleted) products — safe to access `->product->sku`.
+> `$orphanedSerialCount` is 0 when all products are active; the notice is hidden in that case.
 
 ---
 
@@ -108,7 +120,7 @@ Each location row links to `route('inventory.by-sku-at-location', [$product, $lo
                     &nbsp;|&nbsp;
                     <span class="font-medium text-gray-800">Total On Hand:</span>
                     <span class="font-semibold text-indigo-700">
-                        {{ $stockByLocation->flatten()->count() }}
+                        {{ $stockByLocation->sum(fn ($g) => $g->count()) }}
                     </span> units
                 </p>
             </div>
@@ -253,4 +265,6 @@ Each row links to the inventory-serial detail page.
 - `@include('partials.flash')` is included on the dashboard (index) for session flash messages.
 - The `font-mono` class is applied to SKU, location code, and serial number columns for readability.
 - The drill-down flow is strictly: index → show-by-sku → show-by-sku-at-location. There is no "browse by location" starting point.
+- `index.blade.php` receives `$orphanedSerialCount` (int) from the controller in addition to `$stockOverview`. When > 0, a yellow notice is shown above the table informing the admin that some in_stock serials are not shown because their product was archived. This prevents a null-access crash while ensuring stock is never silently hidden.
+- `show-by-sku.blade.php` uses `$stockByLocation->sum(fn ($g) => $g->count())` — NOT `flatten()->count()` — to calculate the total. `flatten()` allocates a redundant collection; `sum()` iterates in place.
 - **Cross-module dependency:** `show-by-sku-at-location.blade.php` links to `route('inventory-serials.show', $serial)` which is registered by the inventory-serial module. The inventory-serial module must be built and migrated before this view can be used in production. In feature tests for the inventory module, stub or seed at least one `InventorySerial` so the route resolves.

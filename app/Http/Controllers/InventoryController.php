@@ -24,8 +24,9 @@ class InventoryController extends Controller
         $this->authorize('inventoryViewAny', InventorySerial::class);
 
         $stockOverview = $this->inventory->overview();
+        $orphanedSerialCount = $this->inventory->orphanedSerialCount();
 
-        return view('inventory.index', compact('stockOverview'));
+        return view('inventory.index', compact('stockOverview', 'orphanedSerialCount'));
     }
 
     /**

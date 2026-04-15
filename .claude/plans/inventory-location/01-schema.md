@@ -17,6 +17,11 @@
 
 ## Migration File — Exact Code
 
+The initial migration creates the table with a plain `->unique()` on `code`.
+A follow-up migration replaces it with a composite unique on `(code, deleted_at)`
+so that a soft-deleted code can be reused (see **Soft-Delete Code Reuse** note below).
+
+### Initial migration
 ```php
 <?php
 
@@ -48,6 +53,37 @@ return new class extends Migration
 };
 ```
 
+### Follow-up migration — fix unique constraint for soft-delete reuse
+
+```php
+<?php
+
+declare(strict_types=1);
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    public function up(): void
+    {
+        Schema::table('inventory_locations', function (Blueprint $table) {
+            $table->dropUnique(['code']);
+            $table->unique(['code', 'deleted_at']);
+        });
+    }
+
+    public function down(): void
+    {
+        Schema::table('inventory_locations', function (Blueprint $table) {
+            $table->dropUnique(['code', 'deleted_at']);
+            $table->unique(['code']);
+        });
+    }
+};
+```
+
 ---
 
 ## After Creating Migration
@@ -60,10 +96,15 @@ php artisan migrate
 
 ## Notes
 
-- `code` has a unique index — duplicate codes are rejected at the DB level.
-  The unique rule uses `Rule::unique('inventory_locations', 'code')->withoutTrashed()`
-  which means uniqueness is checked among non-deleted locations only — a soft-deleted location's
-  code CAN be reused. Remove `withoutTrashed()` if you want to permanently block code reuse.
+- **Soft-Delete Code Reuse:** The composite `UNIQUE(code, deleted_at)` index enables code reuse after
+  soft-deletion. In MySQL, `NULL` values in a unique index are treated as **distinct** from each other.
+  This means:
+  - Two active rows with the same code → **blocked** (both have `deleted_at = NULL`)
+  - One active + one soft-deleted row with the same code → **allowed** (`NULL` vs a timestamp)
+  - Two soft-deleted rows with the same code → **allowed** (different timestamps)
+  The FormRequest already uses `Rule::unique('inventory_locations', 'code')->withoutTrashed()`,
+  which skips soft-deleted rows during validation. The composite DB index makes the DB constraint
+  match that intent so no 500 error occurs on insert.
 - `is_active` is stored as a boolean. The service sets it to `false` on deactivation
   alongside soft delete. Restore sets it back to `true`.
 - `deleted_at` enables soft delete. Records are never permanently removed.
