@@ -2,10 +2,13 @@
 
 declare(strict_types=1);
 
+use App\Models\InventoryLocation;
+use App\Models\InventorySerial;
 use App\Models\Product;
 use App\Models\ProductCategory;
 use App\Models\ProductListing;
 use App\Models\User;
+use Database\Seeders\InventoryPermissionSeeder;
 use Database\Seeders\ProductPermissionSeeder;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -15,6 +18,7 @@ uses(RefreshDatabase::class);
 beforeEach(function () {
     $this->seed(RoleSeeder::class);
     $this->seed(ProductPermissionSeeder::class);
+    $this->seed(InventoryPermissionSeeder::class);
 });
 
 // ── Authorization ──────────────────────────────────────────────────────────────
@@ -133,7 +137,7 @@ it('validates SKU uniqueness', function () {
         ->assertSessionHasErrors(['sku']);
 });
 
-// ── Show / Edit forms ─────────────────────────────────────────────────────────
+// ── Show ───────────────────────────────────────────────────────────────────────
 
 it('admin can view product detail', function () {
     $admin = User::factory()->create()->assignRole('admin');
@@ -142,8 +146,58 @@ it('admin can view product detail', function () {
     $this->actingAs($admin)
         ->get(route('products.show', $product))
         ->assertOk()
-        ->assertViewIs('products.show');
+        ->assertViewIs('products.show')
+        ->assertViewHas('listings')
+        ->assertViewHas('stockByLocation');
 });
+
+it('show page passes paginated listings to view', function () {
+    $admin = User::factory()->create()->assignRole('admin');
+    $product = Product::factory()->create();
+    ProductListing::factory()->forProduct($product)->count(3)->create();
+
+    $response = $this->actingAs($admin)->get(route('products.show', $product));
+
+    $response->assertOk();
+    expect($response->viewData('listings')->total())->toBe(3);
+});
+
+it('show page passes stock by location to view when serials exist', function () {
+    $admin = User::factory()->create()->assignRole('admin');
+    $product = Product::factory()->create();
+    $location = InventoryLocation::factory()->create();
+    InventorySerial::factory()->forProduct($product)->atLocation($location)->inStock()->count(2)->create();
+
+    $response = $this->actingAs($admin)->get(route('products.show', $product));
+
+    $response->assertOk();
+    $stockByLocation = $response->viewData('stockByLocation');
+    expect($stockByLocation)->toHaveCount(1)
+        ->and($stockByLocation->first()->count())->toBe(2);
+});
+
+it('show page stock by location is empty when product has no in-stock serials', function () {
+    $admin = User::factory()->create()->assignRole('admin');
+    $product = Product::factory()->create();
+
+    $response = $this->actingAs($admin)->get(route('products.show', $product));
+
+    $response->assertOk();
+    expect($response->viewData('stockByLocation')->isEmpty())->toBeTrue();
+});
+
+it('show page excludes sold serials from stock by location', function () {
+    $admin = User::factory()->create()->assignRole('admin');
+    $product = Product::factory()->create();
+    InventorySerial::factory()->forProduct($product)->sold()->create();
+
+    $response = $this->actingAs($admin)->get(route('products.show', $product));
+
+    $response->assertOk();
+    expect($response->viewData('stockByLocation')->isEmpty())->toBeTrue();
+});
+
+// ── Edit / Update ──────────────────────────────────────────────────────────────
 
 it('admin can view product edit form', function () {
     $admin = User::factory()->create()->assignRole('admin');
@@ -154,8 +208,6 @@ it('admin can view product edit form', function () {
         ->assertOk()
         ->assertViewIs('products.edit');
 });
-
-// ── Edit / Update ──────────────────────────────────────────────────────────────
 
 it('admin can edit a product', function () {
     $admin = User::factory()->create()->assignRole('admin');

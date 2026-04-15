@@ -7,6 +7,7 @@ namespace App\Http\Controllers;
 use App\Http\Requests\Product\StoreProductRequest;
 use App\Http\Requests\Product\UpdateProductRequest;
 use App\Models\Product;
+use App\Services\InventoryService;
 use App\Services\ProductCategoryService;
 use App\Services\ProductService;
 use Illuminate\Http\RedirectResponse;
@@ -19,6 +20,7 @@ class ProductController extends Controller
     public function __construct(
         private readonly ProductService $service,
         private readonly ProductCategoryService $categoryService,
+        private readonly InventoryService $inventoryService,
     ) {}
 
     public function index(Request $request): View
@@ -55,9 +57,12 @@ class ProductController extends Controller
     {
         $this->authorize('view', $product);
 
-        $product->load(['category', 'listings']);
+        $product->load('category');
 
-        return view('products.show', compact('product'));
+        $listings = $product->listings()->paginate(15);
+        $stockByLocation = $this->inventoryService->stockBySku($product);
+
+        return view('products.show', compact('product', 'listings', 'stockByLocation'));
     }
 
     public function edit(Product $product): View

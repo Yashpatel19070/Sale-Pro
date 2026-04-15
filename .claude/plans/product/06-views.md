@@ -38,22 +38,48 @@ All views extend `layouts.admin` and use Tailwind CSS v3.
 
 **Purpose:** Product detail page.
 
+**Variables passed from controller:**
+| Variable | Type | What |
+|----------|------|------|
+| `$product` | `Product` | product with `category` eager-loaded |
+| `$listings` | `LengthAwarePaginator` | paginated product listings, 15 per page |
+| `$stockByLocation` | `Collection<int, Collection<int, InventorySerial>>` | in-stock serials grouped by `inventory_location_id`; each serial has `location` loaded |
+
 **Sections:**
 - Back link to index
 - Header: product name + status badge
-- Two-column layout:
-  - Left:
-    - SKU (read-only)
-    - Category (link or "Uncategorised")
-    - Regular Price
-    - Sale Price (if set — shown as green badge "On Sale: $X.XX")
-    - Purchase Price (internal — label "Purchase Price (internal, not shown to customers)")
-    - Description
-    - Notes (label "Internal Notes")
-  - Right: Listings count card + "Manage Listings" link → `product-listings.index?product_id={id}`
-- Timestamps (created/updated)
-- Edit + Delete buttons (gated by policy)
-- Listings table preview (first 5, with link to full list)
+- Two-column layout (lg:col-span-2 left / 1 right):
+  - **Left column — stacked cards:**
+    1. **Product details card**
+       - SKU (monospace)
+       - Category (name or "Uncategorised")
+       - Regular Price (struck-through when on sale)
+       - Sale Price ("On Sale: $X.XX" green badge, or "—")
+       - Purchase Price (internal — label "Purchase Price (internal, not shown to customers)")
+       - Description
+       - Notes ("Internal Notes")
+       - Timestamps (created / updated)
+    2. **Listings card** (full paginated table)
+       - Table columns: Title | Status
+       - Status: green "Active" badge / gray "Inactive" badge
+       - Empty state: "No listings yet."
+       - `{{ $listings->links() }}` pagination below table
+    3. **Stock by Location card**
+       - Heading: "Stock by Location"
+       - Sub-heading: "In-stock units (status = in_stock) per shelf location"
+       - Empty state: "No stock on record for this SKU."
+       - Table columns: Location Code | Location Name | In Stock
+         - `Location Code`: `$group->first()->location->code` — links to `route('inventory.by-sku', $product)` (drills into inventory module)
+         - `Location Name`: `$group->first()->location->name`
+         - `In Stock`: `$group->count()` — right-aligned, bold
+       - Total row at bottom: "Total in stock: X" summed across all locations
+  - **Right column — stat cards:**
+    1. Listings count card — `$listings->total()` (not `count()` — paginator total)
+       - Label: "Total Listings"
+       - "Manage Listings (coming soon)" placeholder
+    2. Stock count card — `$stockByLocation->sum(fn ($g) => $g->count())`
+       - Label: "Total In Stock"
+       - Links to `route('inventory.by-sku', $product)`
 
 ---
 
@@ -133,7 +159,13 @@ Includes a null/blank option for "Uncategorised".
 - [ ] index: table with SKU, name, category, regular_price (+sale badge), status, actions
 - [ ] show: purchase_price labelled as internal only
 - [ ] show: sale_price displayed as "On Sale" with strike-through of regular_price
-- [ ] show: listings count + link to product-listings filtered by product
+- [ ] show: listings uses `$listings` (paginator), NOT `$product->listings` (relation)
+- [ ] show: listings table has `{{ $listings->links() }}` pagination
+- [ ] show: listings count card uses `$listings->total()` not `->count()`
+- [ ] show: stock by location section present — table with Code | Name | In Stock
+- [ ] show: stock by location empty state shown when `$stockByLocation->isEmpty()`
+- [ ] show: stock by location location code links to `route('inventory.by-sku', $product)`
+- [ ] show: stock count card in right column shows `$stockByLocation->sum(fn($g)=>$g->count())`
 - [ ] _form: SKU input only on create; readonly display on edit
 - [ ] _form: sale_price optional field with clear label
 - [ ] All forms use `@csrf` + correct `@method` for PATCH

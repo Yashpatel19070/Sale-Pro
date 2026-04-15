@@ -46,11 +46,12 @@
                    class="text-sm text-indigo-600 hover:underline">← Back to Products</a>
             </div>
 
-            {{-- Main detail --}}
             <div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
 
-                {{-- Left: product details --}}
+                {{-- Left: stacked cards --}}
                 <div class="lg:col-span-2 space-y-6">
+
+                    {{-- Product details --}}
                     <div class="overflow-hidden rounded-lg bg-white shadow">
                         <div class="p-6">
                             <dl class="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -94,12 +95,17 @@
                                     </dd>
                                 </div>
 
-                                <div>
-                                    <dt class="text-xs font-medium uppercase text-gray-500">Purchase Price <span class="normal-case text-gray-400">(internal, not shown to customers)</span></dt>
-                                    <dd class="mt-1 text-sm text-gray-900">
-                                        {{ $product->purchase_price ? '$'.$product->purchase_price : '—' }}
-                                    </dd>
-                                </div>
+                                @can('viewPurchasePrice', $product)
+                                    <div>
+                                        <dt class="text-xs font-medium uppercase text-gray-500">
+                                            Purchase Price
+                                            <span class="normal-case text-gray-400">(internal)</span>
+                                        </dt>
+                                        <dd class="mt-1 text-sm text-gray-900">
+                                            {{ $product->purchase_price ? '$' . $product->purchase_price : '—' }}
+                                        </dd>
+                                    </div>
+                                @endcan
                             </dl>
 
                             @if ($product->description)
@@ -123,14 +129,14 @@
                         </div>
                     </div>
 
-                    {{-- Listings preview --}}
+                    {{-- Listings --}}
                     <div class="overflow-hidden rounded-lg bg-white shadow">
                         <div class="flex items-center justify-between border-b border-gray-200 px-6 py-4">
                             <h3 class="text-sm font-semibold text-gray-900">Listings</h3>
                             {{-- TODO: replace with route('product-listings.index', ['product_id' => $product->id]) once module exists --}}
                             <span class="text-xs text-gray-400">Manage Listings (coming soon)</span>
                         </div>
-                        @if ($product->listings->isEmpty())
+                        @if ($listings->isEmpty())
                             <p class="px-6 py-8 text-center text-sm text-gray-400">No listings yet.</p>
                         @else
                             <table class="min-w-full divide-y divide-gray-100">
@@ -141,7 +147,7 @@
                                     </tr>
                                 </thead>
                                 <tbody class="divide-y divide-gray-100">
-                                    @foreach ($product->listings->take(5) as $listing)
+                                    @foreach ($listings as $listing)
                                         <tr class="hover:bg-gray-50">
                                             <td class="px-4 py-2 text-sm text-gray-900">{{ $listing->title }}</td>
                                             <td class="px-4 py-2">
@@ -155,25 +161,91 @@
                                     @endforeach
                                 </tbody>
                             </table>
-                            @if ($product->listings->count() > 5)
-                                <p class="px-4 py-2 text-xs text-gray-400">
-                                    … and {{ $product->listings->count() - 5 }} more.
-                                </p>
+                            @if ($listings->hasPages())
+                                <div class="px-4 py-3 border-t border-gray-100">
+                                    {{ $listings->links() }}
+                                </div>
                             @endif
                         @endif
                     </div>
+
+                    {{-- Stock by Location --}}
+                    <div class="overflow-hidden rounded-lg bg-white shadow">
+                        <div class="flex items-center justify-between border-b border-gray-200 px-6 py-4">
+                            <div>
+                                <h3 class="text-sm font-semibold text-gray-900">Stock by Location</h3>
+                                <p class="mt-0.5 text-xs text-gray-400">In-stock units per shelf location</p>
+                            </div>
+                            <a href="{{ route('inventory.by-sku', $product) }}"
+                               class="text-xs text-indigo-600 hover:underline">
+                                View full inventory →
+                            </a>
+                        </div>
+                        @if ($stockByLocation->isEmpty())
+                            <p class="px-6 py-8 text-center text-sm text-gray-400">No stock on record for this SKU.</p>
+                        @else
+                            <table class="min-w-full divide-y divide-gray-100">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th class="px-4 py-2 text-left text-xs font-medium uppercase text-gray-500">Location Code</th>
+                                        <th class="px-4 py-2 text-left text-xs font-medium uppercase text-gray-500">Location Name</th>
+                                        <th class="px-4 py-2 text-right text-xs font-medium uppercase text-gray-500">In Stock</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-gray-100">
+                                    @foreach ($stockByLocation as $locationId => $group)
+                                        @php $location = $group->first()->location; @endphp
+                                        <tr class="hover:bg-gray-50">
+                                            <td class="px-4 py-2 text-sm">
+                                                <a href="{{ route('inventory.by-sku-at-location', [$product, $location]) }}"
+                                                   class="font-mono text-indigo-600 hover:underline">
+                                                    {{ $location->code }}
+                                                </a>
+                                            </td>
+                                            <td class="px-4 py-2 text-sm text-gray-700">{{ $location->name }}</td>
+                                            <td class="px-4 py-2 text-right text-sm font-semibold text-gray-900">{{ $group->count() }}</td>
+                                        </tr>
+                                    @endforeach
+                                </tbody>
+                                <tfoot class="bg-gray-50">
+                                    <tr>
+                                        <td colspan="2" class="px-4 py-2 text-xs font-medium text-gray-500">Total in stock</td>
+                                        <td class="px-4 py-2 text-right text-sm font-bold text-gray-900">
+                                            {{ $stockByLocation->sum(fn ($g) => $g->count()) }}
+                                        </td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        @endif
+                    </div>
+
                 </div>
 
-                {{-- Right: listings count card --}}
-                <div>
+                {{-- Right: stat cards --}}
+                <div class="space-y-4">
+
                     <div class="overflow-hidden rounded-lg bg-white shadow">
                         <div class="p-6 text-center">
-                            <p class="text-3xl font-bold text-indigo-600">{{ $product->listings->count() }}</p>
+                            <p class="text-3xl font-bold text-indigo-600">{{ $listings->total() }}</p>
                             <p class="mt-1 text-sm text-gray-500">Total Listings</p>
                             {{-- TODO: replace with route('product-listings.index', ['product_id' => $product->id]) once module exists --}}
                             <span class="mt-3 inline-block text-xs text-gray-400">Manage Listings (coming soon)</span>
                         </div>
                     </div>
+
+                    <div class="overflow-hidden rounded-lg bg-white shadow">
+                        <div class="p-6 text-center">
+                            <p class="text-3xl font-bold text-green-600">
+                                {{ $stockByLocation->sum(fn ($g) => $g->count()) }}
+                            </p>
+                            <p class="mt-1 text-sm text-gray-500">Total In Stock</p>
+                            <a href="{{ route('inventory.by-sku', $product) }}"
+                               class="mt-3 inline-block text-xs text-indigo-600 hover:underline">
+                                View inventory →
+                            </a>
+                        </div>
+                    </div>
+
                 </div>
 
             </div>

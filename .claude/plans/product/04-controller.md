@@ -29,6 +29,7 @@ namespace App\Http\Controllers;
 use App\Http\Requests\Product\StoreProductRequest;
 use App\Http\Requests\Product\UpdateProductRequest;
 use App\Models\Product;
+use App\Services\InventoryService;
 use App\Services\ProductCategoryService;
 use App\Services\ProductService;
 use Illuminate\Http\RedirectResponse;
@@ -40,6 +41,7 @@ class ProductController extends Controller
     public function __construct(
         private readonly ProductService         $service,
         private readonly ProductCategoryService $categoryService,
+        private readonly InventoryService       $inventoryService,
     ) {}
 
     public function index(Request $request): View
@@ -76,9 +78,16 @@ class ProductController extends Controller
     {
         $this->authorize('view', $product);
 
-        $product->load(['category', 'listings']);
+        $product->load('category');
 
-        return view('products.show', compact('product'));
+        // Paginated listings — DB-level, 15 per page
+        $listings = $product->listings()->paginate(15);
+
+        // In-stock serials grouped by location — reuses InventoryService
+        // Returns Collection<location_id, Collection<InventorySerial>> with 'location' eager-loaded
+        $stockByLocation = $this->inventoryService->stockBySku($product);
+
+        return view('products.show', compact('product', 'listings', 'stockByLocation'));
     }
 
     public function edit(Product $product): View
@@ -141,6 +150,8 @@ class ProductController extends Controller
 
 ## Notes
 - `ProductCategoryService` injected for dropdown data on index/create/edit
+- `InventoryService` injected — `show()` calls `stockBySku($product)` to display per-location stock
+- `show()` does NOT load `listings` relation on `$product` — listings fetched separately via `$product->listings()->paginate(15)` to avoid loading all rows into memory
 - `restore` uses `Product::class` (not instance) for policy — trashed models loaded separately
 - `toggleActive` redirects back (used from list or detail page)
 - `destroy` catches `RuntimeException` from service and shows error flash
