@@ -19,6 +19,7 @@ use App\Policies\AuditLogPolicy;
 use App\Policies\CustomerPolicy;
 use App\Policies\DepartmentPolicy;
 use App\Policies\InventoryLocationPolicy;
+use App\Policies\InventoryMovementPolicy;
 use App\Policies\InventorySerialPolicy;
 use App\Policies\ProductCategoryPolicy;
 use App\Policies\ProductListingPolicy;
@@ -55,6 +56,7 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(ProductListing::class, ProductListingPolicy::class);
         Gate::policy(InventoryLocation::class, InventoryLocationPolicy::class);
         Gate::policy(InventorySerial::class, InventorySerialPolicy::class);
+        Gate::policy(InventoryMovement::class, InventoryMovementPolicy::class);
 
         // Auth event listeners — log login, logout, failed attempts
         Event::listen(Login::class, [LogAuthActivity::class, 'handleLogin']);

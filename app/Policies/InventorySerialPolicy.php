@@ -54,4 +54,24 @@ class InventorySerialPolicy
     {
         return $user->hasRole('admin') || $user->hasRole('manager');
     }
+
+    // ── Inventory stock-visibility gates (used by InventoryController) ────────
+
+    /** Stock overview dashboard — admin, manager, sales. */
+    public function inventoryViewAny(User $user): bool
+    {
+        return $user->can(Permission::INVENTORY_VIEW_ANY);
+    }
+
+    /** Stock by SKU drill-down — admin, manager, sales. */
+    public function inventoryViewBySku(User $user): bool
+    {
+        return $user->can(Permission::INVENTORY_VIEW_BY_SKU);
+    }
+
+    /** Serials for one SKU at one location — admin, manager, sales. */
+    public function inventoryViewBySkuAtLocation(User $user): bool
+    {
+        return $user->can(Permission::INVENTORY_VIEW_BY_SKU_AT_LOCATION);
+    }
 }

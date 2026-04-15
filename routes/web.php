@@ -4,7 +4,9 @@ use App\Enums\Permission;
 use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\DepartmentController;
+use App\Http\Controllers\InventoryController;
 use App\Http\Controllers\InventoryLocationController;
+use App\Http\Controllers\InventoryMovementController;
 use App\Http\Controllers\InventorySerialController;
 use App\Http\Controllers\Portal\Auth\AuthenticatedSessionController as PortalSessionController;
 use App\Http\Controllers\Portal\Auth\EmailVerificationController;
@@ -106,6 +108,27 @@ Route::prefix('admin')->group(function () {
             Route::get('/{inventorySerial}', [InventorySerialController::class, 'show'])->name('show');
             Route::get('/{inventorySerial}/edit', [InventorySerialController::class, 'edit'])->name('edit');
             Route::put('/{inventorySerial}', [InventorySerialController::class, 'update'])->name('update');
+        });
+
+        // Inventory Movements
+        Route::prefix('inventory-movements')->name('inventory-movements.')->group(function () {
+            Route::get('/', [InventoryMovementController::class, 'index'])->name('index');
+            Route::get('/create', [InventoryMovementController::class, 'create'])->name('create');
+            Route::post('/', [InventoryMovementController::class, 'store'])->name('store');
+            // NO edit, update, destroy — movements are immutable
+        });
+
+        // Serial timeline — nested under inventory-serials
+        Route::get(
+            'inventory-serials/{inventorySerial}/movements',
+            [InventoryMovementController::class, 'forSerial']
+        )->name('inventory-serials.movements');
+
+        // Inventory — stock visibility (read only)
+        Route::prefix('inventory')->name('inventory.')->group(function () {
+            Route::get('/', [InventoryController::class, 'index'])->name('index');
+            Route::get('/{product}', [InventoryController::class, 'showBySku'])->name('by-sku');
+            Route::get('/{product}/{location}', [InventoryController::class, 'showBySkuAtLocation'])->name('by-sku-at-location');
         });
 
         // Audit Log (read-only)

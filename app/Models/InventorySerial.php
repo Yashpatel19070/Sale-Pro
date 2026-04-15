@@ -74,10 +74,10 @@ class InventorySerial extends Model
         return $this->belongsTo(User::class, 'received_by_user_id');
     }
 
-    /** Movement history for this serial (receive + any subsequent transfers/sales). */
+    /** All movement records for this serial, in chronological order. */
     public function movements(): HasMany
     {
-        return $this->hasMany(InventoryMovement::class, 'inventory_serial_id');
+        return $this->hasMany(InventoryMovement::class, 'inventory_serial_id')->orderBy('created_at');
     }
 
     // ── Scopes ─────────────────────────────────────────────────────────────────

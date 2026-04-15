@@ -36,7 +36,13 @@ class InventoryMovementController extends Controller
     {
         $this->authorize('viewAny', InventoryMovement::class);
 
-        $filters = $request->only(['serial_number', 'location_id', 'type', 'date_from', 'date_to']);
+        $filters = $request->validate([
+            'serial_number' => ['nullable', 'string', 'max:100'],
+            'location_id'   => ['nullable', 'integer', 'exists:inventory_locations,id'],
+            'type'          => ['nullable', 'string', Rule::in(array_column(MovementType::cases(), 'value'))],
+            'date_from'     => ['nullable', 'date_format:Y-m-d'],
+            'date_to'       => ['nullable', 'date_format:Y-m-d', 'after_or_equal:date_from'],
+        ]);
 
         $movements  = $this->movements->listMovements($filters);
         $locations  = InventoryLocation::where('is_active', true)->orderBy('code')->get();
@@ -54,17 +60,17 @@ class InventoryMovementController extends Controller
     {
         $this->authorize('create', InventoryMovement::class);
 
-        $serials   = InventorySerial::with('product')
-            ->where('status', 'in_stock')
+        $serials = InventorySerial::with(['product', 'location'])
+            ->where('status', SerialStatus::InStock)
             ->orderBy('serial_number')
             ->get();
 
         $locations = $this->locationService->activeForDropdown();
-        $types     = MovementType::cases();
+        $types = MovementType::cases();
 
-        // Optionally pre-select a serial from the query string
+        // Resolve from already-loaded collection — avoids a second DB query
         $selectedSerial = $request->filled('serial_id')
-            ? InventorySerial::with('product', 'location')->find($request->query('serial_id'))
+            ? $serials->find((int) $request->query('serial_id'))
             : null;
 
         $selectedType = $request->query('type', 'transfer'); // default to transfer
@@ -136,6 +142,7 @@ class InventoryMovementController extends Controller
     {
         $this->authorize('viewAny', InventoryMovement::class);
 
+        $inventorySerial->load('product');
         $movements = $this->movements->historyForSerial($inventorySerial);
 
         return view('inventory.movements.serial-timeline', compact('inventorySerial', 'movements'));

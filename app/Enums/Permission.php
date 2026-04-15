@@ -123,4 +123,20 @@ class Permission
     const INVENTORY_SERIALS_MARK_DAMAGED = 'inventory-serials.mark-damaged';
 
     const INVENTORY_SERIALS_MARK_MISSING = 'inventory-serials.mark-missing';
+
+    // Inventory Movements
+    const INVENTORY_MOVEMENTS_VIEW = 'inventory-movements.view';
+
+    const INVENTORY_MOVEMENTS_TRANSFER = 'inventory-movements.transfer';
+
+    const INVENTORY_MOVEMENTS_SELL = 'inventory-movements.sell';
+
+    const INVENTORY_MOVEMENTS_ADJUST = 'inventory-movements.adjust';
+
+    // Inventory (stock visibility — read only)
+    const INVENTORY_VIEW_ANY = 'inventory.view-any';
+
+    const INVENTORY_VIEW_BY_SKU = 'inventory.view-by-sku';
+
+    const INVENTORY_VIEW_BY_SKU_AT_LOCATION = 'inventory.view-by-sku-at-location';
 }
