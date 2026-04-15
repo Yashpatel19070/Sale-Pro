@@ -55,6 +55,7 @@ class InventoryService
     public function stockBySku(Product $product): Collection
     {
         return InventorySerial::with('location')
+            ->whereHas('location')
             ->where('product_id', $product->id)
             ->where('status', SerialStatus::InStock)
             ->orderBy('inventory_location_id')

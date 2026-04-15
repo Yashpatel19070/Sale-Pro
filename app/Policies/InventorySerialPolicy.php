@@ -48,11 +48,10 @@ class InventorySerialPolicy
 
     /**
      * View purchase price — admin and manager only (internal cost data, hidden from sales).
-     * Not a permission constant — role-based UI gate only.
      */
     public function viewPurchasePrice(User $user, InventorySerial $serial): bool
     {
-        return $user->hasRole('admin') || $user->hasRole('manager');
+        return $user->can(Permission::INVENTORY_SERIALS_VIEW_PURCHASE_PRICE);
     }
 
     // ── Inventory stock-visibility gates (used by InventoryController) ────────

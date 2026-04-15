@@ -124,6 +124,8 @@ class Permission
 
     const INVENTORY_SERIALS_MARK_MISSING = 'inventory-serials.mark-missing';
 
+    const INVENTORY_SERIALS_VIEW_PURCHASE_PRICE = 'inventory-serials.view-purchase-price';
+
     // Inventory Movements
     const INVENTORY_MOVEMENTS_VIEW = 'inventory-movements.view';
 

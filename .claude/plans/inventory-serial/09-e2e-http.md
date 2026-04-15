@@ -41,7 +41,7 @@ $this->locationL45 = InventoryLocation::factory()->create(['code' => 'L45', 'nam
 | S-02 | `sales` | GET `/admin/inventory-serials` | 200 OK |
 | S-03 | `sales` | GET `/admin/inventory-serials/create` | 200 OK — sales can receive stock |
 | S-04 | `sales` | POST valid serial | Redirect to show |
-| S-05 | `sales` | GET `/admin/inventory-serials/{id}/edit` | 200 OK — sales can edit notes |
+| S-05 | `sales` | GET `/admin/inventory-serials/{id}/edit` | 403 Forbidden — `sales` role lacks `inventory-serials.edit` permission |
 
 ---
 

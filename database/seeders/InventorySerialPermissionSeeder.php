@@ -22,6 +22,7 @@ class InventorySerialPermissionSeeder extends Seeder
             Permission::INVENTORY_SERIALS_EDIT,
             Permission::INVENTORY_SERIALS_MARK_DAMAGED,
             Permission::INVENTORY_SERIALS_MARK_MISSING,
+            Permission::INVENTORY_SERIALS_VIEW_PURCHASE_PRICE,
         ];
 
         foreach ($permissions as $permission) {

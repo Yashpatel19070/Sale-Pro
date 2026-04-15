@@ -100,8 +100,8 @@ class InventorySerialService
     public function updateNotes(InventorySerial $serial, array $data): InventorySerial
     {
         $serial->update([
-            'notes' => $data['notes'] ?? $serial->notes,
-            'supplier_name' => $data['supplier_name'] ?? $serial->supplier_name,
+            'notes' => array_key_exists('notes', $data) ? $data['notes'] : $serial->notes,
+            'supplier_name' => array_key_exists('supplier_name', $data) ? $data['supplier_name'] : $serial->supplier_name,
         ]);
 
         return $serial->fresh(['product', 'location']);
