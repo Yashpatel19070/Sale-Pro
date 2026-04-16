@@ -32,7 +32,7 @@ class InventoryMovementService
             $serial = InventorySerial::create([
                 'product_id' => $data['product_id'],
                 'inventory_location_id' => $data['inventory_location_id'],
-                'serial_number' => $data['serial_number'],
+                'serial_number' => strtoupper(trim($data['serial_number'])),
                 'purchase_price' => $data['purchase_price'],
                 'received_at' => $data['received_at'],
                 'supplier_name' => $data['supplier_name'] ?? null,
