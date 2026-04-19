@@ -15,44 +15,95 @@
                     <x-nav-link :href="route('dashboard')" :active="request()->routeIs('dashboard')">
                         {{ __('Dashboard') }}
                     </x-nav-link>
-                    @if(auth()->user()->hasAnyRole(['admin', 'manager']))
-                        <x-nav-link :href="route('users.index')" :active="request()->routeIs('users.*')">
-                            {{ __('Users') }}
-                        </x-nav-link>
-                        <x-nav-link :href="route('departments.index')" :active="request()->routeIs('departments.*')">
-                            {{ __('Departments') }}
-                        </x-nav-link>
-                    @endif
+
                     @if(auth()->user()->hasAnyRole(['admin', 'manager', 'sales']))
                         <x-nav-link :href="route('customers.index')" :active="request()->routeIs('customers.*')">
                             {{ __('Customers') }}
                         </x-nav-link>
                     @endif
-                    @can('products.view-any')
-                        <x-nav-link :href="route('products.index')" :active="request()->routeIs('products.*')">
-                            {{ __('Products') }}
-                        </x-nav-link>
-                    @endcan
-                    @can('viewAny', App\Models\InventoryLocation::class)
-                        <x-nav-link :href="route('inventory-locations.index')" :active="request()->routeIs('inventory-locations.*')">
-                            {{ __('Inventory') }}
-                        </x-nav-link>
-                    @endcan
-                    @can('inventory.view-any')
-                        <x-nav-link :href="route('inventory.index')" :active="request()->routeIs('inventory.*')">
-                            {{ __('Stock') }}
-                        </x-nav-link>
-                    @endcan
-                    @can('product_categories.viewAny')
-                        <x-nav-link :href="route('product-categories.index')" :active="request()->routeIs('product-categories.*')">
-                            {{ __('Categories') }}
-                        </x-nav-link>
-                    @endcan
-                    @can('roles.view')
-                        <x-nav-link :href="route('roles.index')" :active="request()->routeIs('roles.*')">
-                            {{ __('Roles') }}
-                        </x-nav-link>
-                    @endcan
+
+                    @canany(['products.view-any', 'product_categories.viewAny'])
+                        <div class="relative flex items-stretch" x-data="{ open: false }" @click.outside="open = false">
+                            <button @click="open = !open" class="inline-flex items-center px-1 pt-1 border-b-2 {{ request()->routeIs('products.*') || request()->routeIs('product-categories.*') ? 'border-indigo-400 text-gray-900' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300' }} text-sm font-medium leading-5 focus:outline-none transition duration-150 ease-in-out">
+                                {{ __('Catalog') }}
+                                <svg class="ms-1 fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
+                                </svg>
+                            </button>
+                            <div x-show="open"
+                                 x-transition:enter="transition ease-out duration-200"
+                                 x-transition:enter-start="opacity-0 scale-95"
+                                 x-transition:enter-end="opacity-100 scale-100"
+                                 x-transition:leave="transition ease-in duration-75"
+                                 x-transition:leave-start="opacity-100 scale-100"
+                                 x-transition:leave-end="opacity-0 scale-95"
+                                 style="display:none"
+                                 @click="open = false"
+                                 class="absolute top-full start-0 z-50 mt-1 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 py-1">
+                                @can('products.view-any')
+                                    <x-dropdown-link :href="route('products.index')">{{ __('Products') }}</x-dropdown-link>
+                                @endcan
+                                @can('product_categories.viewAny')
+                                    <x-dropdown-link :href="route('product-categories.index')">{{ __('Categories') }}</x-dropdown-link>
+                                @endcan
+                            </div>
+                        </div>
+                    @endcanany
+
+                    @canany(['inventory.view-any', 'viewAny,App\Models\InventoryLocation'])
+                        <div class="relative flex items-stretch" x-data="{ open: false }" @click.outside="open = false">
+                            <button @click="open = !open" class="inline-flex items-center px-1 pt-1 border-b-2 {{ request()->routeIs('inventory.*') || request()->routeIs('inventory-locations.*') ? 'border-indigo-400 text-gray-900' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300' }} text-sm font-medium leading-5 focus:outline-none transition duration-150 ease-in-out">
+                                {{ __('Inventory') }}
+                                <svg class="ms-1 fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
+                                </svg>
+                            </button>
+                            <div x-show="open"
+                                 x-transition:enter="transition ease-out duration-200"
+                                 x-transition:enter-start="opacity-0 scale-95"
+                                 x-transition:enter-end="opacity-100 scale-100"
+                                 x-transition:leave="transition ease-in duration-75"
+                                 x-transition:leave-start="opacity-100 scale-100"
+                                 x-transition:leave-end="opacity-0 scale-95"
+                                 style="display:none"
+                                 @click="open = false"
+                                 class="absolute top-full start-0 z-50 mt-1 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 py-1">
+                                @can('inventory.view-any')
+                                    <x-dropdown-link :href="route('inventory.index')">{{ __('Stock') }}</x-dropdown-link>
+                                @endcan
+                                @can('viewAny', App\Models\InventoryLocation::class)
+                                    <x-dropdown-link :href="route('inventory-locations.index')">{{ __('Locations') }}</x-dropdown-link>
+                                @endcan
+                            </div>
+                        </div>
+                    @endcanany
+
+                    @if(auth()->user()->hasAnyRole(['admin', 'manager']))
+                        <div class="relative flex items-stretch" x-data="{ open: false }" @click.outside="open = false">
+                            <button @click="open = !open" class="inline-flex items-center px-1 pt-1 border-b-2 {{ request()->routeIs('users.*') || request()->routeIs('departments.*') || request()->routeIs('roles.*') ? 'border-indigo-400 text-gray-900' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300' }} text-sm font-medium leading-5 focus:outline-none transition duration-150 ease-in-out">
+                                {{ __('Admin') }}
+                                <svg class="ms-1 fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
+                                </svg>
+                            </button>
+                            <div x-show="open"
+                                 x-transition:enter="transition ease-out duration-200"
+                                 x-transition:enter-start="opacity-0 scale-95"
+                                 x-transition:enter-end="opacity-100 scale-100"
+                                 x-transition:leave="transition ease-in duration-75"
+                                 x-transition:leave-start="opacity-100 scale-100"
+                                 x-transition:leave-end="opacity-0 scale-95"
+                                 style="display:none"
+                                 @click="open = false"
+                                 class="absolute top-full start-0 z-50 mt-1 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 py-1">
+                                <x-dropdown-link :href="route('users.index')">{{ __('Users') }}</x-dropdown-link>
+                                <x-dropdown-link :href="route('departments.index')">{{ __('Departments') }}</x-dropdown-link>
+                                @can('roles.view')
+                                    <x-dropdown-link :href="route('roles.index')">{{ __('Roles') }}</x-dropdown-link>
+                                @endcan
+                            </div>
+                        </div>
+                    @endif
                 </div>
             </div>
 
@@ -76,10 +127,8 @@
                             {{ __('Profile') }}
                         </x-dropdown-link>
 
-                        <!-- Authentication -->
                         <form method="POST" action="{{ route('logout') }}">
                             @csrf
-
                             <x-dropdown-link :href="route('logout')"
                                     onclick="event.preventDefault();
                                                 this.closest('form').submit();">
@@ -108,44 +157,55 @@
             <x-responsive-nav-link :href="route('dashboard')" :active="request()->routeIs('dashboard')">
                 {{ __('Dashboard') }}
             </x-responsive-nav-link>
+
+            @if(auth()->user()->hasAnyRole(['admin', 'manager', 'sales']))
+                <x-responsive-nav-link :href="route('customers.index')" :active="request()->routeIs('customers.*')">
+                    {{ __('Customers') }}
+                </x-responsive-nav-link>
+            @endif
+
+            @canany(['products.view-any', 'product_categories.viewAny'])
+                <div class="px-4 pt-2 pb-1 text-xs font-semibold text-gray-400 uppercase tracking-wider">{{ __('Catalog') }}</div>
+                @can('products.view-any')
+                    <x-responsive-nav-link :href="route('products.index')" :active="request()->routeIs('products.*')">
+                        {{ __('Products') }}
+                    </x-responsive-nav-link>
+                @endcan
+                @can('product_categories.viewAny')
+                    <x-responsive-nav-link :href="route('product-categories.index')" :active="request()->routeIs('product-categories.*')">
+                        {{ __('Categories') }}
+                    </x-responsive-nav-link>
+                @endcan
+            @endcanany
+
+            @canany(['inventory.view-any', 'viewAny,App\Models\InventoryLocation'])
+                <div class="px-4 pt-2 pb-1 text-xs font-semibold text-gray-400 uppercase tracking-wider">{{ __('Inventory') }}</div>
+                @can('inventory.view-any')
+                    <x-responsive-nav-link :href="route('inventory.index')" :active="request()->routeIs('inventory.*')">
+                        {{ __('Stock') }}
+                    </x-responsive-nav-link>
+                @endcan
+                @can('viewAny', App\Models\InventoryLocation::class)
+                    <x-responsive-nav-link :href="route('inventory-locations.index')" :active="request()->routeIs('inventory-locations.*')">
+                        {{ __('Locations') }}
+                    </x-responsive-nav-link>
+                @endcan
+            @endcanany
+
             @if(auth()->user()->hasAnyRole(['admin', 'manager']))
+                <div class="px-4 pt-2 pb-1 text-xs font-semibold text-gray-400 uppercase tracking-wider">{{ __('Admin') }}</div>
                 <x-responsive-nav-link :href="route('users.index')" :active="request()->routeIs('users.*')">
                     {{ __('Users') }}
                 </x-responsive-nav-link>
                 <x-responsive-nav-link :href="route('departments.index')" :active="request()->routeIs('departments.*')">
                     {{ __('Departments') }}
                 </x-responsive-nav-link>
+                @can('roles.view')
+                    <x-responsive-nav-link :href="route('roles.index')" :active="request()->routeIs('roles.*')">
+                        {{ __('Roles') }}
+                    </x-responsive-nav-link>
+                @endcan
             @endif
-            @if(auth()->user()->hasAnyRole(['admin', 'manager', 'sales']))
-                <x-responsive-nav-link :href="route('customers.index')" :active="request()->routeIs('customers.*')">
-                    {{ __('Customers') }}
-                </x-responsive-nav-link>
-            @endif
-            @can('products.view-any')
-                <x-responsive-nav-link :href="route('products.index')" :active="request()->routeIs('products.*')">
-                    {{ __('Products') }}
-                </x-responsive-nav-link>
-            @endcan
-            @can('viewAny', App\Models\InventoryLocation::class)
-                <x-responsive-nav-link :href="route('inventory-locations.index')" :active="request()->routeIs('inventory-locations.*')">
-                    {{ __('Inventory') }}
-                </x-responsive-nav-link>
-            @endcan
-            @can('inventory.view-any')
-                <x-responsive-nav-link :href="route('inventory.index')" :active="request()->routeIs('inventory.*')">
-                    {{ __('Stock') }}
-                </x-responsive-nav-link>
-            @endcan
-            @can('product_categories.viewAny')
-                <x-responsive-nav-link :href="route('product-categories.index')" :active="request()->routeIs('product-categories.*')">
-                    {{ __('Categories') }}
-                </x-responsive-nav-link>
-            @endcan
-            @can('roles.view')
-                <x-responsive-nav-link :href="route('roles.index')" :active="request()->routeIs('roles.*')">
-                    {{ __('Roles') }}
-                </x-responsive-nav-link>
-            @endcan
         </div>
 
         <!-- Responsive Settings Options -->
@@ -160,10 +220,8 @@
                     {{ __('Profile') }}
                 </x-responsive-nav-link>
 
-                <!-- Authentication -->
                 <form method="POST" action="{{ route('logout') }}">
                     @csrf
-
                     <x-responsive-nav-link :href="route('logout')"
                             onclick="event.preventDefault();
                                         this.closest('form').submit();">
