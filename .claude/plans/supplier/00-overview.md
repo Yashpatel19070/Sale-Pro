@@ -23,9 +23,9 @@ Suppliers link to Purchase Orders — soft delete only, guard blocks delete when
 | Model | `app/Models/Supplier.php` |
 | Service | `app/Services/SupplierService.php` |
 | Controller | `app/Http/Controllers/SupplierController.php` |
-| Store Request | `app/Http/Requests/StoreSupplierRequest.php` |
-| Update Request | `app/Http/Requests/UpdateSupplierRequest.php` |
-| Change Status Request | `app/Http/Requests/ChangeSupplierStatusRequest.php` |
+| Store Request | `app/Http/Requests/Supplier/StoreSupplierRequest.php` |
+| Update Request | `app/Http/Requests/Supplier/UpdateSupplierRequest.php` |
+| Change Status Request | `app/Http/Requests/Supplier/ChangeSupplierStatusRequest.php` |
 | Policy | `app/Policies/SupplierPolicy.php` |
 | View: index | `resources/views/suppliers/index.blade.php` |
 | View: show | `resources/views/suppliers/show.blade.php` |
@@ -88,7 +88,7 @@ Complete every item in order. Do not skip ahead.
 
 ### Model
 - [ ] `Supplier` model uses `HasFactory` and `SoftDeletes`
-- [ ] `$fillable` has all 11 fields
+- [ ] `$fillable` has all 12 fields
 - [ ] `status` cast to `SupplierStatus::class`
 - [ ] `scopeByStatus(Builder $query, SupplierStatus $status)` defined
 - [ ] `scopeSearch(Builder $query, string $term)` defined — searches name, email, contact_name
@@ -157,17 +157,28 @@ Complete every item in order. Do not skip ahead.
 ---
 
 ## Routes (add to routes/web.php)
+
+Add the `use` import at the top of web.php alongside other controller imports:
 ```php
 use App\Http\Controllers\SupplierController;
+```
 
-Route::middleware(['auth', 'verified'])->prefix('suppliers')->name('suppliers.')->group(function () {
-    Route::get('/',                          [SupplierController::class, 'index'])->name('index');
-    Route::get('/create',                    [SupplierController::class, 'create'])->name('create');
-    Route::post('/',                         [SupplierController::class, 'store'])->name('store');
-    Route::get('/{supplier}',                [SupplierController::class, 'show'])->name('show');
-    Route::get('/{supplier}/edit',           [SupplierController::class, 'edit'])->name('edit');
-    Route::put('/{supplier}',                [SupplierController::class, 'update'])->name('update');
-    Route::delete('/{supplier}',             [SupplierController::class, 'destroy'])->name('destroy');
-    Route::patch('/{supplier}/status',       [SupplierController::class, 'changeStatus'])->name('changeStatus');
+Add the route group **inside** the existing admin middleware group (after the customers block).
+Middleware is inherited from the parent group (`auth`, `load_perms`, `verified`, `active`).
+URLs resolve as `/admin/suppliers/...`.
+
+```php
+// Inside: Route::prefix('admin')->group(function () {
+//   Inside: Route::middleware(['auth', 'load_perms', 'verified', 'active'])->group(function () {
+
+Route::prefix('suppliers')->name('suppliers.')->group(function () {
+    Route::get('/',                    [SupplierController::class, 'index'])->name('index');
+    Route::get('/create',              [SupplierController::class, 'create'])->name('create');
+    Route::post('/',                   [SupplierController::class, 'store'])->name('store');
+    Route::get('/{supplier}',          [SupplierController::class, 'show'])->name('show');
+    Route::get('/{supplier}/edit',     [SupplierController::class, 'edit'])->name('edit');
+    Route::put('/{supplier}',          [SupplierController::class, 'update'])->name('update');
+    Route::delete('/{supplier}',       [SupplierController::class, 'destroy'])->name('destroy');
+    Route::patch('/{supplier}/status', [SupplierController::class, 'changeStatus'])->name('changeStatus');
 });
 ```

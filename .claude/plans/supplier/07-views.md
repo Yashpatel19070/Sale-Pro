@@ -152,3 +152,44 @@ Use `{{ }}` always — never `{!! !!}`. Use `@can` to hide unauthorized actions.
 - Status badge: `<span class="bg-{{ $supplier->status->color() }}-100 text-{{ $supplier->status->color() }}-800">{{ $supplier->status->label() }}</span>`
 - Confirm dialog on delete: `onclick="return confirm('Are you sure you want to delete this supplier?')"`
 - Flash messages shown at top of content area on every view
+
+---
+
+## 5. Navigation Update
+
+**File:** `resources/views/layouts/navigation.blade.php`
+
+Add a **Procurement** dropdown after the Inventory dropdown and before the Admin dropdown.
+This dropdown will grow to include Purchase Orders and Returns when those modules are built.
+
+### Desktop nav (inside the `<div class="hidden sm:flex ...">` section)
+```blade
+{{-- Procurement dropdown --}}
+<x-dropdown align="left" width="48">
+    <x-slot name="trigger">
+        <button class="inline-flex items-center px-1 pt-1 ...">
+            {{ __('Procurement') }}
+            <svg class="ml-1 h-4 w-4" ...></svg>
+        </button>
+    </x-slot>
+    <x-slot name="content">
+        <x-dropdown-link :href="route('suppliers.index')" :active="request()->routeIs('suppliers.*')">
+            {{ __('Suppliers') }}
+        </x-dropdown-link>
+    </x-slot>
+</x-dropdown>
+```
+
+### Responsive nav (inside the `<div class="pt-2 pb-3 space-y-1">` section)
+```blade
+{{-- Procurement section --}}
+<div class="px-4 pt-2 pb-1 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+    {{ __('Procurement') }}
+</div>
+<x-responsive-nav-link :href="route('suppliers.index')" :active="request()->routeIs('suppliers.*')">
+    {{ __('Suppliers') }}
+</x-responsive-nav-link>
+```
+
+### Note on existing dropdown component
+Check how the Catalog and Inventory dropdowns are structured in `navigation.blade.php` and match the same `x-dropdown` component pattern exactly — the trigger button markup must be copied to stay consistent.

@@ -73,6 +73,24 @@ class SupplierPermissionSeeder extends Seeder
 
 ---
 
+## Update app/Enums/Permission.php
+
+Add supplier constants to `app/Enums/Permission.php` alongside other module constants:
+
+```php
+// Suppliers
+const SUPPLIERS_VIEW_ANY      = 'suppliers.viewAny';
+const SUPPLIERS_VIEW          = 'suppliers.view';
+const SUPPLIERS_CREATE        = 'suppliers.create';
+const SUPPLIERS_UPDATE        = 'suppliers.update';
+const SUPPLIERS_DELETE        = 'suppliers.delete';
+const SUPPLIERS_CHANGE_STATUS = 'suppliers.changeStatus';
+```
+
+These string values MUST match exactly what `SupplierPermissionSeeder` seeds — both use camelCase (`viewAny`, `changeStatus`) consistent with the customer module pattern.
+
+---
+
 ## Register in DatabaseSeeder
 
 Add to `database/seeders/DatabaseSeeder.php`:

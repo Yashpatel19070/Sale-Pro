@@ -14,9 +14,9 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Enums\SupplierStatus;
-use App\Http\Requests\ChangeSupplierStatusRequest;
-use App\Http\Requests\StoreSupplierRequest;
-use App\Http\Requests\UpdateSupplierRequest;
+use App\Http\Requests\Supplier\ChangeSupplierStatusRequest;
+use App\Http\Requests\Supplier\StoreSupplierRequest;
+use App\Http\Requests\Supplier\UpdateSupplierRequest;
 use App\Models\Supplier;
 use App\Services\SupplierService;
 use Illuminate\Http\RedirectResponse;

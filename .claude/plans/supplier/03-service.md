@@ -85,10 +85,16 @@ class SupplierService
     public function delete(Supplier $supplier): void
     {
         // Guard: cannot delete if purchase orders exist.
-        // When PO module is built, replace this with:
-        // if ($supplier->purchaseOrders()->exists()) {
-        //     throw new \DomainException('Cannot delete a supplier that has purchase orders.');
-        // }
+        // When PO module is built, replace the line below with the transaction block.
+        // Guard MUST be inside the transaction — avoids TOCTOU race between check and delete.
+        // Also add `use Illuminate\Support\Facades\DB;` to imports when activating.
+        //
+        // DB::transaction(function () use ($supplier): void {
+        //     if ($supplier->purchaseOrders()->exists()) {
+        //         throw new \DomainException('Cannot delete a supplier that has purchase orders.');
+        //     }
+        //     $supplier->delete();
+        // });
 
         $supplier->delete();
     }
