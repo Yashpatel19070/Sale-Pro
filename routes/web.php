@@ -19,6 +19,7 @@ use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ProductListingController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\RoleController;
+use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
 
@@ -67,6 +68,19 @@ Route::prefix('admin')->group(function () {
             Route::delete('/{customer}', [CustomerController::class, 'destroy'])->name('destroy');
             Route::patch('/{customer}/status', [CustomerController::class, 'changeStatus'])->name('changeStatus');
             Route::post('/{customer}/verify-email', [CustomerController::class, 'verifyEmail'])->name('verifyEmail');
+        });
+
+        // Suppliers
+        Route::prefix('suppliers')->name('suppliers.')->group(function () {
+            Route::get('/', [SupplierController::class, 'index'])->name('index');
+            Route::get('/create', [SupplierController::class, 'create'])->name('create');
+            Route::post('/', [SupplierController::class, 'store'])->name('store');
+            Route::get('/{supplier}', [SupplierController::class, 'show'])->name('show');
+            Route::get('/{supplier}/edit', [SupplierController::class, 'edit'])->name('edit');
+            Route::put('/{supplier}', [SupplierController::class, 'update'])->name('update');
+            Route::delete('/{supplier}', [SupplierController::class, 'destroy'])->name('destroy');
+            Route::patch('/{supplier}/status', [SupplierController::class, 'changeStatus'])->name('changeStatus');
+            Route::post('/{supplier}/restore', [SupplierController::class, 'restore'])->name('restore')->withTrashed();
         });
 
         // Product Categories

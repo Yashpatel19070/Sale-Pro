@@ -12,8 +12,9 @@ Suppliers link to Purchase Orders — soft delete only, guard blocks delete when
 | 3 | Create supplier — admin/manager adds supplier manually |
 | 4 | Edit supplier — update all fields |
 | 5 | Delete / Deactivate — soft delete only; blocked if supplier has POs |
-| 6 | Status management — change status (Active / Inactive) |
-| 7 | Role-based permissions — Super Admin and Admin full, Manager create/edit/status, Sales view only |
+| 6 | Restore — restore soft-deleted supplier; Admin only |
+| 7 | Status management — change status (Active / Inactive) |
+| 8 | Role-based permissions — Super Admin and Admin full, Manager create/edit/status, Sales view only |
 
 ## File Map
 | File | Path |
@@ -56,6 +57,7 @@ Suppliers link to Purchase Orders — soft delete only, guard blocks delete when
 | Create supplier | ✅ | ✅ | ✅ | ❌ |
 | Edit supplier | ✅ | ✅ | ✅ | ❌ |
 | Delete supplier | ✅ | ✅ | ❌ | ❌ |
+| Restore supplier | ✅ | ✅ | ❌ | ❌ |
 | Change status | ✅ | ✅ | ✅ | ❌ |
 
 ## Key Rules (NEVER break these)
@@ -118,17 +120,19 @@ Complete every item in order. Do not skip ahead.
 - [ ] Every method checks `$user->can('suppliers.{action}')`
 
 ### Controller
-- [ ] All 8 actions present: index, create, store, show, edit, update, destroy, changeStatus
+- [ ] All 9 actions present: index, create, store, show, edit, update, destroy, changeStatus, restore
 - [ ] Every action calls `$this->authorize()`
 - [ ] `store` and `update` use typed FormRequest — NOT plain Request
 - [ ] `destroy` catches `DomainException` and redirects back with error
+- [ ] `restore` uses `->withTrashed()` route binding — resolves soft-deleted record
 - [ ] All redirects use named routes
 - [ ] Flash messages use `with('success', '...')` or `with('error', '...')`
 
 ### Routes
-- [ ] All 8 routes added to `web.php` under `auth` + `verified` middleware
-- [ ] Route names: suppliers.index, suppliers.create, suppliers.store, suppliers.show, suppliers.edit, suppliers.update, suppliers.destroy, suppliers.changeStatus
-- [ ] Run `php artisan route:list | grep suppliers` to verify all 8 routes exist
+- [ ] All 9 routes added to `web.php` under `auth` + `verified` middleware
+- [ ] Route names: suppliers.index, suppliers.create, suppliers.store, suppliers.show, suppliers.edit, suppliers.update, suppliers.destroy, suppliers.changeStatus, suppliers.restore
+- [ ] Restore route uses `->withTrashed()` so soft-deleted records resolve
+- [ ] Run `php artisan route:list | grep suppliers` to verify all 9 routes exist
 
 ### Views
 - [ ] `index.blade.php` — table with search/filter, status badge, paginate, action buttons
@@ -136,14 +140,14 @@ Complete every item in order. Do not skip ahead.
 - [ ] `create.blade.php` — all fields, `old()` values, validation errors, status select
 - [ ] `edit.blade.php` — pre-filled with `old('field', $supplier->field)`, status select
 - [ ] Delete button uses POST form with `@method('DELETE')` and confirm dialog
-- [ ] Edit/Delete buttons hidden from users without permission (`@can`)
+- [ ] Edit/Delete/Restore buttons hidden from users without permission (`@can`)
 - [ ] Flash message displayed on all views
 
 ### Permissions Seeder
-- [ ] `SupplierPermissionSeeder` creates 6 permissions with `firstOrCreate`
-- [ ] Super Admin gets all 6 permissions
-- [ ] Admin gets all 6 permissions
-- [ ] Manager gets viewAny, view, create, update, changeStatus (no delete)
+- [ ] `SupplierPermissionSeeder` creates 7 permissions with `firstOrCreate`
+- [ ] Super Admin gets all 7 permissions
+- [ ] Admin gets all 7 permissions
+- [ ] Manager gets viewAny, view, create, update, changeStatus (no delete, no restore)
 - [ ] Sales gets only `suppliers.viewAny` and `suppliers.view`
 - [ ] Seeder registered in `DatabaseSeeder`
 - [ ] `php artisan db:seed --class=SupplierPermissionSeeder` runs without error
@@ -151,12 +155,12 @@ Complete every item in order. Do not skip ahead.
 ### Tests
 - [ ] `SupplierFactory` created with all fields, status uses `->value`
 - [ ] `SupplierControllerTest` has `beforeEach` seeding `SupplierPermissionSeeder`
-- [ ] Feature tests: admin can do all 6 actions
-- [ ] Feature tests: sales is forbidden for create, edit, delete, changeStatus
+- [ ] Feature tests: admin can do all 7 actions including restore
+- [ ] Feature tests: sales is forbidden for create, edit, delete, changeStatus, restore
 - [ ] Feature tests: guest redirected to login
 - [ ] Feature tests: validation errors on invalid input
 - [ ] Feature test: delete blocked when supplier has POs (future — add note, skip for now)
-- [ ] Unit tests: all 5 service methods tested
+- [ ] Unit tests: all 6 service methods tested including restore
 - [ ] `php artisan test --filter SupplierControllerTest` — all pass
 - [ ] `php artisan test --filter SupplierServiceTest` — all pass
 
@@ -184,7 +188,8 @@ Route::prefix('suppliers')->name('suppliers.')->group(function () {
     Route::get('/{supplier}',          [SupplierController::class, 'show'])->name('show');
     Route::get('/{supplier}/edit',     [SupplierController::class, 'edit'])->name('edit');
     Route::put('/{supplier}',          [SupplierController::class, 'update'])->name('update');
-    Route::delete('/{supplier}',       [SupplierController::class, 'destroy'])->name('destroy');
-    Route::patch('/{supplier}/status', [SupplierController::class, 'changeStatus'])->name('changeStatus');
+    Route::delete('/{supplier}',          [SupplierController::class, 'destroy'])->name('destroy');
+    Route::patch('/{supplier}/status',    [SupplierController::class, 'changeStatus'])->name('changeStatus');
+    Route::post('/{supplier}/restore',    [SupplierController::class, 'restore'])->name('restore')->withTrashed();
 });
 ```

@@ -81,6 +81,14 @@ class SupplierPolicy
     {
         return $user->can('suppliers.changeStatus');
     }
+
+    /**
+     * Restore soft-deleted — POST /suppliers/{supplier}/restore
+     */
+    public function restore(User $user, Supplier $supplier): bool
+    {
+        return $user->can('suppliers.restore');
+    }
 }
 ```
 

@@ -13,6 +13,7 @@
 | `suppliers.create` | ✅ | ✅ | ✅ | ❌ |
 | `suppliers.update` | ✅ | ✅ | ✅ | ❌ |
 | `suppliers.delete` | ✅ | ✅ | ❌ | ❌ |
+| `suppliers.restore` | ✅ | ✅ | ❌ | ❌ |
 | `suppliers.changeStatus` | ✅ | ✅ | ✅ | ❌ |
 
 ---
@@ -43,6 +44,7 @@ class SupplierPermissionSeeder extends Seeder
             'suppliers.create',
             'suppliers.update',
             'suppliers.delete',
+            'suppliers.restore',
             'suppliers.changeStatus',
         ];
 

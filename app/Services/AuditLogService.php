@@ -28,6 +28,7 @@ class AuditLogService
         Product::class => 'Product',
         ProductListing::class => 'Product Listing',
         ProductCategory::class => 'Product Category',
+        Supplier::class => 'Supplier',
     ];
 
     /**

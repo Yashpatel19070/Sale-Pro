@@ -141,4 +141,19 @@ class Permission
     const INVENTORY_VIEW_BY_SKU = 'inventory.view-by-sku';
 
     const INVENTORY_VIEW_BY_SKU_AT_LOCATION = 'inventory.view-by-sku-at-location';
+
+    // Suppliers
+    const SUPPLIERS_VIEW_ANY = 'suppliers.viewAny';
+
+    const SUPPLIERS_VIEW = 'suppliers.view';
+
+    const SUPPLIERS_CREATE = 'suppliers.create';
+
+    const SUPPLIERS_UPDATE = 'suppliers.update';
+
+    const SUPPLIERS_DELETE = 'suppliers.delete';
+
+    const SUPPLIERS_RESTORE = 'suppliers.restore';
+
+    const SUPPLIERS_CHANGE_STATUS = 'suppliers.changeStatus';
 }
