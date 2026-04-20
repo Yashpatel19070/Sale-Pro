@@ -29,11 +29,14 @@ namespace Database\Seeders;
 use Illuminate\Database\Seeder;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
+use Spatie\Permission\PermissionRegistrar;
 
 class SupplierPermissionSeeder extends Seeder
 {
     public function run(): void
     {
+        app()[PermissionRegistrar::class]->forgetCachedPermissions();
+
         $permissions = [
             'suppliers.viewAny',
             'suppliers.view',
@@ -44,13 +47,16 @@ class SupplierPermissionSeeder extends Seeder
         ];
 
         foreach ($permissions as $permission) {
-            Permission::firstOrCreate(['name' => $permission]);
+            Permission::firstOrCreate([
+                'name'       => $permission,
+                'guard_name' => 'web',
+            ]);
         }
 
-        $superAdmin = Role::firstOrCreate(['name' => 'super_admin']);
-        $admin      = Role::firstOrCreate(['name' => 'admin']);
-        $manager    = Role::firstOrCreate(['name' => 'manager']);
-        $sales      = Role::firstOrCreate(['name' => 'sales']);
+        $superAdmin = Role::firstOrCreate(['name' => 'super_admin', 'guard_name' => 'web']);
+        $admin      = Role::firstOrCreate(['name' => 'admin',       'guard_name' => 'web']);
+        $manager    = Role::firstOrCreate(['name' => 'manager',     'guard_name' => 'web']);
+        $sales      = Role::firstOrCreate(['name' => 'sales',       'guard_name' => 'web']);
 
         $superAdmin->givePermissionTo($permissions);
         $admin->givePermissionTo($permissions);

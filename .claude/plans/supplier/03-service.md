@@ -115,6 +115,37 @@ class SupplierService
 
 ---
 
+---
+
+## Audit Logging
+
+Audit logging is **automatic** via the `LogsActivity` trait on the `Supplier` model.
+No manual logging code needed in the service.
+
+| Event | What gets logged |
+|-------|-----------------|
+| `store()` | `created` — all fillable fields |
+| `update()` | `updated` — only dirty (changed) fields |
+| `changeStatus()` | `updated` — only `status` field (dirty only) |
+| `delete()` | `deleted` — soft delete recorded |
+
+Logs are stored in the `activity_log` table and visible in the admin Audit Log module.
+
+**Required: add `Supplier` to `AuditLogService::SUBJECT_TYPES`** in `app/Services/AuditLogService.php`:
+
+```php
+use App\Models\Supplier;
+
+public const SUBJECT_TYPES = [
+    // ... existing entries ...
+    Supplier::class => 'Supplier',
+];
+```
+
+Without this, suppliers won't appear in the subject_type filter dropdown in the audit log UI.
+
+---
+
 ## Rules
 - Never call `$request->all()` — data must come pre-validated from the controller
 - `store()` and `update()` only receive `$request->validated()` output

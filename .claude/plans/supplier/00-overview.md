@@ -73,6 +73,12 @@ Suppliers link to Purchase Orders — soft delete only, guard blocks delete when
 
 Complete every item in order. Do not skip ahead.
 
+### Audit Logging
+- [ ] `Supplier` model uses `LogsActivity` trait
+- [ ] `getActivitylogOptions()` returns `LogOptions::defaults()->logFillable()->logOnlyDirty()`
+- [ ] `Supplier::class => 'Supplier'` added to `AuditLogService::SUBJECT_TYPES`
+- [ ] Verify: create a supplier → check `activity_log` table has a `created` entry
+
 ### Migration & Schema
 - [ ] `create_suppliers_table` migration created
 - [ ] All columns present: id, name, contact_name, email, phone, address, city, state, postal_code, country, payment_terms, notes, status, timestamps, deleted_at
