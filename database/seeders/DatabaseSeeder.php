@@ -34,6 +34,10 @@ class DatabaseSeeder extends Seeder
             InventorySerialSeeder::class,
             InventoryMovementPermissionSeeder::class,
             InventoryPermissionSeeder::class,
+            SupplierPermissionSeeder::class,
+            SupplierSeeder::class,
+            PurchaseOrderPermissionSeeder::class,
+            PipelinePermissionSeeder::class,
         ]);
 
         $admin = User::firstOrCreate(

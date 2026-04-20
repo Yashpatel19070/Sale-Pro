@@ -401,3 +401,52 @@ class PoLineFactory extends Factory
     }
 }
 ```
+
+---
+
+## Implementation Deviations (actual code differs from plan above)
+
+### Spatie Activitylog namespaces (all models)
+Plan specifies wrong namespaces. Correct ones for activitylog v5:
+- `use Spatie\Activitylog\Models\Concerns\LogsActivity;` (not `Traits\LogsActivity`)
+- `use Spatie\Activitylog\Support\LogOptions;` (not `Spatie\Activitylog\LogOptions`)
+- `dontSubmitEmptyLogs()` removed — method does not exist in v5
+
+### `PurchaseOrder::$fillable` — system lifecycle fields removed
+Security fix: fields that are only ever set by the service (not user input) are excluded from `$fillable` to prevent mass-assignment bypass.
+
+Removed from `$fillable`: `reopen_count`, `reopened_at`, `confirmed_at`, `closed_at`, `cancelled_at`
+
+Kept: `po_number`, `type`, `parent_po_id`, `supplier_id`, `status`, `skip_tech`, `skip_qa`, `notes`, `created_by_user_id`, `cancel_notes`
+
+Service methods use direct attribute assignment (`$po->status = ...; $po->save()`) for the removed fields.
+
+### `PurchaseOrder` scope signatures — typed parameters (PHPStan level 8)
+```php
+// Actual implementation:
+public function scopeOfType(Builder $query, PoType $type): Builder
+public function scopeOfStatus(Builder $query, PoStatus $status): Builder
+```
+
+### `PoLine` — added `progressPercent()` helper (simplifier addition)
+```php
+public function progressPercent(): int
+{
+    return $this->qty_ordered > 0
+        ? min(100, (int) round($this->qty_received / $this->qty_ordered * 100))
+        : 0;
+}
+```
+
+### `PoLine::$fillable` — added `snapshot_stock` and `snapshot_inbound`
+Plan example omits these; actual factory and migration include them.
+
+### `PoLine::lineTotal()` — renamed to `lineTotalFormatted()`
+Returns a formatted string (`number_format`). Name `lineTotal` implies numeric; renamed to avoid confusion.
+```php
+public function lineTotalFormatted(): string
+{
+    return number_format($this->qty_ordered * $this->unit_price, 2);
+}
+```
+Caller: `resources/views/purchase-orders/show.blade.php` uses `$line->lineTotalFormatted()`.

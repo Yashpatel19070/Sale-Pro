@@ -145,6 +145,25 @@ class SupplierService
 
 - `update()` uses `?? null` for nullable optional fields — allows intentional clearing.
 - `update()` does NOT accept `code` — never allow code changes after creation.
-- `deactivate()` PO guard is commented out until PO module is built. Add it when `PurchaseOrder` model exists.
+- `deactivate()` PO guard is now active — uses `PurchaseOrder` model with `PoStatus` enum values.
 - `generateCode()` uses `MAX(id)` not `MAX(code)` to avoid string-to-int parsing.
 - No `DB::transaction` needed — all methods touch only one table.
+
+---
+
+## Implementation Deviations (actual code differs from plan above)
+
+### `deactivate()` — PO guard now uses `PoStatus` enum (not raw strings)
+PO module built. Guard uncommented and updated to enum values to satisfy PHPStan:
+```php
+use App\Enums\PoStatus;
+
+$supplier->purchaseOrders()->whereIn('status', [
+    PoStatus::Draft->value,
+    PoStatus::Open->value,
+    PoStatus::Partial->value,
+])->exists()
+```
+
+### `create()` / `update()` — no significant deviations
+Plan code matches actual implementation. No simplification needed beyond Pint formatting.

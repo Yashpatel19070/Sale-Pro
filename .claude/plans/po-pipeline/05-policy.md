@@ -201,3 +201,16 @@ class PipelinePermissionSeeder extends Seeder
 - Managers and above have `PIPELINE_VIEW_ANY` for oversight but cannot pass/fail/start units at stages (they manage, they don't process).
 - To give a manager ability to intervene at any stage (emergency), grant them all stage permissions individually — this is a future decision, not built in now.
 - `view` policy allows viewing if the user has `viewAny` OR has permission for the job's current stage — workers can see their own queue items.
+
+---
+
+## Implementation Deviations (actual code differs from plan above)
+
+### `pass()` and `fail()` — added `InProgress` status + `assigned_to_user_id` ownership check
+Plan had stage-permission check only. Actual code adds:
+```php
+$job->status === UnitJobStatus::InProgress
+    && $job->assigned_to_user_id === $user->id
+    && $this->hasStagePermission($user, $job->current_stage)
+```
+**Why:** Policy should return 403 before the service throws DomainException. Returning a flash error for an ownership violation is weaker than a proper 403. Now wrong-worker and unclaimed-job attempts get 403 at policy level, not a flash error.

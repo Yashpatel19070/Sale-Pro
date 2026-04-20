@@ -199,3 +199,31 @@ Route::prefix('pipeline')->name('pipeline.')->group(function () {
 - `fail()` redirects to queue with a message confirming Return PO was created.
 - DomainException from service → `back()->withErrors(['job' => $e->getMessage()])`.
 - Route param is `unitJob` (camelCase) to match Laravel resource convention.
+
+---
+
+## Implementation Deviations (actual code differs from plan above)
+
+### `queue()` — injects `Request` instead of using `request()` helper
+Plan used `request()->user()` (returns `?Authenticatable`, not `User`). Actual code injects `Request $request` and casts with a `@var` docblock:
+```php
+public function queue(Request $request): View
+{
+    /** @var User $user */
+    $user = $request->user();
+    $stages = $this->stagesForUser($user);
+    $jobs = $this->service->queue([
+        'stages' => $stages,
+        'purchase_order_id' => $request->input('purchase_order_id'),
+    ]);
+}
+```
+Fixes PHPStan level-8 type error. `request()->user()` also replaced with typed `$request->input()`.
+
+### `show()` — passes `$locations` to view instead of querying in Blade
+`pipeline/show.blade.php` had `\App\Models\InventoryLocation::orderBy('name')->get()` inline. Moved to controller:
+```php
+$locations = InventoryLocation::orderBy('name')->get();
+return view('pipeline.show', compact('unitJob', 'locations'));
+```
+Blade now uses `@foreach ($locations as $loc)`. Keeps DB queries out of view layer.

@@ -155,3 +155,28 @@ class FailUnitJobRequest extends FormRequest
 - `FailUnitJobRequest` makes `notes` **required** — a failure reason must always be recorded.
 - `CreateUnitJobRequest`: `po_line_id` validated to exist. Service also guards PO status and line fulfillment.
 - All authorize() delegate to `PoUnitJobPolicy`.
+
+---
+
+## Implementation Deviations (actual code differs from plan above)
+
+### `CreateUnitJobRequest` — `po_line_id` scoped to open/partial purchase POs (IDOR fix)
+Plan had bare `exists:po_lines,id`. Actual code scopes via `Rule::exists` with a subquery:
+```php
+Rule::exists('po_lines', 'id')->where(function ($query) {
+    $query->whereIn('purchase_order_id', function ($sub) {
+        $sub->select('id')->from('purchase_orders')
+            ->where('type', PoType::Purchase->value)
+            ->whereIn('status', [PoStatus::Open->value, PoStatus::Partial->value]);
+    });
+}),
+```
+Prevents passing a `po_line_id` from a draft, cancelled, closed, or return PO. Service-level `canReceive()` check is a second layer, not a substitute for input validation.
+
+### `PassUnitJobRequest::authorize()` — null-safe route binding guard
+Plan had `$this->user()->can('pass', $this->route('unitJob'))`. If route binding returns null (e.g. PHPStan analysis, edge case), policy receives null instead of `PoUnitJob` → TypeError. Actual code:
+```php
+$job = $this->route('unitJob');
+return $job instanceof PoUnitJob && $this->user()->can('pass', $job);
+```
+Short-circuits to `false` if binding is null instead of throwing.

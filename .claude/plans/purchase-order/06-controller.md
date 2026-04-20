@@ -177,3 +177,22 @@ Route::prefix('purchase-orders')->name('purchase-orders.')->group(function () {
 - `edit` view loads `lines.product` eagerly for rendering existing line items.
 - `create` passes `$suppliers` (active only) and `$products` to the view for dropdowns.
 - Route model binding parameter is `purchaseOrder` (camelCase) — matches controller method signature.
+
+## Implementation Deviations (actual code differs from plan above)
+
+### PO form JS — monotonic `lineCount` counter replaces length-based index
+`addLine()` used `container.querySelectorAll('.line-row').length` as the next index. After removing a row this produces duplicate indices (e.g. remove index 1 from [0,1,2] → length 2, next add gets index 2, conflicts with existing row 2). Fixed with a monotonic counter:
+```js
+let lineCount = document.querySelectorAll('.line-row').length;
+
+function addLine() {
+    const idx = lineCount++;
+    // ...
+}
+```
+
+### Views — `createdBy` null-safe operator
+`$po->createdBy->name` in 3 views threw if the creating user was deleted. Fixed to `$po->createdBy?->name ?? 'Unknown'` in:
+- `purchase-orders/index.blade.php`
+- `purchase-orders/show.blade.php`
+- `po-returns/show.blade.php`

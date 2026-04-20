@@ -141,4 +141,47 @@ class Permission
     const INVENTORY_VIEW_BY_SKU = 'inventory.view-by-sku';
 
     const INVENTORY_VIEW_BY_SKU_AT_LOCATION = 'inventory.view-by-sku-at-location';
+
+    // Suppliers
+    const SUPPLIERS_VIEW_ANY = 'suppliers.viewAny';
+
+    const SUPPLIERS_VIEW = 'suppliers.view';
+
+    const SUPPLIERS_CREATE = 'suppliers.create';
+
+    const SUPPLIERS_UPDATE = 'suppliers.update';
+
+    const SUPPLIERS_DELETE = 'suppliers.delete';
+
+    const SUPPLIERS_RESTORE = 'suppliers.restore';
+
+    // Purchase Orders
+    const PURCHASE_ORDERS_VIEW_ANY = 'purchase-orders.viewAny';
+
+    const PURCHASE_ORDERS_VIEW = 'purchase-orders.view';
+
+    const PURCHASE_ORDERS_CREATE = 'purchase-orders.create';
+
+    const PURCHASE_ORDERS_UPDATE = 'purchase-orders.update';
+
+    const PURCHASE_ORDERS_CONFIRM = 'purchase-orders.confirm';
+
+    const PURCHASE_ORDERS_CANCEL = 'purchase-orders.cancel';
+
+    const PURCHASE_ORDERS_REOPEN = 'purchase-orders.reopen';
+
+    // Pipeline
+    const PIPELINE_VIEW_ANY = 'pipeline.viewAny';
+
+    const PIPELINE_RECEIVE = 'pipeline.receive';
+
+    const PIPELINE_VISUAL = 'pipeline.visual';
+
+    const PIPELINE_SERIAL_ASSIGN = 'pipeline.serial_assign';
+
+    const PIPELINE_TECH = 'pipeline.tech';
+
+    const PIPELINE_QA = 'pipeline.qa';
+
+    const PIPELINE_SHELF = 'pipeline.shelf';
 }

@@ -274,3 +274,54 @@ class PoUnitEventFactory extends Factory
     }
 }
 ```
+
+---
+
+## Implementation Deviations (actual code differs from plan above)
+
+### Spatie Activitylog namespaces
+Correct imports for activitylog v5:
+- `use Spatie\Activitylog\Models\Concerns\LogsActivity;` (not `Traits\LogsActivity`)
+- `use Spatie\Activitylog\Support\LogOptions;` (not `Spatie\Activitylog\LogOptions`)
+
+### `UnitJobStatus` — added `label()` and `badgeColor()`
+All other enums have these. Added for UI badge rendering:
+```php
+public function label(): string
+{
+    return match ($this) {
+        self::Pending    => 'Pending',
+        self::InProgress => 'In Progress',
+        self::Passed     => 'Passed',
+        self::Failed     => 'Failed',
+        self::Skipped    => 'Skipped',
+    };
+}
+
+public function badgeColor(): string
+{
+    return match ($this) {
+        self::Pending    => 'gray',
+        self::InProgress => 'blue',
+        self::Passed     => 'green',
+        self::Failed     => 'red',
+        self::Skipped    => 'yellow',
+    };
+}
+```
+
+### `PoUnitJob` scopes — added `Builder` type hints
+Plan had untyped `$query` params with no return types. Actual code:
+```php
+use Illuminate\Database\Eloquent\Builder;
+
+public function scopeAtStage(Builder $query, PipelineStage $stage): Builder
+public function scopeActive(Builder $query): Builder
+```
+
+### `UnitEventAction` — added `label()` and `badgeColor()`
+All other enums have these. Added for Blade badge rendering (replaces 5 raw string comparisons in `pipeline/show.blade.php`):
+```php
+public function label(): string   // 'Started', 'Passed', 'Failed', 'Skipped', 'Reopened'
+public function badgeColor(): string  // 'blue', 'green', 'red', 'purple', 'yellow'
+```

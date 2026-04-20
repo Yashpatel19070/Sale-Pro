@@ -153,3 +153,25 @@ class PurchaseOrderPermissionSeeder extends Seeder
   reopen is enforced in `PurchaseOrderService::reopen()` via `$po->reopen_count >= 2` check,
   not in the policy — policies return boolean, not error messages.
 - `cancel` and `reopen` not available to procurement — only manager and above.
+
+---
+
+## Implementation Deviations (actual code differs from plan above)
+
+### Status guards added to `confirm`, `cancel`, `reopen`, `close`
+Plan had permission-only checks. Actual code adds status enforcement for early 403 (consistent with `update` which already had `isEditable()`):
+```php
+public function confirm(...): bool { return $user->can(...) && $po->status === PoStatus::Draft; }
+public function cancel(...): bool  { return $user->can(...) && in_array($po->status, [PoStatus::Draft, PoStatus::Open], true); }
+public function reopen(...): bool  { return $user->can(...) && $po->status === PoStatus::Closed; }
+public function close(...): bool   { return $user->can(Permission::PURCHASE_ORDERS_CANCEL) && $po->status === PoStatus::Open; }
+```
+Tests for wrong-status actions now assert `assertForbidden()` (403) instead of `assertSessionHasErrors()`.
+
+### `close()` — `PoType::Return` type guard removed
+Plan had `$po->type === PoType::Return &&` guard. Actual code omits it — the controller already does `abort_if($purchaseOrder->type !== PoType::Return, 404)` before reaching policy. Type guard in policy was redundant.
+
+### `PoStatus` import required
+```php
+use App\Enums\PoStatus;
+```

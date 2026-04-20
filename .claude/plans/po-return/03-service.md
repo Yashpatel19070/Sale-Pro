@@ -256,3 +256,29 @@ Route::prefix('po-returns')->name('po-returns.')->group(function () {
   PO show route from resolving to a return PO (shared model, different controllers).
 - Return PO number shares the same counter as purchase POs — `PO-2026-0005` could be either
   type. The `type` column distinguishes them in the UI.
+
+---
+
+## Implementation Deviations (actual code differs from plan above)
+
+### `createForFailedUnit()` — UniqueConstraintViolationException retry added
+Plan had no collision handling on PO number generation. Added try/catch retry wrapping
+`PurchaseOrder::create()` (not `sprintf()` — the exception is thrown at the INSERT, not at
+number generation):
+```php
+try {
+    $returnPo = PurchaseOrder::create(['po_number' => $this->generateReturnPoNumber()] + $attrs);
+} catch (UniqueConstraintViolationException) {
+    $returnPo = PurchaseOrder::create(['po_number' => $this->generateReturnPoNumber()] + $attrs);
+}
+```
+Import: `use Illuminate\Database\UniqueConstraintViolationException;`
+
+### `createForFailedUnit()` — explicit snapshot fields on return line
+Plan omitted `snapshot_stock` and `snapshot_inbound` from the return line create. Both columns
+have `->default(0)` in the migration so it wouldn't crash, but explicit zeros are included for
+audit consistency:
+```php
+'snapshot_stock'   => 0,
+'snapshot_inbound' => 0,
+```

@@ -344,3 +344,18 @@ class PipelineService
 - `advance()` handles both skips in sequence — if both tech AND qa are skipped, the job goes directly from serial_assign to shelf.
 - All multi-step operations wrapped in `DB::transaction` to ensure atomicity.
 - `queue()` returns oldest-first so jobs are processed FIFO within each stage.
+
+
+---
+
+## Implementation Deviations (actual code differs from plan above)
+
+### `pass()`, `fail()`, `completeAtShelf()` — `loadMissing()` to prevent lazy-load violations
+All three methods call `$job->loadMissing('purchaseOrder')->purchaseOrder` instead of
+`$job->purchaseOrder`. Inside `DB::transaction`, the relation may not be loaded, triggering
+`LazyLoadingViolationException` in local dev and N+1 in prod. Pattern used:
+```php
+$job->loadMissing('purchaseOrder')->purchaseOrder
+```
+This is safe inside a transaction — InnoDB rolls back only the failing statement on unique violation,
+not the outer transaction.

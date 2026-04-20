@@ -9,12 +9,13 @@ use App\Models\Role;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Cache;
 use Spatie\Permission\Models\Permission as SpatiePermission;
+use Spatie\Permission\PermissionRegistrar;
 
 class RoleSeeder extends Seeder
 {
     public function run(): void
     {
-        app()[\Spatie\Permission\PermissionRegistrar::class]->forgetCachedPermissions();
+        app()[PermissionRegistrar::class]->forgetCachedPermissions();
 
         // 1. Seed all permissions
         $permissions = [
@@ -88,7 +89,17 @@ class RoleSeeder extends Seeder
             Permission::CUSTOMERS_EDIT,
         ]);
 
-        // 5. Clear middleware caches
+        // 5. Super Admin — is_super=true, bypasses all Gate/policy checks
+        $superAdmin = Role::firstOrCreate(['name' => 'super-admin', 'guard_name' => 'web']);
+        $superAdmin->update(['is_admin' => true, 'is_super' => true]);
+
+        // 6–9. Non-admin roles with no base permissions assigned here
+        foreach (['procurement', 'warehouse', 'tech', 'qa'] as $roleName) {
+            Role::firstOrCreate(['name' => $roleName, 'guard_name' => 'web'])
+                ->update(['is_admin' => false, 'is_super' => false]);
+        }
+
+        // 10. Clear middleware caches
         Cache::forget('roles.admin');
         Cache::forget('roles.super');
     }

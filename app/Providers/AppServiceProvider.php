@@ -12,7 +12,9 @@ use App\Models\InventorySerial;
 use App\Models\Product;
 use App\Models\ProductCategory;
 use App\Models\ProductListing;
+use App\Models\PurchaseOrder;
 use App\Models\Role;
+use App\Models\Supplier;
 use App\Models\User;
 use App\Observers\UserObserver;
 use App\Policies\AuditLogPolicy;
@@ -24,6 +26,8 @@ use App\Policies\InventorySerialPolicy;
 use App\Policies\ProductCategoryPolicy;
 use App\Policies\ProductListingPolicy;
 use App\Policies\ProductPolicy;
+use App\Policies\PurchaseOrderPolicy;
+use App\Policies\SupplierPolicy;
 use App\Policies\UserPolicy;
 use Illuminate\Auth\Events\Failed;
 use Illuminate\Auth\Events\Login;
@@ -57,6 +61,9 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(InventoryLocation::class, InventoryLocationPolicy::class);
         Gate::policy(InventorySerial::class, InventorySerialPolicy::class);
         Gate::policy(InventoryMovement::class, InventoryMovementPolicy::class);
+        Gate::policy(PurchaseOrder::class, PurchaseOrderPolicy::class);
+        Gate::policy(Supplier::class, SupplierPolicy::class);
+        Gate::policy(PoUnitJob::class, PoUnitJobPolicy::class);
 
         // Auth event listeners — log login, logout, failed attempts
         Event::listen(Login::class, [LogAuthActivity::class, 'handleLogin']);

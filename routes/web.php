@@ -8,6 +8,8 @@ use App\Http\Controllers\InventoryController;
 use App\Http\Controllers\InventoryLocationController;
 use App\Http\Controllers\InventoryMovementController;
 use App\Http\Controllers\InventorySerialController;
+use App\Http\Controllers\PipelineController;
+use App\Http\Controllers\PoReturnController;
 use App\Http\Controllers\Portal\Auth\AuthenticatedSessionController as PortalSessionController;
 use App\Http\Controllers\Portal\Auth\EmailVerificationController;
 use App\Http\Controllers\Portal\Auth\NewPasswordController as PortalNewPasswordController;
@@ -18,7 +20,9 @@ use App\Http\Controllers\ProductCategoryController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ProductListingController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\PurchaseOrderController;
 use App\Http\Controllers\RoleController;
+use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
 
@@ -38,6 +42,48 @@ Route::prefix('admin')->group(function () {
         Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
         Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
         Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+
+        // Pipeline
+        Route::prefix('pipeline')->name('pipeline.')->group(function () {
+            Route::get('/', [PipelineController::class, 'queue'])->name('queue');
+            Route::post('/jobs', [PipelineController::class, 'store'])->name('store');
+            Route::get('/jobs/{unitJob}', [PipelineController::class, 'show'])->name('show');
+            Route::post('/jobs/{unitJob}/start', [PipelineController::class, 'start'])->name('start');
+            Route::post('/jobs/{unitJob}/pass', [PipelineController::class, 'pass'])->name('pass');
+            Route::post('/jobs/{unitJob}/fail', [PipelineController::class, 'fail'])->name('fail');
+        });
+
+        // Purchase Orders
+        Route::prefix('purchase-orders')->name('purchase-orders.')->group(function () {
+            Route::get('/', [PurchaseOrderController::class, 'index'])->name('index');
+            Route::get('/create', [PurchaseOrderController::class, 'create'])->name('create');
+            Route::post('/', [PurchaseOrderController::class, 'store'])->name('store');
+            Route::get('/{purchaseOrder}', [PurchaseOrderController::class, 'show'])->name('show');
+            Route::get('/{purchaseOrder}/edit', [PurchaseOrderController::class, 'edit'])->name('edit');
+            Route::patch('/{purchaseOrder}', [PurchaseOrderController::class, 'update'])->name('update');
+            Route::post('/{purchaseOrder}/confirm', [PurchaseOrderController::class, 'confirm'])->name('confirm');
+            Route::post('/{purchaseOrder}/cancel', [PurchaseOrderController::class, 'cancel'])->name('cancel');
+            Route::post('/{purchaseOrder}/reopen', [PurchaseOrderController::class, 'reopen'])->name('reopen');
+        });
+
+        // PO Returns
+        Route::prefix('po-returns')->name('po-returns.')->group(function () {
+            Route::get('/', [PoReturnController::class, 'index'])->name('index');
+            Route::get('/{purchaseOrder}', [PoReturnController::class, 'show'])->name('show');
+            Route::post('/{purchaseOrder}/close', [PoReturnController::class, 'close'])->name('close');
+        });
+
+        // Suppliers
+        Route::prefix('suppliers')->name('suppliers.')->group(function () {
+            Route::get('/', [SupplierController::class, 'index'])->name('index');
+            Route::get('/create', [SupplierController::class, 'create'])->name('create');
+            Route::post('/', [SupplierController::class, 'store'])->name('store');
+            Route::get('/{supplier}', [SupplierController::class, 'show'])->name('show')->withTrashed();
+            Route::get('/{supplier}/edit', [SupplierController::class, 'edit'])->name('edit');
+            Route::patch('/{supplier}', [SupplierController::class, 'update'])->name('update');
+            Route::delete('/{supplier}', [SupplierController::class, 'destroy'])->name('destroy');
+            Route::post('/{supplier}/restore', [SupplierController::class, 'restore'])->name('restore')->withTrashed();
+        });
 
         // Users
         Route::resource('users', UserController::class);

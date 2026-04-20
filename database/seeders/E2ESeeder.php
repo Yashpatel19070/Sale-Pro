@@ -48,6 +48,9 @@ class E2ESeeder extends Seeder
             InventorySerialPermissionSeeder::class,
             InventoryMovementPermissionSeeder::class,
             InventoryPermissionSeeder::class,
+            SupplierPermissionSeeder::class,
+            PurchaseOrderPermissionSeeder::class,
+            PipelinePermissionSeeder::class,
         ]);
 
         // ── Users ─────────────────────────────────────────────────────────────
