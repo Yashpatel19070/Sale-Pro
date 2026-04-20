@@ -34,7 +34,7 @@ class StoreSupplierRequest extends FormRequest
             'name'          => ['required', 'string', 'max:255'],
             'contact_name'  => ['nullable', 'string', 'max:255'],
             'email'         => ['required', 'email:rfc', 'max:255', 'unique:suppliers,email'],
-            'phone'         => ['required', 'string', 'max:20'],
+            'phone'         => ['required', 'string', 'max:20', 'regex:/^[+\d\s\-().]+$/'],
             'address'       => ['nullable', 'string', 'max:255'],
             'city'          => ['nullable', 'string', 'max:100'],
             'state'         => ['nullable', 'string', 'max:100'],
@@ -62,7 +62,6 @@ declare(strict_types=1);
 namespace App\Http\Requests\Supplier;
 
 use App\Enums\SupplierStatus;
-use App\Models\Supplier;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -84,7 +83,7 @@ class UpdateSupplierRequest extends FormRequest
                 'max:255',
                 Rule::unique('suppliers', 'email')->ignore($this->route('supplier')),
             ],
-            'phone'         => ['required', 'string', 'max:20'],
+            'phone'         => ['required', 'string', 'max:20', 'regex:/^[+\d\s\-().]+$/'],
             'address'       => ['nullable', 'string', 'max:255'],
             'city'          => ['nullable', 'string', 'max:100'],
             'state'         => ['nullable', 'string', 'max:100'],
@@ -119,7 +118,7 @@ class ChangeSupplierStatusRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return true;
+        return $this->user()->can('changeStatus', $this->route('supplier'));
     }
 
     public function rules(): array
@@ -141,15 +140,16 @@ class ChangeSupplierStatusRequest extends FormRequest
 | `max:255` on all string fields | Prevents DB column overflow (VARCHAR 255) |
 | `max:10000` on `notes` | Prevents unbounded text abuse on TEXT column |
 | `max:20` on `phone` | Prevents overflow on VARCHAR(20) column |
+| `regex:/^[+\d\s\-().]+$/` on `phone` | Prevents injection into SMS/dialler systems; allows `+`, digits, spaces, `-`, `(`, `)`, `.` |
 | `Rule::enum(SupplierStatus::class)` | Whitelist-only — rejects any unlisted status value |
 | `unique:suppliers,email` | DB-level uniqueness enforced at validation layer, not just DB |
 | `Rule::unique()->ignore($this->route('supplier'))` | Passes model to Laravel — extracts PK internally, PHPStan-safe |
 | `authorize()` delegates to Policy | Policy fires correctly via `Gate::inspect()` — not bypassed |
 
 ## authorize() Pattern Rules
-- `StoreSupplierRequest` → `can('create', Supplier::class)` — no model instance needed for create
-- `UpdateSupplierRequest` → `can('update', $this->route('supplier'))` — passes bound model to Policy
-- `ChangeSupplierStatusRequest` → `return true` — controller's `$this->authorize('changeStatus', $supplier)` handles it; matches real `ChangeCustomerStatusRequest` pattern
+- `StoreSupplierRequest` → `can('create', Supplier::class)` — no model instance needed for create; controller does NOT repeat this check
+- `UpdateSupplierRequest` → `can('update', $this->route('supplier'))` — passes bound model to Policy; controller does NOT repeat this check
+- `ChangeSupplierStatusRequest` → `can('changeStatus', $this->route('supplier'))` — delegates to policy; controller also calls `$this->authorize()` as a second gate
 
 ## Notes
 - All nullable fields must explicitly declare `'nullable'` — never omit

@@ -18,8 +18,8 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
-use Spatie\Activitylog\LogOptions;
 use Spatie\Activitylog\Models\Concerns\LogsActivity;
+use Spatie\Activitylog\Support\LogOptions;
 
 class Supplier extends Model
 {
@@ -56,23 +56,17 @@ class Supplier extends Model
         ];
     }
 
-    // Relations — will be added when PO module is built
-    // public function purchaseOrders(): HasMany
-    // {
-    //     return $this->hasMany(PurchaseOrder::class);
-    // }
-
-    public function scopeByStatus(Builder $query, SupplierStatus $status): void
+    public function scopeByStatus(Builder $query, SupplierStatus $status): Builder
     {
-        $query->where('status', $status->value);
+        return $query->where('status', $status->value);
     }
 
-    public function scopeSearch(Builder $query, string $term): void
+    public function scopeSearch(Builder $query, string $term): Builder
     {
-        $query->where(function (Builder $q) use ($term) {
+        return $query->where(function (Builder $q) use ($term) {
             $q->where('name', 'like', "%{$term}%")
-              ->orWhere('email', 'like', "%{$term}%")
-              ->orWhere('contact_name', 'like', "%{$term}%");
+                ->orWhere('email', 'like', "%{$term}%")
+                ->orWhere('contact_name', 'like', "%{$term}%");
         });
     }
 }
@@ -156,8 +150,9 @@ class SupplierFactory extends Factory
 ---
 
 ## Rules
-- `$fillable` must list all 11 writable fields — never use `$guarded = []`
+- `$fillable` must list all 12 writable fields — never use `$guarded = []`
 - `casts()` method (not `$casts` property) — Laravel 12 style
-- Scopes use `void` return type and accept typed params
-- Relations will be added in PO module — `purchaseOrders()` stub commented out as reminder
+- Scopes return `Builder` — enables chaining
+- LogOptions namespace: `Spatie\Activitylog\Support\LogOptions` (not `Spatie\Activitylog\LogOptions`)
+- `purchaseOrders()` relation added in PO module — do not add stubs here
 - Never call `forceDelete()` anywhere in this module

@@ -27,29 +27,19 @@ class SupplierController extends Controller
 {
     public function __construct(private readonly SupplierService $service) {}
 
-    /**
-     * GET /suppliers
-     * List all suppliers — paginated, searchable, filterable by status.
-     */
     public function index(Request $request): View
     {
         $this->authorize('viewAny', Supplier::class);
 
-        $suppliers = $this->service->paginate(
-            $request->only(['search', 'status'])
-        );
+        $filters = $request->only(['search', 'status']);
 
         return view('suppliers.index', [
-            'suppliers' => $suppliers,
+            'suppliers' => $this->service->paginate($filters),
             'statuses'  => SupplierStatus::cases(),
-            'filters'   => $request->only(['search', 'status']),
+            'filters'   => $filters,
         ]);
     }
 
-    /**
-     * GET /suppliers/create
-     * Show the create supplier form.
-     */
     public function create(): View
     {
         $this->authorize('create', Supplier::class);
@@ -59,14 +49,8 @@ class SupplierController extends Controller
         ]);
     }
 
-    /**
-     * POST /suppliers
-     * Store a new supplier.
-     */
     public function store(StoreSupplierRequest $request): RedirectResponse
     {
-        $this->authorize('create', Supplier::class);
-
         $this->service->store($request->validated());
 
         return redirect()
@@ -74,10 +58,6 @@ class SupplierController extends Controller
             ->with('success', 'Supplier created successfully.');
     }
 
-    /**
-     * GET /suppliers/{supplier}
-     * View a single supplier profile.
-     */
     public function show(Supplier $supplier): View
     {
         $this->authorize('view', $supplier);
@@ -88,10 +68,6 @@ class SupplierController extends Controller
         ]);
     }
 
-    /**
-     * GET /suppliers/{supplier}/edit
-     * Show the edit supplier form.
-     */
     public function edit(Supplier $supplier): View
     {
         $this->authorize('update', $supplier);
@@ -102,14 +78,8 @@ class SupplierController extends Controller
         ]);
     }
 
-    /**
-     * PUT /suppliers/{supplier}
-     * Update an existing supplier.
-     */
     public function update(UpdateSupplierRequest $request, Supplier $supplier): RedirectResponse
     {
-        $this->authorize('update', $supplier);
-
         $this->service->update($supplier, $request->validated());
 
         return redirect()
@@ -117,10 +87,6 @@ class SupplierController extends Controller
             ->with('success', 'Supplier updated successfully.');
     }
 
-    /**
-     * DELETE /suppliers/{supplier}
-     * Soft-delete a supplier.
-     */
     public function destroy(Supplier $supplier): RedirectResponse
     {
         $this->authorize('delete', $supplier);
@@ -138,10 +104,17 @@ class SupplierController extends Controller
             ->with('success', 'Supplier deleted successfully.');
     }
 
-    /**
-     * PATCH /suppliers/{supplier}/status
-     * Change the status of a supplier.
-     */
+    public function restore(Supplier $supplier): RedirectResponse
+    {
+        $this->authorize('restore', $supplier);
+
+        $this->service->restore($supplier);
+
+        return redirect()
+            ->route('suppliers.index')
+            ->with('success', 'Supplier restored successfully.');
+    }
+
     public function changeStatus(ChangeSupplierStatusRequest $request, Supplier $supplier): RedirectResponse
     {
         $this->authorize('changeStatus', $supplier);
@@ -162,24 +135,44 @@ class SupplierController extends Controller
 
 ## Action Summary
 
-| Method | Route | Auth | Service Call |
-|--------|-------|------|--------------|
-| `index` | GET /suppliers | `viewAny` | `paginate()` |
-| `create` | GET /suppliers/create | `create` | — |
-| `store` | POST /suppliers | `create` | `store()` |
-| `show` | GET /suppliers/{supplier} | `view` | — |
-| `edit` | GET /suppliers/{supplier}/edit | `update` | — |
-| `update` | PUT /suppliers/{supplier} | `update` | `update()` |
-| `destroy` | DELETE /suppliers/{supplier} | `delete` | `delete()` |
-| `changeStatus` | PATCH /suppliers/{supplier}/status | `changeStatus` | `changeStatus()` |
+| Method | Route | Auth source | Service Call |
+|--------|-------|-------------|--------------|
+| `index` | GET /suppliers | controller `authorize()` | `paginate()` |
+| `create` | GET /suppliers/create | controller `authorize()` | — |
+| `store` | POST /suppliers | FormRequest `authorize()` | `store()` |
+| `show` | GET /suppliers/{supplier} | controller `authorize()` | — |
+| `edit` | GET /suppliers/{supplier}/edit | controller `authorize()` | — |
+| `update` | PUT /suppliers/{supplier} | FormRequest `authorize()` | `update()` |
+| `destroy` | DELETE /suppliers/{supplier} | controller `authorize()` | `delete()` |
+| `restore` | POST /suppliers/{supplier}/restore | controller `authorize()` | `restore()` |
+| `changeStatus` | PATCH /suppliers/{supplier}/status | FormRequest + controller `authorize()` | `changeStatus()` |
+
+---
+
+## Authorization Pattern
+
+- `store` and `update` — authorization handled entirely in the FormRequest (`authorize()` returns policy result). Controller does **not** duplicate the check.
+- `changeStatus` — authorization in both FormRequest and controller (double-gate by design).
+- All other actions — controller calls `$this->authorize()` directly.
+
+```php
+// authorize() calls in controller:
+$this->authorize('viewAny', Supplier::class);   // index
+$this->authorize('create', Supplier::class);    // create
+$this->authorize('view', $supplier);            // show
+$this->authorize('update', $supplier);          // edit
+$this->authorize('delete', $supplier);          // destroy
+$this->authorize('restore', $supplier);         // restore
+$this->authorize('changeStatus', $supplier);    // changeStatus
+```
 
 ---
 
 ## Rules
-- Every action calls `$this->authorize()` — no exceptions
+- `store` and `update` must NOT duplicate `$this->authorize()` — FormRequest already gates them
+- `index()` extracts `$filters` once and passes to both `paginate()` and view — no double `$request->only()`
 - `store()` and `update()` use typed FormRequest — validated data only
-- `changeStatus()` uses `ChangeSupplierStatusRequest` — not a plain Request
 - Route model binding handles `{supplier}` — no manual `Supplier::find()` in controller
 - `destroy` catches `DomainException` only — lets everything else bubble
 - Flash messages: `with('success', '...')` for success, `with('error', '...')` for DomainException
-- Redirect after write: `store` → index, `update` → show, `destroy` → index, `changeStatus` → back
+- Redirect after write: `store` → index, `update` → show, `destroy` → index, `restore` → index, `changeStatus` → back

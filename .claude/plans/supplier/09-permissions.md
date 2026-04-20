@@ -27,8 +27,9 @@ declare(strict_types=1);
 
 namespace Database\Seeders;
 
+use App\Enums\Permission;
 use Illuminate\Database\Seeder;
-use Spatie\Permission\Models\Permission;
+use Spatie\Permission\Models\Permission as SpatiePermission;
 use Spatie\Permission\Models\Role;
 use Spatie\Permission\PermissionRegistrar;
 
@@ -39,41 +40,40 @@ class SupplierPermissionSeeder extends Seeder
         app()[PermissionRegistrar::class]->forgetCachedPermissions();
 
         $permissions = [
-            'suppliers.viewAny',
-            'suppliers.view',
-            'suppliers.create',
-            'suppliers.update',
-            'suppliers.delete',
-            'suppliers.restore',
-            'suppliers.changeStatus',
+            Permission::SUPPLIERS_VIEW_ANY,
+            Permission::SUPPLIERS_VIEW,
+            Permission::SUPPLIERS_CREATE,
+            Permission::SUPPLIERS_UPDATE,
+            Permission::SUPPLIERS_DELETE,
+            Permission::SUPPLIERS_RESTORE,
+            Permission::SUPPLIERS_CHANGE_STATUS,
         ];
 
         foreach ($permissions as $permission) {
-            Permission::firstOrCreate([
+            SpatiePermission::firstOrCreate([
                 'name'       => $permission,
                 'guard_name' => 'web',
             ]);
         }
 
-        $superAdmin = Role::firstOrCreate(['name' => 'super_admin', 'guard_name' => 'web']);
-        $admin      = Role::firstOrCreate(['name' => 'admin',       'guard_name' => 'web']);
-        $manager    = Role::firstOrCreate(['name' => 'manager',     'guard_name' => 'web']);
-        $sales      = Role::firstOrCreate(['name' => 'sales',       'guard_name' => 'web']);
+        Role::where('name', 'super-admin')->first()?->givePermissionTo($permissions);
 
-        $superAdmin->givePermissionTo($permissions);
+        $admin = Role::firstOrCreate(['name' => 'admin', 'guard_name' => 'web']);
         $admin->givePermissionTo($permissions);
 
+        $manager = Role::firstOrCreate(['name' => 'manager', 'guard_name' => 'web']);
         $manager->givePermissionTo([
-            'suppliers.viewAny',
-            'suppliers.view',
-            'suppliers.create',
-            'suppliers.update',
-            'suppliers.changeStatus',
+            Permission::SUPPLIERS_VIEW_ANY,
+            Permission::SUPPLIERS_VIEW,
+            Permission::SUPPLIERS_CREATE,
+            Permission::SUPPLIERS_UPDATE,
+            Permission::SUPPLIERS_CHANGE_STATUS,
         ]);
 
+        $sales = Role::firstOrCreate(['name' => 'sales', 'guard_name' => 'web']);
         $sales->givePermissionTo([
-            'suppliers.viewAny',
-            'suppliers.view',
+            Permission::SUPPLIERS_VIEW_ANY,
+            Permission::SUPPLIERS_VIEW,
         ]);
     }
 }
@@ -81,9 +81,9 @@ class SupplierPermissionSeeder extends Seeder
 
 ---
 
-## Update app/Enums/Permission.php
+## Permission.php Constants
 
-Add supplier constants to `app/Enums/Permission.php` alongside other module constants:
+These constants are in `app/Enums/Permission.php`:
 
 ```php
 // Suppliers
@@ -92,10 +92,11 @@ const SUPPLIERS_VIEW          = 'suppliers.view';
 const SUPPLIERS_CREATE        = 'suppliers.create';
 const SUPPLIERS_UPDATE        = 'suppliers.update';
 const SUPPLIERS_DELETE        = 'suppliers.delete';
+const SUPPLIERS_RESTORE       = 'suppliers.restore';
 const SUPPLIERS_CHANGE_STATUS = 'suppliers.changeStatus';
 ```
 
-These string values MUST match exactly what `SupplierPermissionSeeder` seeds — both use camelCase (`viewAny`, `changeStatus`) consistent with the customer module pattern.
+String values match exactly what the seeder seeds — camelCase (`viewAny`, `changeStatus`) consistent with the customer module pattern.
 
 ---
 
@@ -107,6 +108,7 @@ Add to `database/seeders/DatabaseSeeder.php`:
 $this->call([
     // ... existing seeders ...
     SupplierPermissionSeeder::class,
+    SupplierSeeder::class,
 ]);
 ```
 
@@ -126,7 +128,9 @@ php artisan db:seed
 ---
 
 ## Notes
-- `firstOrCreate` is safe to run multiple times — no duplicate permissions
-- Super Admin typically has a Gate bypass via `Gate::before()` — seeder still assigns permissions for completeness
+- Use `Permission::SUPPLIERS_*` constants throughout — never raw strings
+- `super-admin` role uses null-safe `where()->first()?->` pattern (role may not exist in all environments)
+- `admin`, `manager`, `sales` use `firstOrCreate` — safe to run multiple times
+- `SpatiePermission::firstOrCreate` — no duplicate permissions created on re-run
 - Sales role maps to the role used in forbidden tests (see project memory: use 'sales' for forbidden tests)
-- Manager gets all except `suppliers.delete` — managers can create and edit but cannot remove suppliers
+- Manager gets all except `suppliers.delete` and `suppliers.restore` — can create/edit but cannot remove or restore suppliers
