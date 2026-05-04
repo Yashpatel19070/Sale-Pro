@@ -21,6 +21,7 @@ class InventoryMovementPermissionSeeder extends Seeder
             Permission::INVENTORY_MOVEMENTS_TRANSFER,
             Permission::INVENTORY_MOVEMENTS_SELL,
             Permission::INVENTORY_MOVEMENTS_ADJUST,
+            Permission::INVENTORY_MOVEMENTS_BULK_RECEIVE,
         ];
 
         foreach ($permissions as $permission) {
@@ -34,7 +35,7 @@ class InventoryMovementPermissionSeeder extends Seeder
         Role::where('name', 'admin')->first()?->givePermissionTo($permissions);
         Role::where('name', 'manager')->first()?->givePermissionTo($permissions);
 
-        // sales: view, transfer, sell — NOT adjust
+        // sales: view, transfer, sell — NOT adjust, NOT bulk-receive
         Role::where('name', 'sales')->first()?->givePermissionTo([
             Permission::INVENTORY_MOVEMENTS_VIEW,
             Permission::INVENTORY_MOVEMENTS_TRANSFER,

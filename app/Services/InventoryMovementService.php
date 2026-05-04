@@ -279,4 +279,88 @@ class InventoryMovementService
             ->paginate(25)
             ->withQueryString();
     }
+
+    /**
+     * Auto-generate N serial numbers for one SKU and batch-insert them.
+     *
+     * Serial range reserved atomically via lockForUpdate() on the sequences table.
+     * Runs in its own DB::transaction() — never nest inside GRN complete().
+     *
+     * @param  array{product_id: int, qty: int, inventory_location_id: int, purchase_price: numeric-string|float, source_ref?: string|null}  $data
+     * @return Collection<int, InventorySerial>
+     *
+     * @throws \DomainException
+     */
+    public function bulkReceive(array $data, User $receivedBy): Collection
+    {
+        throw_if(
+            $data['qty'] < 1 || $data['qty'] > 500,
+            \DomainException::class,
+            'Quantity must be between 1 and 500.'
+        );
+
+        return DB::transaction(function () use ($data, $receivedBy): Collection {
+            // 1. Reserve N sequence numbers atomically — no race condition
+            $current = DB::table('sequences')
+                ->where('name', 'serial_number')
+                ->lockForUpdate()
+                ->value('value');
+
+            $from = $current + 1;
+            $to = $current + $data['qty'];
+
+            DB::table('sequences')
+                ->where('name', 'serial_number')
+                ->update(['value' => $to]);
+
+            // 2. Build all rows in memory — zero extra queries in loop
+            $year = now()->year;
+            $now = now()->toDateTimeString();
+            $serialNumbers = [];
+            $serialRows = [];
+
+            for ($seq = $from; $seq <= $to; $seq++) {
+                $serialNumber = sprintf('SN-%d-%06d', $year, $seq);
+                $serialNumbers[] = $serialNumber;
+                $serialRows[] = [
+                    'product_id' => $data['product_id'],
+                    'inventory_location_id' => $data['inventory_location_id'],
+                    'serial_number' => $serialNumber,
+                    'purchase_price' => $data['purchase_price'],
+                    'received_at' => now()->toDateString(),
+                    'received_by_user_id' => $receivedBy->id,
+                    'status' => SerialStatus::InStock->value,
+                    'notes' => null,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ];
+            }
+
+            // 3. Batch INSERT serials — 1 query regardless of N
+            InventorySerial::insert($serialRows);
+
+            // 4. Load created serials to get their IDs — 1 query
+            $serials = InventorySerial::with(['product:id,sku,name', 'location:id,code,name'])
+                ->whereIn('serial_number', $serialNumbers)
+                ->get();
+
+            // 5. Batch INSERT movements — 1 query regardless of N
+            $movementRows = $serials->map(fn (InventorySerial $serial) => [
+                'inventory_serial_id' => $serial->id,
+                'type' => MovementType::Receive->value,
+                'from_location_id' => null,
+                'to_location_id' => $data['inventory_location_id'],
+                'purchase_price' => $data['purchase_price'],
+                'reference' => $data['source_ref'] ?? null,
+                'notes' => null,
+                'user_id' => $receivedBy->id,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ])->toArray();
+
+            InventoryMovement::insert($movementRows);
+
+            return $serials;
+        });
+    }
 }

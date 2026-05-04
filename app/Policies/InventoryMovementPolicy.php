@@ -51,4 +51,12 @@ class InventoryMovementPolicy
     {
         return false;
     }
+
+    /**
+     * Bulk receive — admin and manager only. Sales cannot create new stock.
+     */
+    public function bulkReceive(User $user): bool
+    {
+        return $user->can(Permission::INVENTORY_MOVEMENTS_BULK_RECEIVE);
+    }
 }

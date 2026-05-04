@@ -30,6 +30,8 @@ beforeEach(function () {
         'inventory_location_id' => $this->locationA->id,
         'status' => 'in_stock',
     ]);
+
+    // sequences table seeded by migration (create_sequences_table) via RefreshDatabase
 });
 
 // ── index ─────────────────────────────────────────────────────────────────────
@@ -286,12 +288,15 @@ it('rejects adjustment with invalid adjustment_status', function () {
 });
 
 it('rejects receive type via the UI', function () {
+    // authorize() returns false for type=receive → 403, not a validation error
     $this->actingAs($this->admin)
         ->post(route('inventory-movements.store'), [
             'inventory_serial_id' => $this->serial->id,
             'type' => 'receive',
         ])
-        ->assertSessionHasErrors(['type']);
+        ->assertForbidden();
+
+    $this->assertDatabaseCount('inventory_movements', 0);
 });
 
 // ── immutability ──────────────────────────────────────────────────────────────
@@ -340,4 +345,149 @@ it('sales can view serial movement timeline', function () {
 it('unauthenticated user is redirected from serial timeline', function () {
     $this->get(route('inventory-serials.movements', $this->serial))
         ->assertRedirect(route('login'));
+});
+
+// ── bulk receive ──────────────────────────────────────────────────────────────
+
+it('admin can view bulk receive form', function () {
+    $this->actingAs($this->admin)
+        ->get(route('inventory-movements.bulk-receive'))
+        ->assertOk()
+        ->assertViewHas('products')
+        ->assertViewHas('locations');
+});
+
+it('admin can bulk receive serials', function () {
+    $this->actingAs($this->admin)
+        ->post(route('inventory-movements.bulk-receive.store'), [
+            'product_id' => $this->product->id,
+            'qty' => 5,
+            'inventory_location_id' => $this->locationA->id,
+            'purchase_price' => '99.00',
+            'source_ref' => 'GRN-2026-0001',
+        ])
+        ->assertRedirect(route('inventory-movements.bulk-receive-print'))
+        ->assertSessionHas('success');
+
+    // beforeEach creates 1 serial; 5 bulk added = 6 total
+    $this->assertDatabaseCount('inventory_serials', 6);
+    $this->assertDatabaseCount('inventory_movements', 5);
+
+    $this->assertDatabaseHas('inventory_movements', [
+        'type' => 'receive',
+        'from_location_id' => null,
+        'to_location_id' => $this->locationA->id,
+        'reference' => 'GRN-2026-0001',
+    ]);
+
+    expect(session('bulk_receive_ids'))->toHaveCount(5);
+});
+
+it('bulk receive generates unique serial numbers', function () {
+    $this->actingAs($this->admin)
+        ->post(route('inventory-movements.bulk-receive.store'), [
+            'product_id' => $this->product->id,
+            'qty' => 10,
+            'inventory_location_id' => $this->locationA->id,
+            'purchase_price' => '50.00',
+        ]);
+
+    $serials = InventorySerial::pluck('serial_number');
+    expect($serials->unique()->count())->toBe(11); // 1 beforeEach + 10 bulk
+});
+
+it('bulk receive serial format matches SN-{YEAR}-{6digits}', function () {
+    $this->actingAs($this->admin)
+        ->post(route('inventory-movements.bulk-receive.store'), [
+            'product_id' => $this->product->id,
+            'qty' => 1,
+            'inventory_location_id' => $this->locationA->id,
+            'purchase_price' => '50.00',
+        ]);
+
+    $serial = InventorySerial::orderByDesc('id')->first();
+    expect($serial->serial_number)->toMatch('/^SN-\d{4}-\d{6}$/');
+});
+
+it('print view renders with generated serials and clears session', function () {
+    $serials = InventorySerial::factory()->count(3)->create([
+        'product_id' => $this->product->id,
+        'inventory_location_id' => $this->locationA->id,
+    ]);
+
+    $this->actingAs($this->admin);
+    session(['bulk_receive_ids' => $serials->pluck('id')->toArray()]);
+
+    $response = $this->get(route('inventory-movements.bulk-receive-print'));
+
+    $response->assertOk()
+        ->assertViewHas('serials')
+        ->assertSee($serials->first()->serial_number);
+
+    expect(session('bulk_receive_ids'))->toBeNull();
+});
+
+it('print view redirects when session is empty', function () {
+    $this->actingAs($this->admin)
+        ->get(route('inventory-movements.bulk-receive-print'))
+        ->assertRedirect(route('inventory-movements.bulk-receive'))
+        ->assertSessionHasErrors('error');
+});
+
+it('manager can bulk receive serials', function () {
+    $manager = User::factory()->create()->assignRole('manager');
+
+    $this->actingAs($manager)
+        ->post(route('inventory-movements.bulk-receive.store'), [
+            'product_id' => $this->product->id,
+            'qty' => 3,
+            'inventory_location_id' => $this->locationA->id,
+            'purchase_price' => '75.00',
+        ])
+        ->assertRedirect(route('inventory-movements.bulk-receive-print'));
+
+    $this->assertDatabaseCount('inventory_serials', 4); // 1 beforeEach + 3 bulk
+});
+
+it('sales cannot access bulk receive form', function () {
+    $this->actingAs($this->sales)
+        ->get(route('inventory-movements.bulk-receive'))
+        ->assertForbidden();
+});
+
+it('sales cannot post bulk receive', function () {
+    $this->actingAs($this->sales)
+        ->post(route('inventory-movements.bulk-receive.store'), [
+            'product_id' => $this->product->id,
+            'qty' => 3,
+            'inventory_location_id' => $this->locationA->id,
+            'purchase_price' => '50.00',
+        ])
+        ->assertForbidden();
+
+    $this->assertDatabaseCount('inventory_serials', 1); // only the beforeEach serial
+});
+
+it('bulk receive rejects qty over 500', function () {
+    $this->actingAs($this->admin)
+        ->post(route('inventory-movements.bulk-receive.store'), [
+            'product_id' => $this->product->id,
+            'qty' => 501,
+            'inventory_location_id' => $this->locationA->id,
+            'purchase_price' => '50.00',
+        ])
+        ->assertSessionHasErrors(['qty']);
+
+    $this->assertDatabaseCount('inventory_serials', 1);
+});
+
+it('bulk receive rejects qty 0', function () {
+    $this->actingAs($this->admin)
+        ->post(route('inventory-movements.bulk-receive.store'), [
+            'product_id' => $this->product->id,
+            'qty' => 0,
+            'inventory_location_id' => $this->locationA->id,
+            'purchase_price' => '50.00',
+        ])
+        ->assertSessionHasErrors(['qty']);
 });

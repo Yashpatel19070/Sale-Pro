@@ -6,10 +6,12 @@ namespace App\Http\Controllers;
 
 use App\Enums\MovementType;
 use App\Enums\SerialStatus;
+use App\Http\Requests\Inventory\StoreBulkReceiveRequest;
 use App\Http\Requests\Inventory\StoreInventoryMovementRequest;
 use App\Models\InventoryLocation;
 use App\Models\InventoryMovement;
 use App\Models\InventorySerial;
+use App\Models\Product;
 use App\Services\InventoryLocationService;
 use App\Services\InventoryMovementService;
 use Illuminate\Http\RedirectResponse;
@@ -138,5 +140,65 @@ class InventoryMovementController extends Controller
         $movements = $this->movements->historyForSerial($inventorySerial);
 
         return view('inventory.movements.serial-timeline', compact('inventorySerial', 'movements'));
+    }
+
+    /**
+     * Show the bulk receive form — auto-generate serials for one SKU.
+     * Accessible by: admin, manager only.
+     */
+    public function bulkReceive(): View
+    {
+        $this->authorize('bulkReceive', InventoryMovement::class);
+
+        $products = Product::orderBy('name')->get(['id', 'sku', 'name']);
+        $locations = $this->locationService->activeForDropdown();
+
+        return view('inventory.movements.bulk-receive', compact('products', 'locations'));
+    }
+
+    /**
+     * Generate N serial numbers, batch-insert, redirect to print view.
+     */
+    public function storeBulkReceive(StoreBulkReceiveRequest $request): RedirectResponse
+    {
+        try {
+            $serials = $this->movements->bulkReceive(
+                $request->validated(),
+                $request->user(),
+            );
+        } catch (\DomainException $e) {
+            return back()->withErrors(['error' => $e->getMessage()])->withInput();
+        }
+
+        session(['bulk_receive_ids' => $serials->pluck('id')->toArray()]);
+
+        return redirect()
+            ->route('inventory-movements.bulk-receive-print')
+            ->with('success', "Generated {$serials->count()} serial numbers. Ready to print.");
+    }
+
+    /**
+     * Render the printable label sheet for the just-generated batch.
+     * Clears session after rendering — one-time use.
+     */
+    public function printBulkReceive(): View|RedirectResponse
+    {
+        $this->authorize('bulkReceive', InventoryMovement::class);
+
+        $ids = session('bulk_receive_ids', []);
+
+        if (empty($ids)) {
+            return redirect()
+                ->route('inventory-movements.bulk-receive')
+                ->withErrors(['error' => 'No serials to print. Generate a batch first.']);
+        }
+
+        $serials = InventorySerial::with(['product:id,sku,name', 'location:id,code,name'])
+            ->whereIn('id', $ids)
+            ->get();
+
+        session()->forget('bulk_receive_ids');
+
+        return view('inventory.movements.bulk-receive-print', compact('serials'));
     }
 }

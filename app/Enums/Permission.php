@@ -135,6 +135,8 @@ class Permission
 
     const INVENTORY_MOVEMENTS_ADJUST = 'inventory-movements.adjust';
 
+    const INVENTORY_MOVEMENTS_BULK_RECEIVE = 'inventory-movements.bulk-receive';
+
     // Inventory (stock visibility — read only)
     const INVENTORY_VIEW_ANY = 'inventory.view-any';
 

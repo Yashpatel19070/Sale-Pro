@@ -130,6 +130,10 @@ Route::prefix('admin')->group(function () {
             Route::get('/create', [InventoryMovementController::class, 'create'])->name('create');
             Route::post('/', [InventoryMovementController::class, 'store'])->name('store');
             // NO edit, update, destroy — movements are immutable
+            // Bulk receive — admin/manager only
+            Route::get('/bulk-receive', [InventoryMovementController::class, 'bulkReceive'])->name('bulk-receive');
+            Route::post('/bulk-receive', [InventoryMovementController::class, 'storeBulkReceive'])->name('bulk-receive.store');
+            Route::get('/bulk-receive/print', [InventoryMovementController::class, 'printBulkReceive'])->name('bulk-receive-print');
         });
 
         // Serial timeline — nested under inventory-serials

@@ -11,21 +11,16 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('inventory_movements', function (Blueprint $table) {
-            // Add purchase_price — only meaningful on receive type
-            $table->decimal('purchase_price', 10, 2)->nullable()->after('to_location_id');
-
-            // Indexes for common query patterns
-            $table->index('type');
-            $table->index('created_at');
+            // Guard: create migration was later updated to include these columns and
+            // indexes directly, so they may already exist on fresh installs.
+            if (! Schema::hasColumn('inventory_movements', 'purchase_price')) {
+                $table->decimal('purchase_price', 10, 2)->nullable()->after('to_location_id');
+            }
         });
     }
 
     public function down(): void
     {
-        Schema::table('inventory_movements', function (Blueprint $table) {
-            $table->dropIndex(['type']);
-            $table->dropIndex(['created_at']);
-            $table->dropColumn('purchase_price');
-        });
+        // Intentionally empty — create migration owns these columns and indexes.
     }
 };

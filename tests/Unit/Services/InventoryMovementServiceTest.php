@@ -26,6 +26,8 @@ beforeEach(function () {
         'inventory_location_id' => $this->locationA->id,
         'status' => 'in_stock',
     ]);
+
+    // sequences table seeded by migration (create_sequences_table) via RefreshDatabase
 });
 
 // ── receive() ─────────────────────────────────────────────────────────────────
@@ -418,4 +420,105 @@ it('listMovements() filters by location', function () {
     $result = $this->service->listMovements(['location_id' => $this->locationA->id]);
 
     expect($result->total())->toBe(1);
+});
+
+// ── bulkReceive() ─────────────────────────────────────────────────────────────
+
+it('bulkReceive() creates correct count of serials and movements', function () {
+    $serials = $this->service->bulkReceive([
+        'product_id' => $this->product->id,
+        'qty' => 10,
+        'inventory_location_id' => $this->locationA->id,
+        'purchase_price' => 99.00,
+    ], $this->user);
+
+    expect($serials)->toHaveCount(10);
+    $this->assertDatabaseCount('inventory_serials', 11); // 1 beforeEach + 10 bulk
+    $this->assertDatabaseCount('inventory_movements', 10);
+});
+
+it('bulkReceive() increments sequences table by qty', function () {
+    $this->service->bulkReceive([
+        'product_id' => $this->product->id,
+        'qty' => 5,
+        'inventory_location_id' => $this->locationA->id,
+        'purchase_price' => 50.00,
+    ], $this->user);
+
+    $value = DB::table('sequences')->where('name', 'serial_number')->value('value');
+    expect($value)->toBe(5);
+});
+
+it('bulkReceive() generates unique serial numbers across two consecutive calls', function () {
+    $a = $this->service->bulkReceive([
+        'product_id' => $this->product->id,
+        'qty' => 10,
+        'inventory_location_id' => $this->locationA->id,
+        'purchase_price' => 50.00,
+    ], $this->user);
+
+    $b = $this->service->bulkReceive([
+        'product_id' => $this->product->id,
+        'qty' => 10,
+        'inventory_location_id' => $this->locationA->id,
+        'purchase_price' => 50.00,
+    ], $this->user);
+
+    $all = $a->merge($b)->pluck('serial_number');
+    expect($all->unique()->count())->toBe(20);
+});
+
+it('bulkReceive() creates movements with correct type, location, and source_ref', function () {
+    $this->service->bulkReceive([
+        'product_id' => $this->product->id,
+        'qty' => 3,
+        'inventory_location_id' => $this->locationA->id,
+        'purchase_price' => 99.00,
+        'source_ref' => 'GRN-2026-0001',
+    ], $this->user);
+
+    $this->assertDatabaseHas('inventory_movements', [
+        'type' => 'receive',
+        'to_location_id' => $this->locationA->id,
+        'from_location_id' => null,
+        'reference' => 'GRN-2026-0001',
+        'user_id' => $this->user->id,
+    ]);
+});
+
+it('bulkReceive() serial number format is SN-{YEAR}-{6digits}', function () {
+    DB::table('sequences')->where('name', 'serial_number')->update(['value' => 41]);
+
+    $serials = $this->service->bulkReceive([
+        'product_id' => $this->product->id,
+        'qty' => 1,
+        'inventory_location_id' => $this->locationA->id,
+        'purchase_price' => 50.00,
+    ], $this->user);
+
+    expect($serials->first()->serial_number)->toMatch('/^SN-\d{4}-\d{6}$/');
+    expect($serials->first()->serial_number)->toEndWith('-000042');
+});
+
+it('bulkReceive() throws DomainException for qty 0', function () {
+    expect(fn () => $this->service->bulkReceive([
+        'product_id' => $this->product->id,
+        'qty' => 0,
+        'inventory_location_id' => $this->locationA->id,
+        'purchase_price' => 50.00,
+    ], $this->user))->toThrow(DomainException::class);
+
+    $this->assertDatabaseCount('inventory_serials', 1); // only the beforeEach serial
+});
+
+it('bulkReceive() throws DomainException for qty over 500', function () {
+    expect(fn () => $this->service->bulkReceive([
+        'product_id' => $this->product->id,
+        'qty' => 501,
+        'inventory_location_id' => $this->locationA->id,
+        'purchase_price' => 50.00,
+    ], $this->user))->toThrow(DomainException::class);
+
+    $this->assertDatabaseCount('inventory_serials', 1);
+    $this->assertDatabaseCount('inventory_movements', 0);
 });
