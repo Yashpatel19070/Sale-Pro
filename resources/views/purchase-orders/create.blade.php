@@ -22,10 +22,14 @@
                 </div>
             @endif
 
+            <script>
+                window.__poProducts = @json($products);
+            </script>
+
             <form method="POST" action="{{ route('purchase-orders.store') }}"
                   x-data="{
                       lines: [{ product_id: '', description: '', qty_ordered: 1, unit_cost: 0, tax_rate: 0, line_total: 0 }],
-                      products: @json($products),
+                      products: window.__poProducts,
                       get subtotal() {
                           return this.lines.reduce((s, l) => s + parseFloat(l.qty_ordered || 0) * parseFloat(l.unit_cost || 0), 0);
                       },

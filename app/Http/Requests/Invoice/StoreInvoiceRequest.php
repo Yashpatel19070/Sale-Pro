@@ -17,7 +17,7 @@ class StoreInvoiceRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'invoice_number' => ['required', 'string', 'max:100'],
+            'invoice_number' => ['required', 'string', 'max:100', 'unique:invoices,invoice_number'],
             'invoice_date' => ['required', 'date'],
             'due_date' => ['nullable', 'date', 'after_or_equal:invoice_date'],
             'amount' => ['required', 'numeric', 'min:0.01'],

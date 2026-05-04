@@ -20,6 +20,7 @@ class InvoiceService
             PurchaseOrderStatus::OnTheWay,
             PurchaseOrderStatus::PartiallyReceived,
             PurchaseOrderStatus::Received,
+            PurchaseOrderStatus::Invoiced,
         ];
 
         throw_if(

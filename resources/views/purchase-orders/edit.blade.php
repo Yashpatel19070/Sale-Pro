@@ -9,17 +9,6 @@
         </div>
     </x-slot>
 
-    @php
-        $linesJson = json_encode($purchaseOrder->lines->map(fn ($l) => [
-            'product_id' => $l->product_id,
-            'description' => $l->description,
-            'qty_ordered' => $l->qty_ordered,
-            'unit_cost' => $l->unit_cost,
-            'tax_rate' => $l->tax_rate,
-            'line_total' => $l->line_total,
-            'qty_on_hand_snapshot' => $l->qty_on_hand_snapshot,
-        ]));
-    @endphp
 
     <div class="py-8">
         <div class="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
@@ -41,10 +30,23 @@
                 </div>
             @endif
 
+            <script>
+                window.__poProducts = @json($products);
+                window.__poLines = @json($purchaseOrder->lines->map(fn ($l) => [
+                    'product_id'          => $l->product_id,
+                    'description'         => $l->description,
+                    'qty_ordered'         => $l->qty_ordered,
+                    'unit_cost'           => $l->unit_cost,
+                    'tax_rate'            => $l->tax_rate,
+                    'line_total'          => $l->line_total,
+                    'qty_on_hand_snapshot' => $l->qty_on_hand_snapshot,
+                ]));
+            </script>
+
             <form method="POST" action="{{ route('purchase-orders.update', $purchaseOrder) }}"
                   x-data="{
-                      lines: {!! $linesJson !!},
-                      products: @json($products),
+                      lines: window.__poLines,
+                      products: window.__poProducts,
                       get subtotal() {
                           return this.lines.reduce((s, l) => s + parseFloat(l.qty_ordered || 0) * parseFloat(l.unit_cost || 0), 0);
                       },
