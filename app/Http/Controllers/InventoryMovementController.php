@@ -150,7 +150,7 @@ class InventoryMovementController extends Controller
     {
         $this->authorize('bulkReceive', InventoryMovement::class);
 
-        $products = Product::orderBy('name')->get(['id', 'sku', 'name']);
+        $products = Product::forDropdown()->get();
         $locations = $this->locationService->activeForDropdown();
 
         return view('inventory.movements.bulk-receive', compact('products', 'locations'));
@@ -185,7 +185,7 @@ class InventoryMovementController extends Controller
     {
         $this->authorize('bulkReceive', InventoryMovement::class);
 
-        $ids = session('bulk_receive_ids', []);
+        $ids = array_slice(session('bulk_receive_ids', []), 0, 500);
 
         if (empty($ids)) {
             return redirect()
