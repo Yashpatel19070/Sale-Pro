@@ -158,4 +158,47 @@ class Permission
     const SUPPLIERS_RESTORE = 'suppliers.restore';
 
     const SUPPLIERS_CHANGE_STATUS = 'suppliers.changeStatus';
+
+    // Purchase Orders
+    const PURCHASE_ORDERS_VIEW_ANY = 'purchase_orders.viewAny';
+
+    const PURCHASE_ORDERS_VIEW = 'purchase_orders.view';
+
+    const PURCHASE_ORDERS_CREATE = 'purchase_orders.create';
+
+    const PURCHASE_ORDERS_UPDATE = 'purchase_orders.update';
+
+    const PURCHASE_ORDERS_DELETE = 'purchase_orders.delete';
+
+    const PURCHASE_ORDERS_RESTORE = 'purchase_orders.restore';
+
+    const PURCHASE_ORDERS_SUBMIT = 'purchase_orders.submit';
+
+    const PURCHASE_ORDERS_APPROVE = 'purchase_orders.approve';
+
+    const PURCHASE_ORDERS_REJECT = 'purchase_orders.reject';
+
+    const PURCHASE_ORDERS_CANCEL = 'purchase_orders.cancel';
+
+    // Goods Receipts
+    const GOODS_RECEIPTS_VIEW_ANY = 'goods_receipts.viewAny';
+
+    const GOODS_RECEIPTS_VIEW = 'goods_receipts.view';
+
+    const GOODS_RECEIPTS_CREATE = 'goods_receipts.create';
+
+    const GOODS_RECEIPTS_DELETE = 'goods_receipts.delete';
+
+    // Invoices
+    const INVOICES_VIEW_ANY = 'invoices.viewAny';
+
+    const INVOICES_VIEW = 'invoices.view';
+
+    const INVOICES_CREATE = 'invoices.create';
+
+    const INVOICES_APPROVE = 'invoices.approve';
+
+    const INVOICES_MARK_PAID = 'invoices.markPaid';
+
+    const INVOICES_DELETE = 'invoices.delete';
 }

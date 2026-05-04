@@ -6,9 +6,13 @@ namespace App\Services;
 
 use App\Models\Customer;
 use App\Models\Department;
+use App\Models\GoodsReceipt;
+use App\Models\Invoice;
 use App\Models\Product;
 use App\Models\ProductCategory;
 use App\Models\ProductListing;
+use App\Models\PurchaseOrder;
+use App\Models\Supplier;
 use App\Models\User;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Collection;
@@ -29,6 +33,9 @@ class AuditLogService
         ProductListing::class => 'Product Listing',
         ProductCategory::class => 'Product Category',
         Supplier::class => 'Supplier',
+        PurchaseOrder::class => 'Purchase Order',
+        GoodsReceipt::class => 'Goods Receipt',
+        Invoice::class => 'Invoice',
     ];
 
     /**

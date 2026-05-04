@@ -4,10 +4,12 @@ use App\Enums\Permission;
 use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\DepartmentController;
+use App\Http\Controllers\GoodsReceiptController;
 use App\Http\Controllers\InventoryController;
 use App\Http\Controllers\InventoryLocationController;
 use App\Http\Controllers\InventoryMovementController;
 use App\Http\Controllers\InventorySerialController;
+use App\Http\Controllers\InvoiceController;
 use App\Http\Controllers\Portal\Auth\AuthenticatedSessionController as PortalSessionController;
 use App\Http\Controllers\Portal\Auth\EmailVerificationController;
 use App\Http\Controllers\Portal\Auth\NewPasswordController as PortalNewPasswordController;
@@ -18,6 +20,7 @@ use App\Http\Controllers\ProductCategoryController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ProductListingController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\PurchaseOrderController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\UserController;
@@ -152,6 +155,43 @@ Route::prefix('admin')->group(function () {
         // Audit Log (read-only)
         Route::get('audit-log', [AuditLogController::class, 'index'])->name('audit-log.index');
         Route::get('audit-log/{activity}', [AuditLogController::class, 'show'])->name('audit-log.show');
+
+        // Purchase Orders
+        Route::prefix('purchase-orders')->name('purchase-orders.')->group(function () {
+            Route::get('/', [PurchaseOrderController::class, 'index'])->name('index');
+            Route::get('/create', [PurchaseOrderController::class, 'create'])->name('create');
+            Route::post('/', [PurchaseOrderController::class, 'store'])->name('store');
+            Route::get('/{purchaseOrder}', [PurchaseOrderController::class, 'show'])->name('show');
+            Route::get('/{purchaseOrder}/edit', [PurchaseOrderController::class, 'edit'])->name('edit');
+            Route::put('/{purchaseOrder}', [PurchaseOrderController::class, 'update'])->name('update');
+            Route::delete('/{purchaseOrder}', [PurchaseOrderController::class, 'destroy'])->name('destroy');
+            Route::post('/{purchaseOrder}/restore', [PurchaseOrderController::class, 'restore'])->name('restore')->withTrashed();
+            Route::post('/{purchaseOrder}/submit', [PurchaseOrderController::class, 'submit'])->name('submit');
+            Route::post('/{purchaseOrder}/approve', [PurchaseOrderController::class, 'approve'])->name('approve');
+            Route::post('/{purchaseOrder}/reject', [PurchaseOrderController::class, 'reject'])->name('reject');
+            Route::post('/{purchaseOrder}/on-the-way', [PurchaseOrderController::class, 'markOnTheWay'])->name('markOnTheWay');
+            Route::post('/{purchaseOrder}/cancel', [PurchaseOrderController::class, 'cancel'])->name('cancel');
+            Route::get('/{purchaseOrder}/print', [PurchaseOrderController::class, 'print'])->name('print');
+
+            Route::prefix('/{purchaseOrder}/goods-receipts')->name('goods-receipts.')->group(function () {
+                Route::get('/create', [GoodsReceiptController::class, 'create'])->name('create');
+                Route::post('/', [GoodsReceiptController::class, 'store'])->name('store');
+                Route::get('/{goodsReceipt}', [GoodsReceiptController::class, 'show'])->name('show');
+                Route::get('/{goodsReceipt}/edit', [GoodsReceiptController::class, 'edit'])->name('edit');
+                Route::put('/{goodsReceipt}', [GoodsReceiptController::class, 'update'])->name('update');
+                Route::post('/{goodsReceipt}/complete', [GoodsReceiptController::class, 'complete'])->name('complete');
+                Route::delete('/{goodsReceipt}', [GoodsReceiptController::class, 'destroy'])->name('destroy');
+            });
+
+            Route::prefix('/{purchaseOrder}/invoices')->name('invoices.')->group(function () {
+                Route::get('/create', [InvoiceController::class, 'create'])->name('create');
+                Route::post('/', [InvoiceController::class, 'store'])->name('store');
+                Route::get('/{invoice}', [InvoiceController::class, 'show'])->name('show');
+                Route::post('/{invoice}/approve', [InvoiceController::class, 'approve'])->name('approve');
+                Route::post('/{invoice}/mark-paid', [InvoiceController::class, 'markPaid'])->name('markPaid');
+                Route::delete('/{invoice}', [InvoiceController::class, 'destroy'])->name('destroy');
+            });
+        });
 
         // Roles (admin + permission-gated)
         Route::middleware(['admin', 'permission:'.Permission::ROLES_VIEW])->group(function () {
