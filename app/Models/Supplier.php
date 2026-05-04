@@ -52,6 +52,11 @@ class Supplier extends Model
         return $query->where('status', $status->value);
     }
 
+    public function scopeForDropdown(Builder $query): Builder
+    {
+        return $query->byStatus(SupplierStatus::Active)->orderBy('name')->select(['id', 'name']);
+    }
+
     public function scopeSearch(Builder $query, string $term): Builder
     {
         return $query->where(function (Builder $q) use ($term) {

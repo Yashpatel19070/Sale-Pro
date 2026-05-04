@@ -30,6 +30,7 @@ class PurchaseOrderPermissionSeeder extends Seeder
             Permission::GOODS_RECEIPTS_VIEW_ANY,
             Permission::GOODS_RECEIPTS_VIEW,
             Permission::GOODS_RECEIPTS_CREATE,
+            Permission::GOODS_RECEIPTS_UPDATE,
             Permission::GOODS_RECEIPTS_DELETE,
             Permission::INVOICES_VIEW_ANY,
             Permission::INVOICES_VIEW,

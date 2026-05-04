@@ -60,7 +60,7 @@ class GoodsReceiptController extends Controller
     {
         $this->authorize('update', $goodsReceipt);
         try {
-            $this->service->update($goodsReceipt, $request->validated());
+            $this->service->update($goodsReceipt, $request->validated(), $purchaseOrder);
         } catch (\DomainException $e) {
             return back()->withErrors(['error' => $e->getMessage()])->withInput();
         }
@@ -73,7 +73,7 @@ class GoodsReceiptController extends Controller
     {
         $this->authorize('update', $goodsReceipt);
         try {
-            $this->service->complete($goodsReceipt);
+            $this->service->complete($goodsReceipt, $purchaseOrder);
         } catch (\DomainException $e) {
             return back()->withErrors(['error' => $e->getMessage()]);
         }

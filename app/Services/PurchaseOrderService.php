@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Enums\PurchaseOrderStatus;
-use App\Enums\SerialStatus;
 use App\Models\InventorySerial;
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderLine;
@@ -60,12 +59,7 @@ class PurchaseOrderService
             ]);
 
             foreach ($data['lines'] as $line) {
-                $qtyOnHand = InventorySerial::where('product_id', $line['product_id'])
-                    ->where('status', SerialStatus::InStock)
-                    ->count();
-
-                $lineTotal = (float) $line['qty_ordered'] * (float) $line['unit_cost']
-                    * (1 + (float) $line['tax_rate'] / 100);
+                $qtyOnHand = InventorySerial::forProduct($line['product_id'])->inStock()->count();
 
                 PurchaseOrderLine::create([
                     'purchase_order_id' => $po->id,
@@ -76,7 +70,7 @@ class PurchaseOrderService
                     'qty_on_hand_snapshot' => $qtyOnHand,
                     'unit_cost' => $line['unit_cost'],
                     'tax_rate' => $line['tax_rate'],
-                    'line_total' => $lineTotal,
+                    'line_total' => $this->calculateLineTotal($line),
                 ]);
             }
 
@@ -104,9 +98,6 @@ class PurchaseOrderService
             $po->lines()->delete();
 
             foreach ($data['lines'] as $line) {
-                $lineTotal = (float) $line['qty_ordered'] * (float) $line['unit_cost']
-                    * (1 + (float) $line['tax_rate'] / 100);
-
                 PurchaseOrderLine::create([
                     'purchase_order_id' => $po->id,
                     'product_id' => $line['product_id'],
@@ -116,7 +107,7 @@ class PurchaseOrderService
                     'qty_on_hand_snapshot' => $line['qty_on_hand_snapshot'],
                     'unit_cost' => $line['unit_cost'],
                     'tax_rate' => $line['tax_rate'],
-                    'line_total' => $lineTotal,
+                    'line_total' => $this->calculateLineTotal($line),
                 ]);
             }
 
@@ -234,13 +225,29 @@ class PurchaseOrderService
     public function recalculateTotals(PurchaseOrder $po): void
     {
         $po->load('lines');
-        $subtotal = $po->lines->sum(fn ($l) => (float) $l->qty_ordered * (float) $l->unit_cost);
-        $taxTotal = $po->lines->sum(fn ($l) => (float) $l->qty_ordered * (float) $l->unit_cost * (float) $l->tax_rate / 100);
+
+        ['subtotal' => $subtotal, 'taxTotal' => $taxTotal] = $po->lines->reduce(
+            function (array $carry, mixed $l): array {
+                $base = (float) $l->qty_ordered * (float) $l->unit_cost;
+
+                return [
+                    'subtotal' => $carry['subtotal'] + $base,
+                    'taxTotal' => $carry['taxTotal'] + $base * (float) $l->tax_rate / 100,
+                ];
+            },
+            ['subtotal' => 0.0, 'taxTotal' => 0.0]
+        );
 
         $po->update([
             'subtotal' => $subtotal,
             'tax_total' => $taxTotal,
             'grand_total' => $subtotal + $taxTotal,
         ]);
+    }
+
+    private function calculateLineTotal(array $line): float
+    {
+        return (float) $line['qty_ordered'] * (float) $line['unit_cost']
+            * (1 + (float) $line['tax_rate'] / 100);
     }
 }

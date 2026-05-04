@@ -27,7 +27,7 @@ class GoodsReceiptPolicy
 
     public function update(User $user, GoodsReceipt $grn): bool
     {
-        return $user->can(Permission::GOODS_RECEIPTS_CREATE);
+        return $user->can(Permission::GOODS_RECEIPTS_UPDATE);
     }
 
     public function delete(User $user, GoodsReceipt $grn): bool

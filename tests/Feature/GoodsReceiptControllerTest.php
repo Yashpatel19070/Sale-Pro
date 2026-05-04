@@ -235,7 +235,7 @@ it('admin can view the edit form for a draft GRN', function () {
         Permission::PURCHASE_ORDERS_VIEW,
         Permission::GOODS_RECEIPTS_VIEW_ANY,
         Permission::GOODS_RECEIPTS_VIEW,
-        Permission::GOODS_RECEIPTS_CREATE,
+        Permission::GOODS_RECEIPTS_UPDATE,
     ]);
 
     $grn = GoodsReceipt::factory()->create([
@@ -255,7 +255,7 @@ it('cannot edit a complete GRN', function () {
         Permission::PURCHASE_ORDERS_VIEW,
         Permission::GOODS_RECEIPTS_VIEW_ANY,
         Permission::GOODS_RECEIPTS_VIEW,
-        Permission::GOODS_RECEIPTS_CREATE,
+        Permission::GOODS_RECEIPTS_UPDATE,
     ]);
 
     $grn = GoodsReceipt::factory()->create([
@@ -278,7 +278,7 @@ it('admin can update a draft GRN', function () {
         Permission::PURCHASE_ORDERS_VIEW,
         Permission::GOODS_RECEIPTS_VIEW_ANY,
         Permission::GOODS_RECEIPTS_VIEW,
-        Permission::GOODS_RECEIPTS_CREATE,
+        Permission::GOODS_RECEIPTS_UPDATE,
     ]);
 
     $grn = GoodsReceipt::factory()->create([
@@ -315,7 +315,7 @@ it('admin can complete a draft GRN', function () {
         Permission::PURCHASE_ORDERS_VIEW,
         Permission::GOODS_RECEIPTS_VIEW_ANY,
         Permission::GOODS_RECEIPTS_VIEW,
-        Permission::GOODS_RECEIPTS_CREATE,
+        Permission::GOODS_RECEIPTS_UPDATE,
     ]);
 
     $grn = GoodsReceipt::factory()->create([
@@ -340,7 +340,7 @@ it('completing a full receipt sets PO status to received', function () {
         Permission::PURCHASE_ORDERS_VIEW,
         Permission::GOODS_RECEIPTS_VIEW_ANY,
         Permission::GOODS_RECEIPTS_VIEW,
-        Permission::GOODS_RECEIPTS_CREATE,
+        Permission::GOODS_RECEIPTS_UPDATE,
     ]);
 
     $grn = GoodsReceipt::factory()->create([

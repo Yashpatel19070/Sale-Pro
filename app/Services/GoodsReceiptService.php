@@ -40,20 +40,21 @@ class GoodsReceiptService
                 'status' => GoodsReceiptStatus::Draft,
             ]);
 
-            foreach ($data['lines'] as $line) {
-                GoodsReceiptLine::create([
-                    'goods_receipt_id' => $grn->id,
-                    'purchase_order_line_id' => $line['purchase_order_line_id'],
-                    'qty_received' => $line['qty_received'],
-                    'notes' => $line['notes'] ?? null,
-                ]);
-            }
+            $now = now();
+            GoodsReceiptLine::insert(array_map(fn ($line) => [
+                'goods_receipt_id' => $grn->id,
+                'purchase_order_line_id' => $line['purchase_order_line_id'],
+                'qty_received' => $line['qty_received'],
+                'notes' => $line['notes'] ?? null,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ], $data['lines']));
 
             return $grn->fresh(['lines.purchaseOrderLine.product', 'receivedBy']);
         });
     }
 
-    public function update(GoodsReceipt $grn, array $data): GoodsReceipt
+    public function update(GoodsReceipt $grn, array $data, ?PurchaseOrder $po = null): GoodsReceipt
     {
         throw_if(
             $grn->status === GoodsReceiptStatus::Complete,
@@ -61,7 +62,7 @@ class GoodsReceiptService
             'Completed goods receipts cannot be edited.'
         );
 
-        $po = $grn->purchaseOrder()->first();
+        $po ??= $grn->purchaseOrder;
         $this->validateLineQtys($po, $data['lines'], $grn->id);
 
         return DB::transaction(function () use ($grn, $data): GoodsReceipt {
@@ -72,20 +73,21 @@ class GoodsReceiptService
 
             $grn->lines()->delete();
 
-            foreach ($data['lines'] as $line) {
-                GoodsReceiptLine::create([
-                    'goods_receipt_id' => $grn->id,
-                    'purchase_order_line_id' => $line['purchase_order_line_id'],
-                    'qty_received' => $line['qty_received'],
-                    'notes' => $line['notes'] ?? null,
-                ]);
-            }
+            $now = now();
+            GoodsReceiptLine::insert(array_map(fn ($line) => [
+                'goods_receipt_id' => $grn->id,
+                'purchase_order_line_id' => $line['purchase_order_line_id'],
+                'qty_received' => $line['qty_received'],
+                'notes' => $line['notes'] ?? null,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ], $data['lines']));
 
             return $grn->fresh(['lines.purchaseOrderLine.product']);
         });
     }
 
-    public function complete(GoodsReceipt $grn): GoodsReceipt
+    public function complete(GoodsReceipt $grn, ?PurchaseOrder $po = null): GoodsReceipt
     {
         throw_if(
             $grn->status === GoodsReceiptStatus::Complete,
@@ -93,10 +95,10 @@ class GoodsReceiptService
             'This goods receipt is already complete.'
         );
 
-        return DB::transaction(function () use ($grn): GoodsReceipt {
+        return DB::transaction(function () use ($grn, $po): GoodsReceipt {
             $grn->update(['status' => GoodsReceiptStatus::Complete]);
 
-            $po = $grn->purchaseOrder()->with('lines')->first();
+            $po ??= $grn->purchaseOrder()->with('lines')->first();
             $this->updatePoQtyReceived($po);
             $this->updatePoStatus($po);
 
@@ -119,15 +121,18 @@ class GoodsReceiptService
     {
         $po->load('lines');
 
-        foreach ($po->lines as $line) {
-            $received = DB::table('goods_receipt_lines as grl')
-                ->join('goods_receipts as gr', 'gr.id', '=', 'grl.goods_receipt_id')
-                ->where('grl.purchase_order_line_id', $line->id)
-                ->where('gr.status', GoodsReceiptStatus::Complete->value)
-                ->whereNull('gr.deleted_at')
-                ->sum('grl.qty_received');
+        $receivedQtys = DB::table('goods_receipt_lines as grl')
+            ->join('goods_receipts as gr', 'gr.id', '=', 'grl.goods_receipt_id')
+            ->where('gr.purchase_order_id', $po->id)
+            ->where('gr.status', GoodsReceiptStatus::Complete->value)
+            ->whereNull('gr.deleted_at')
+            ->groupBy('grl.purchase_order_line_id')
+            ->selectRaw('grl.purchase_order_line_id, SUM(grl.qty_received) as total_received')
+            ->pluck('total_received', 'purchase_order_line_id');
 
-            $line->update(['qty_received' => min((float) $received, (float) $line->qty_ordered)]);
+        foreach ($po->lines as $line) {
+            $received = (float) ($receivedQtys[$line->id] ?? 0);
+            $line->update(['qty_received' => min($received, (float) $line->qty_ordered)]);
         }
     }
 
@@ -168,6 +173,18 @@ class GoodsReceiptService
     {
         $po->load('lines');
 
+        $lineIds = array_column($lines, 'purchase_order_line_id');
+
+        $alreadyReceivedByLine = DB::table('goods_receipt_lines as grl')
+            ->join('goods_receipts as gr', 'gr.id', '=', 'grl.goods_receipt_id')
+            ->whereIn('grl.purchase_order_line_id', $lineIds)
+            ->where('gr.status', GoodsReceiptStatus::Complete->value)
+            ->whereNull('gr.deleted_at')
+            ->when($excludeGrnId, fn ($q) => $q->where('gr.id', '!=', $excludeGrnId))
+            ->groupBy('grl.purchase_order_line_id')
+            ->selectRaw('grl.purchase_order_line_id, SUM(grl.qty_received) as total')
+            ->pluck('total', 'purchase_order_line_id');
+
         foreach ($lines as $lineData) {
             $poLine = $po->lines->firstWhere('id', $lineData['purchase_order_line_id']);
 
@@ -175,15 +192,8 @@ class GoodsReceiptService
                 continue;
             }
 
-            $alreadyReceived = DB::table('goods_receipt_lines as grl')
-                ->join('goods_receipts as gr', 'gr.id', '=', 'grl.goods_receipt_id')
-                ->where('grl.purchase_order_line_id', $poLine->id)
-                ->where('gr.status', GoodsReceiptStatus::Complete->value)
-                ->whereNull('gr.deleted_at')
-                ->when($excludeGrnId, fn ($q) => $q->where('gr.id', '!=', $excludeGrnId))
-                ->sum('grl.qty_received');
-
-            $remaining = (float) $poLine->qty_ordered - (float) $alreadyReceived;
+            $alreadyReceived = (float) ($alreadyReceivedByLine[$poLine->id] ?? 0);
+            $remaining = (float) $poLine->qty_ordered - $alreadyReceived;
 
             throw_if(
                 (float) $lineData['qty_received'] > $remaining,

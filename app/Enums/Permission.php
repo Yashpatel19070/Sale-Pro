@@ -187,6 +187,8 @@ class Permission
 
     const GOODS_RECEIPTS_CREATE = 'goods_receipts.create';
 
+    const GOODS_RECEIPTS_UPDATE = 'goods_receipts.update';
+
     const GOODS_RECEIPTS_DELETE = 'goods_receipts.delete';
 
     // Invoices

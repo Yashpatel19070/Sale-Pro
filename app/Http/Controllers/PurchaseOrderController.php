@@ -34,7 +34,7 @@ class PurchaseOrderController extends Controller
     public function create(): View
     {
         $this->authorize('create', PurchaseOrder::class);
-        $suppliers = Supplier::where('status', 'active')->orderBy('name')->get(['id', 'name']);
+        $suppliers = Supplier::forDropdown()->get();
         $products = Product::forDropdown()->get();
 
         return view('purchase-orders.create', compact('suppliers', 'products'));
@@ -67,7 +67,7 @@ class PurchaseOrderController extends Controller
                 ->withErrors(['error' => "Cannot edit a purchase order in '{$purchaseOrder->status->label()}' status."]);
         }
         $purchaseOrder->load('lines.product');
-        $suppliers = Supplier::where('status', 'active')->orderBy('name')->get(['id', 'name']);
+        $suppliers = Supplier::forDropdown()->get();
         $products = Product::forDropdown()->get();
 
         return view('purchase-orders.edit', compact('purchaseOrder', 'suppliers', 'products'));
@@ -113,11 +113,11 @@ class PurchaseOrderController extends Controller
         return redirect()->route('purchase-orders.show', $purchaseOrder)->with('success', 'Purchase order submitted for approval.');
     }
 
-    public function approve(PurchaseOrder $purchaseOrder): RedirectResponse
+    public function approve(Request $request, PurchaseOrder $purchaseOrder): RedirectResponse
     {
         $this->authorize('approve', $purchaseOrder);
         try {
-            $this->service->approve($purchaseOrder, auth()->user());
+            $this->service->approve($purchaseOrder, $request->user());
         } catch (\DomainException $e) {
             return redirect()->route('purchase-orders.show', $purchaseOrder)->withErrors(['error' => $e->getMessage()]);
         }
