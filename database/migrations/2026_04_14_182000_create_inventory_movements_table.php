@@ -6,10 +6,6 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-/**
- * Stub migration — minimal schema required by InventorySerialService::receive().
- * The full inventory-movement module will extend this table with additional columns.
- */
 return new class extends Migration
 {
     public function up(): void
@@ -19,7 +15,9 @@ return new class extends Migration
 
             $table->foreignId('inventory_serial_id')
                 ->constrained('inventory_serials')
-                ->cascadeOnDelete();
+                ->restrictOnDelete(); // protect audit trail — hard-delete of a serial with movements must be blocked, not silently cascaded
+
+            $table->enum('type', ['receive', 'transfer', 'sale', 'adjustment']);
 
             $table->foreignId('from_location_id')
                 ->nullable()
@@ -31,16 +29,22 @@ return new class extends Migration
                 ->constrained('inventory_locations')
                 ->nullOnDelete();
 
-            $table->string('type', 50);
-            $table->unsignedInteger('quantity')->default(1);
-            $table->string('reference', 255)->nullable();
+            $table->decimal('purchase_price', 10, 2)->nullable()->unsigned();
+            $table->string('reference', 150)->nullable();
             $table->text('notes')->nullable();
 
             $table->foreignId('user_id')
                 ->constrained('users')
-                ->restrictOnDelete();
+                ->cascadeOnDelete();
 
             $table->timestamps();
+
+            $table->index('inventory_serial_id');
+            $table->index('type');
+            $table->index('from_location_id');
+            $table->index('to_location_id');
+            $table->index('user_id');
+            $table->index('created_at');
         });
     }
 

@@ -12,23 +12,29 @@ namespace Database\Seeders;
 
 use App\Enums\Permission;
 use Illuminate\Database\Seeder;
-use Spatie\LaravelPermission\Models\Role;
-use Spatie\LaravelPermission\Models\Permission as SpatiePermission;
+use Spatie\Permission\Models\Role;
+use Spatie\Permission\Models\Permission as SpatiePermission;
+use Spatie\Permission\PermissionRegistrar;
 
 class InventoryMovementPermissionSeeder extends Seeder
 {
     public function run(): void
     {
-        // Create permissions
+        app()[PermissionRegistrar::class]->forgetCachedPermissions();
+
         $permissions = [
             Permission::INVENTORY_MOVEMENTS_VIEW,
             Permission::INVENTORY_MOVEMENTS_TRANSFER,
             Permission::INVENTORY_MOVEMENTS_SELL,
             Permission::INVENTORY_MOVEMENTS_ADJUST,
+            Permission::INVENTORY_MOVEMENTS_BULK_RECEIVE,
         ];
 
         foreach ($permissions as $permission) {
-            SpatiePermission::firstOrCreate(['name' => $permission]);
+            SpatiePermission::firstOrCreate([
+                'name'       => $permission,
+                'guard_name' => 'web',
+            ]);
         }
 
         // Assign to roles
@@ -41,12 +47,12 @@ class InventoryMovementPermissionSeeder extends Seeder
         // manager: all permissions (same as admin)
         Role::where('name', 'manager')->first()?->givePermissionTo($permissions);
 
-        // sales: view, transfer, sell — NOT adjust
+        // sales: view, transfer, sell — NOT adjust, NOT bulk-receive
         Role::where('name', 'sales')->first()?->givePermissionTo([
             Permission::INVENTORY_MOVEMENTS_VIEW,
             Permission::INVENTORY_MOVEMENTS_TRANSFER,
             Permission::INVENTORY_MOVEMENTS_SELL,
-            // Note: ADJUST is admin/manager only
+            // Note: ADJUST and BULK_RECEIVE are admin/manager only
         ]);
     }
 }
@@ -58,7 +64,8 @@ class InventoryMovementPermissionSeeder extends Seeder
 
 ```php
 // routes/web.php — inside the admin route group
-// (The admin group already has: middleware(['auth', 'load_perms', 'verified', 'active']), prefix('admin'), name('admin.'))
+// (The admin group already has: middleware(['auth', 'load_perms', 'verified', 'active']), prefix('admin'))
+// Note: admin group has URL prefix only — no name('admin.') — so route names do NOT get admin. prefix
 
 use App\Http\Controllers\InventoryMovementController;
 
@@ -81,25 +88,35 @@ Route::prefix('inventory-movements')
          ->name('store');
 
     // NO edit, update, destroy — movements are immutable
+
+    // Bulk receive — admin/manager only
+    Route::get('/bulk-receive',       [InventoryMovementController::class, 'bulkReceive'])
+         ->name('bulk-receive');
+    Route::post('/bulk-receive',      [InventoryMovementController::class, 'storeBulkReceive'])
+         ->name('bulk-receive.store');
+    Route::get('/bulk-receive/print', [InventoryMovementController::class, 'printBulkReceive'])
+         ->name('bulk-receive-print');
 });
 
-// Serial timeline — nested under inventory-serials (inside admin group, so gets admin. prefix)
+// Serial timeline — nested under inventory-serials (inside admin group URL-wise, no name prefix)
 Route::get(
     'inventory-serials/{inventorySerial}/movements',
     [InventoryMovementController::class, 'forSerial']
 )->name('inventory-serials.movements');
-// Named: admin.inventory-serials.movements (admin. prefix from the enclosing admin group)
+// Named: inventory-serials.movements (admin group adds URL prefix only, no name prefix)
 ```
 
 ### Named Routes Reference
 
 | Name | Method | URI | Controller Action |
 |------|--------|-----|-------------------|
-| `admin.inventory-movements.index` | GET | `/admin/inventory-movements` | `index()` |
-| `admin.inventory-movements.create` | GET | `/admin/inventory-movements/create` | `create()` |
-| `admin.inventory-movements.store` | POST | `/admin/inventory-movements` | `store()` |
-| `admin.inventory-serials.movements` | GET | `/admin/inventory-serials/{inventorySerial}/movements` | `forSerial()` |
+| `inventory-movements.index` | GET | `/admin/inventory-movements` | `index()` |
+| `inventory-movements.create` | GET | `/admin/inventory-movements/create` | `create()` |
+| `inventory-movements.store` | POST | `/admin/inventory-movements` | `store()` |
 | `inventory-serials.movements` | GET | `/admin/inventory-serials/{inventorySerial}/movements` | `forSerial()` |
+| `inventory-movements.bulk-receive` | GET | `/admin/inventory-movements/bulk-receive` | `bulkReceive()` |
+| `inventory-movements.bulk-receive.store` | POST | `/admin/inventory-movements/bulk-receive` | `storeBulkReceive()` |
+| `inventory-movements.bulk-receive-print` | GET | `/admin/inventory-movements/bulk-receive/print` | `printBulkReceive()` |
 
 > There is NO `show`, `edit`, `update`, or `destroy` route. This is intentional — movements are immutable.
 
@@ -236,7 +253,7 @@ php artisan test tests/Unit/Services/InventoryMovementServiceTest.php
 - [ ] `transfer()`, `sale()`, `adjustment()` all wrapped in `DB::transaction()`
 - [ ] `$serial->refresh()` called inside the transaction (TOCTOU protection)
 - [ ] All service methods accept Eloquent models — not raw IDs
-- [ ] `receive()` is private/internal — no route or UI entry point
+- [ ] `receive()` has no UI route or form — public method on `InventoryMovementService`, called by GRN service and serial registration only
 - [ ] No `markDamaged()` or `markMissing()` on `InventorySerialService` — goes through here
 
 ### FormRequest
@@ -268,7 +285,8 @@ php artisan test tests/Unit/Services/InventoryMovementServiceTest.php
 - [ ] `adjustment_status` dropdown shown/hidden via JavaScript based on selected type
 - [ ] `to_location_id` row hidden when type=sale (serial leaves warehouse)
 - [ ] `old('type', $selectedType)` used on radios to repopulate after validation failure
-- [ ] All 3 view templates use `<x-app-layout>` (not `x-layouts.admin`)
+- [ ] All 5 view templates use `<x-app-layout>` (not `x-layouts.admin`): index, create, bulk-receive, bulk-receive-print, serial-timeline
+- [ ] `serial-timeline.blade.php` exists at `resources/views/inventory/movements/serial-timeline.blade.php`
 
 ### Routes & Seeders
 - [ ] 3 movement routes: GET index, GET create, POST store — NO edit/update/destroy
@@ -277,8 +295,18 @@ php artisan test tests/Unit/Services/InventoryMovementServiceTest.php
 - [ ] Seeder uses null-safe `Role::where('name', ...)->first()?->givePermissionTo()`
 - [ ] `sales` role does NOT get `INVENTORY_MOVEMENTS_ADJUST` permission
 
+### Bulk Receive
+- [ ] `sequences` table migrated — defined in `inventory-serial` module (01-schema.md), must run BEFORE inventory-movement; seed row: `name='serial_number', value=0`
+- [ ] `bulkReceive()` uses `lockForUpdate()` on `sequences` — not `MAX(serial_number)`
+- [ ] `bulkReceive()` runs in own `DB::transaction()` — never inside GRN `complete()`
+- [ ] `public/js/jsbarcode.min.js` present and committed — print view loads it locally (not CDN)
+- [ ] `sales` role does NOT get `INVENTORY_MOVEMENTS_BULK_RECEIVE` permission
+- [ ] Session `bulk_receive_ids` cleared after print view renders (one-time use)
+- [ ] `StoreBulkReceiveRequest` exists at `app/Http/Requests/Inventory/StoreBulkReceiveRequest.php`
+- [ ] `InventoryMovementPolicy::bulkReceive()` method exists
+
 ### Tests
-- [ ] Feature test for every controller action: `index`, `create`, `store`, `forSerial`
+- [ ] Feature test for every controller action: `index`, `create`, `store`, `forSerial`, `bulkReceive`, `storeBulkReceive`, `printBulkReceive`
 - [ ] Feature tests for each movement type (transfer, sale, adjustment) with: happy path + validation failure + auth failure
 - [ ] `sales` role gets 403 on adjustment POST (tested explicitly)
 - [ ] Unit test: `transfer()` — serial location updated, movement row created

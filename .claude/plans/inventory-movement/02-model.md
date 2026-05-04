@@ -40,7 +40,7 @@ class InventoryMovement extends Model
         'user_id',
     ];
 
-    protected $hidden = ['purchase_price'];
+    // No $hidden — purchase_price must be visible for admin cost reports and audit
 
     // ── Casts ────────────────────────────────────────────────────────────────
 
@@ -259,7 +259,7 @@ public function movements(): HasMany
 
 - No `SoftDeletes` trait — intentional and permanent
 - `purchase_price` cast as `decimal:2` (not float — avoids floating-point rounding)
-- `purchase_price` is in `$hidden` — never serialized to JSON (cost data is internal)
+- `purchase_price` NOT in `$hidden` — must be readable for admin cost reports and audit trail; control visibility at view/policy layer instead
 - All relations have explicit typed return types
 - `scopeAtLocation()` uses an OR subquery (both from and to) correctly wrapped to avoid
   AND/OR precedence bugs with other chained scopes

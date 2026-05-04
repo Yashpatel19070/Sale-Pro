@@ -22,7 +22,7 @@ return new class extends Migration
             // The serial this movement belongs to
             $table->foreignId('inventory_serial_id')
                   ->constrained('inventory_serials')
-                  ->cascadeOnDelete(); // if a serial is ever hard-deleted (should never happen), clean up
+                  ->restrictOnDelete(); // protect audit trail — hard-delete of a serial with movements must be blocked, not silently cascaded
 
             // Movement type — backed by MovementType enum
             $table->enum('type', ['receive', 'transfer', 'sale', 'adjustment']);
@@ -40,7 +40,7 @@ return new class extends Migration
                   ->nullOnDelete();
 
             // Only populated on type = receive — purchase cost of the unit
-            $table->decimal('purchase_price', 10, 2)->nullable();
+            $table->decimal('purchase_price', 10, 2)->nullable()->unsigned();
 
             // Free-form reference: order number, PO number, reason code
             $table->string('reference', 150)->nullable();
@@ -122,10 +122,11 @@ enum MovementType: string
 ```php
 // app/Enums/Permission.php — add these constants alongside existing ones
 
-const INVENTORY_MOVEMENTS_VIEW     = 'inventory-movements.view';
-const INVENTORY_MOVEMENTS_TRANSFER = 'inventory-movements.transfer';
-const INVENTORY_MOVEMENTS_SELL     = 'inventory-movements.sell';
-const INVENTORY_MOVEMENTS_ADJUST   = 'inventory-movements.adjust';
+const INVENTORY_MOVEMENTS_VIEW          = 'inventory-movements.view';
+const INVENTORY_MOVEMENTS_TRANSFER      = 'inventory-movements.transfer';
+const INVENTORY_MOVEMENTS_SELL          = 'inventory-movements.sell';
+const INVENTORY_MOVEMENTS_ADJUST        = 'inventory-movements.adjust';
+const INVENTORY_MOVEMENTS_BULK_RECEIVE  = 'inventory-movements.bulk-receive';
 ```
 
 ---
@@ -144,7 +145,6 @@ const INVENTORY_MOVEMENTS_ADJUST   = 'inventory-movements.adjust';
 ## Notes
 
 - No `SoftDeletes` — this is intentional. Movement rows must never disappear.
-- The `cascadeOnDelete` on `inventory_serial_id` is a safety net only — the application
-  layer must prevent serial deletion when movements exist.
+- `restrictOnDelete` on `inventory_serial_id` — hard-deleting a serial that has movements throws a DB constraint error, protecting the audit trail. Application layer must also prevent it.
 - `purchase_price` is only meaningful on `receive` type. Service validates this.
 - `reference` max 150 chars — enough for order numbers (e.g. `ORD-2024-00123`) and PO numbers.

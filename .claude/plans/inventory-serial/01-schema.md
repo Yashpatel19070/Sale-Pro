@@ -30,7 +30,7 @@ return new class extends Migration
 
             $table->string('serial_number', 100)->unique();
 
-            $table->decimal('purchase_price', 10, 2);
+            $table->decimal('purchase_price', 10, 2)->unsigned();
 
             $table->date('received_at');
 
@@ -148,3 +148,46 @@ enum SerialStatus: string
 - `softDeletes` allows recovery of accidentally created records without data loss.
 - Composite indexes on `(product_id, status)` and `(inventory_location_id, status)` cover
   the most common filter queries (stock at a location, all units of a SKU).
+
+---
+
+## Sequences Table
+
+Required for auto-generating serial numbers in `InventoryMovementService::bulkReceive()`.
+One row per named sequence. Locked atomically before batch INSERT — no race condition.
+
+```php
+<?php
+
+declare(strict_types=1);
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    public function up(): void
+    {
+        Schema::create('sequences', function (Blueprint $table) {
+            $table->string('name', 50)->primary();
+            $table->unsignedBigInteger('value')->default(0);
+        });
+
+        // Seed the serial_number sequence at 0
+        DB::table('sequences')->insert(['name' => 'serial_number', 'value' => 0]);
+    }
+
+    public function down(): void
+    {
+        Schema::dropIfExists('sequences');
+    }
+};
+```
+
+**File path:** `database/migrations/xxxx_create_sequences_table.php`
+
+> Must run before `inventory_serials` table is used for bulk receive.
+> Shared table — future sequences (e.g. work order numbers) add rows here.
+> `value` = the highest sequence number already used. Next batch starts at `value + 1`.

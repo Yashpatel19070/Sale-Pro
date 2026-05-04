@@ -11,14 +11,18 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Enums\MovementType;
+use App\Enums\SerialStatus;
+use App\Http\Requests\Inventory\StoreBulkReceiveRequest;
 use App\Http\Requests\Inventory\StoreInventoryMovementRequest;
 use App\Models\InventoryLocation;
 use App\Models\InventoryMovement;
 use App\Models\InventorySerial;
+use App\Models\Product;
 use App\Services\InventoryLocationService;
 use App\Services\InventoryMovementService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 class InventoryMovementController extends Controller
@@ -135,6 +139,66 @@ class InventoryMovementController extends Controller
     }
 
     /**
+     * Show the bulk receive form — auto-generate serials for one SKU.
+     * Accessible by: admin, manager only.
+     */
+    public function bulkReceive(): View
+    {
+        $this->authorize('bulkReceive', InventoryMovement::class);
+
+        $products  = Product::orderBy('name')->get(['id', 'sku', 'name']);
+        $locations = $this->locationService->activeForDropdown();
+
+        return view('inventory.movements.bulk-receive', compact('products', 'locations'));
+    }
+
+    /**
+     * Generate N serial numbers, batch-insert, redirect to print view.
+     */
+    public function storeBulkReceive(StoreBulkReceiveRequest $request): RedirectResponse
+    {
+        try {
+            $serials = $this->movements->bulkReceive(
+                $request->validated(),
+                $request->user(),
+            );
+        } catch (\DomainException $e) {
+            return back()->withErrors(['error' => $e->getMessage()])->withInput();
+        }
+
+        session(['bulk_receive_ids' => $serials->pluck('id')->toArray()]);
+
+        return redirect()
+            ->route('inventory-movements.bulk-receive-print')
+            ->with('success', "Generated {$serials->count()} serial numbers. Ready to print.");
+    }
+
+    /**
+     * Render the printable label sheet for the just-generated batch.
+     * Clears session after rendering — one-time use.
+     */
+    public function printBulkReceive(): View|RedirectResponse
+    {
+        $this->authorize('bulkReceive', InventoryMovement::class);
+
+        $ids = session('bulk_receive_ids', []);
+
+        if (empty($ids)) {
+            return redirect()
+                ->route('inventory-movements.bulk-receive')
+                ->withErrors(['error' => 'No serials to print. Generate a batch first.']);
+        }
+
+        $serials = InventorySerial::with(['product:id,sku,name', 'location:id,code,name'])
+            ->whereIn('id', $ids)
+            ->get();
+
+        session()->forget('bulk_receive_ids');
+
+        return view('inventory.movements.bulk-receive-print', compact('serials'));
+    }
+
+    /**
      * All movements for a specific serial — used on the serial show page.
      * Accessible by: admin, manager, sales.
      */
@@ -167,6 +231,14 @@ Route::prefix('inventory-movements')->name('inventory-movements.')->group(functi
 
     Route::post('/',       [InventoryMovementController::class, 'store'])
          ->name('store');
+
+    // Bulk receive — admin/manager only
+    Route::get('/bulk-receive',       [InventoryMovementController::class, 'bulkReceive'])
+         ->name('bulk-receive');
+    Route::post('/bulk-receive',      [InventoryMovementController::class, 'storeBulkReceive'])
+         ->name('bulk-receive.store');
+    Route::get('/bulk-receive/print', [InventoryMovementController::class, 'printBulkReceive'])
+         ->name('bulk-receive-print');
 });
 
 // Serial timeline — nested under serials
@@ -202,6 +274,17 @@ form so the operator doesn't have to search for it again.
 - `viewAny` — all roles (admin, manager, sales)
 - `create` — all roles, but the Policy additionally restricts `adjustment` type to admin and manager
   (handled in `StoreInventoryMovementRequest::authorize()` per-type, not controller-level)
+
+### bulkReceive() — session-based print handoff
+
+`storeBulkReceive()` stores generated serial IDs in session (`bulk_receive_ids`).
+`printBulkReceive()` loads them by ID, renders the print view, then clears the session key.
+One-time use — refreshing the print page redirects back to the form.
+
+### bulkReceive() — admin/manager only
+
+`sales` role cannot create stock. Policy `bulkReceive()` checks `INVENTORY_MOVEMENTS_BULK_RECEIVE` permission.
+`StoreBulkReceiveRequest::authorize()` enforces the same — double-gated.
 
 ### DomainException handling
 

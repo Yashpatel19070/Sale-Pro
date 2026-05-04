@@ -45,9 +45,9 @@ class StoreInventoryMovementRequest extends FormRequest
      *
      * Core fields are always required.
      * Conditional fields depend on `type`:
-     *   - transfer:   from_location_id + to_location_id required, others prohibited
-     *   - sale:       sale_location_id required, from/to/adjustment prohibited
-     *   - adjustment: adjustment_status required, locations prohibited
+     *   - transfer:   from_location_id + to_location_id required, adjustment prohibited
+     *   - sale:       from_location_id required, to_location_id + adjustment prohibited
+     *   - adjustment: adjustment_status required, locations optional (nullable)
      */
     public function rules(): array
     {
@@ -62,28 +62,20 @@ class StoreInventoryMovementRequest extends FormRequest
                 Rule::in(array_column(MovementType::cases(), 'value')),
             ],
 
-            // transfer — both locations required
+            // transfer + sale: from_location required; adjustment: optional (nullable)
+            // to_location required only for transfer; optional (nullable) for sale/adjustment
             'from_location_id' => [
                 Rule::when(
-                    $type === MovementType::Transfer->value,
+                    in_array($type, [MovementType::Transfer->value, MovementType::Sale->value], true),
                     ['required', 'integer', 'exists:inventory_locations,id'],
-                    ['prohibited']
+                    ['nullable', 'integer', 'exists:inventory_locations,id']
                 ),
             ],
             'to_location_id' => [
                 Rule::when(
                     $type === MovementType::Transfer->value,
                     ['required', 'integer', 'exists:inventory_locations,id', 'different:from_location_id'],
-                    ['prohibited']
-                ),
-            ],
-
-            // sale — from location required, no to location
-            'sale_location_id' => [
-                Rule::when(
-                    $type === MovementType::Sale->value,
-                    ['required', 'integer', 'exists:inventory_locations,id'],
-                    ['prohibited']
+                    ['nullable', 'integer', 'exists:inventory_locations,id']
                 ),
             ],
 
@@ -116,7 +108,7 @@ class StoreInventoryMovementRequest extends FormRequest
             'adjustment_status.in'         => 'Adjustment status must be "damaged" or "missing".',
             'adjustment_status.prohibited' => 'Adjustment status is only used for adjustment type movements.',
             'reference.max'                => 'Reference must be 150 characters or fewer.',
-            'notes.max'                    => 'Notes must be 2000 characters or fewer.',
+            'notes.max'                    => 'Notes must be 1000 characters or fewer.',
         ];
     }
 
@@ -142,20 +134,59 @@ class StoreInventoryMovementRequest extends FormRequest
                 }
 
                 // Transfer/sale: from_location must match serial's current location
-                $fromField = $this->type === MovementType::Transfer->value
-                    ? 'from_location_id'
-                    : 'sale_location_id';
-
-                if (in_array($this->input('type'), [MovementType::Transfer->value, MovementType::Sale->value])) {
-                    $fromId = (int) $this->input($fromField);
+                if (in_array($this->input('type'), [MovementType::Transfer->value, MovementType::Sale->value], true)) {
+                    $fromId = (int) $this->input('from_location_id');
                     if ($fromId !== (int) $serial->inventory_location_id) {
                         $validator->errors()->add(
-                            $fromField,
+                            'from_location_id',
                             "Serial {$serial->serial_number} is not at that location."
                         );
                     }
                 }
             },
+        ];
+    }
+}
+```
+
+---
+
+## StoreBulkReceiveRequest
+
+```php
+<?php
+// app/Http/Requests/Inventory/StoreBulkReceiveRequest.php
+
+declare(strict_types=1);
+
+namespace App\Http\Requests\Inventory;
+
+use App\Enums\Permission;
+use Illuminate\Foundation\Http\FormRequest;
+
+class StoreBulkReceiveRequest extends FormRequest
+{
+    public function authorize(): bool
+    {
+        return $this->user()->can(Permission::INVENTORY_MOVEMENTS_BULK_RECEIVE);
+    }
+
+    public function rules(): array
+    {
+        return [
+            'product_id'            => ['required', 'integer', 'exists:products,id'],
+            'qty'                   => ['required', 'integer', 'min:1', 'max:500'],
+            'inventory_location_id' => ['required', 'integer', 'exists:inventory_locations,id'],
+            'purchase_price'        => ['required', 'numeric', 'min:0', 'max:999999.99'],
+            'source_ref'            => ['nullable', 'string', 'max:100'],
+        ];
+    }
+
+    public function messages(): array
+    {
+        return [
+            'qty.min' => 'Quantity must be at least 1.',
+            'qty.max' => 'Maximum 500 units per bulk receive.',
         ];
     }
 }
@@ -233,6 +264,15 @@ class InventoryMovementPolicy
     {
         return false;
     }
+
+    /**
+     * Bulk receive — admin and manager only.
+     * Sales cannot create new stock.
+     */
+    public function bulkReceive(User $user): bool
+    {
+        return $user->can(Permission::INVENTORY_MOVEMENTS_BULK_RECEIVE);
+    }
 }
 ```
 
@@ -257,10 +297,11 @@ Gate::policy(InventoryMovement::class, InventoryMovementPolicy::class);
 ```php
 // app/Enums/Permission.php
 
-const INVENTORY_MOVEMENTS_VIEW     = 'inventory-movements.view';
-const INVENTORY_MOVEMENTS_TRANSFER = 'inventory-movements.transfer';
-const INVENTORY_MOVEMENTS_SELL     = 'inventory-movements.sell';
-const INVENTORY_MOVEMENTS_ADJUST   = 'inventory-movements.adjust';
+const INVENTORY_MOVEMENTS_VIEW          = 'inventory-movements.view';
+const INVENTORY_MOVEMENTS_TRANSFER      = 'inventory-movements.transfer';
+const INVENTORY_MOVEMENTS_SELL          = 'inventory-movements.sell';
+const INVENTORY_MOVEMENTS_ADJUST        = 'inventory-movements.adjust';
+const INVENTORY_MOVEMENTS_BULK_RECEIVE  = 'inventory-movements.bulk-receive';
 ```
 
 ---

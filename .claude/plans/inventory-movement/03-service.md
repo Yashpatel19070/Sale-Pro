@@ -204,6 +204,12 @@ class InventoryMovementService
      * Paginated movement log for the history index page.
      * Supports filters: serial_number, location_id, type, date_from, date_to.
      *
+     * Raw when() chains are used intentionally instead of model scopes.
+     * scopeAtLocation() requires an InventoryLocation model; scopeOfType() requires
+     * a MovementType enum. Loading those models from raw filter IDs/strings would
+     * add extra queries per request. historyForSerial() can use scopeForSerial()
+     * because it already holds the model object.
+     *
      * @param  array<string, mixed>  $filters
      */
     public function listMovements(array $filters = []): LengthAwarePaginator
@@ -278,6 +284,7 @@ public function receive(array $data, User $receivedBy): InventorySerial
             'from_location_id'    => null,
             'to_location_id'      => $serial->inventory_location_id,
             'type'                => MovementType::Receive,
+            'purchase_price'      => $data['purchase_price'],
             'reference'           => $serial->supplier_name,
             'notes'               => "Received serial {$serial->serial_number}.",
             'user_id'             => $receivedBy->id,
@@ -291,6 +298,119 @@ public function receive(array $data, User $receivedBy): InventorySerial
     });
 }
 ```
+
+---
+
+## bulkReceive() — Batch Serial Auto-Generation
+
+```php
+/**
+ * Auto-generate N serial numbers for one SKU and batch-insert them.
+ *
+ * Runs in its own DB::transaction() — never nest inside GRN complete().
+ * Serial range reserved atomically via lockForUpdate() on sequences table.
+ *
+ * @param  array{
+ *     product_id: int,
+ *     qty: int,
+ *     inventory_location_id: int,
+ *     purchase_price: numeric-string|float,
+ *     source_ref?: string|null,
+ * }  $data
+ * @param  User  $receivedBy
+ * @return \Illuminate\Database\Eloquent\Collection<int, InventorySerial>
+ * @throws \DomainException  if qty < 1 or qty > 500
+ */
+public function bulkReceive(array $data, User $receivedBy): Collection
+{
+    throw_if(
+        $data['qty'] < 1 || $data['qty'] > 500,
+        \DomainException::class,
+        'Quantity must be between 1 and 500.'
+    );
+
+    return DB::transaction(function () use ($data, $receivedBy): Collection {
+        // 1. Reserve N sequence numbers atomically — no race condition
+        $current = DB::table('sequences')
+            ->where('name', 'serial_number')
+            ->lockForUpdate()
+            ->value('value');
+
+        $from = $current + 1;
+        $to   = $current + $data['qty'];
+
+        DB::table('sequences')
+            ->where('name', 'serial_number')
+            ->update(['value' => $to]);
+
+        // 2. Build all rows in memory — zero extra queries in loop
+        $year          = now()->year;
+        $now           = now()->toDateTimeString();
+        $serialNumbers = [];
+        $serialRows    = [];
+
+        for ($seq = $from; $seq <= $to; $seq++) {
+            $serialNumber    = sprintf('SN-%d-%06d', $year, $seq);
+            $serialNumbers[] = $serialNumber;
+            $serialRows[]    = [
+                'product_id'            => $data['product_id'],
+                'inventory_location_id' => $data['inventory_location_id'],
+                'serial_number'         => $serialNumber,
+                'purchase_price'        => $data['purchase_price'],
+                'received_at'           => now()->toDateString(),
+                'received_by_user_id'   => $receivedBy->id,
+                'status'                => SerialStatus::InStock->value,
+                'notes'                 => null,
+                'created_at'            => $now,
+                'updated_at'            => $now,
+            ];
+        }
+
+        // 3. Batch INSERT serials — 1 query regardless of N
+        InventorySerial::insert($serialRows);
+
+        // 4. Load created serials to get their IDs — 1 query
+        $serials = InventorySerial::with(['product:id,sku,name', 'location:id,code,name'])
+            ->whereIn('serial_number', $serialNumbers)
+            ->get();
+
+        // 5. Batch INSERT movements — 1 query regardless of N
+        $movementRows = $serials->map(fn (InventorySerial $serial) => [
+            'inventory_serial_id' => $serial->id,
+            'type'                => MovementType::Receive->value,
+            'from_location_id'    => null,
+            'to_location_id'      => $data['inventory_location_id'],
+            'purchase_price'      => $data['purchase_price'],
+            'reference'           => $data['source_ref'] ?? null,
+            'notes'               => null,
+            'user_id'             => $receivedBy->id,
+            'created_at'          => $now,
+            'updated_at'          => $now,
+        ])->toArray();
+
+        InventoryMovement::insert($movementRows);
+
+        return $serials;
+    });
+}
+```
+
+**Total DB queries: 5 regardless of N units**
+```
+1 × lockForUpdate + read  (sequences)
+1 × UPDATE sequences
+1 × INSERT inventory_serials  (N rows, 1 query)
+1 × SELECT inventory_serials WHERE IN (load IDs)
+1 × INSERT inventory_movements  (N rows, 1 query)
+```
+
+**Serial number format:** `SN-{YEAR}-{6-digit-zero-padded-seq}` e.g. `SN-2026-000042`
+
+**Sequence never resets per year** — global counter prevents cross-year collisions.
+
+**source_ref** links batch back to GRN number for traceability (optional).
+
+---
 
 **Why here and not in InventorySerialService:**
 - `receive()` always creates an `InventoryMovement` row — it IS a movement operation

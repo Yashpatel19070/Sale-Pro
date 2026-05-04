@@ -30,8 +30,7 @@ class StoreInventoryMovementRequest extends FormRequest
             MovementType::Transfer->value => $this->user()->can(Permission::INVENTORY_MOVEMENTS_TRANSFER),
             MovementType::Sale->value => $this->user()->can(Permission::INVENTORY_MOVEMENTS_SELL),
             MovementType::Adjustment->value => $this->user()->can(Permission::INVENTORY_MOVEMENTS_ADJUST),
-            MovementType::Receive->value => true, // passes auth, blocked by Rule::notIn in rules()
-            default => false, // completely unknown types blocked
+            default => false, // receive and unknown types blocked
         };
     }
 
@@ -48,19 +47,20 @@ class StoreInventoryMovementRequest extends FormRequest
                 Rule::in(array_column(MovementType::cases(), 'value')),
             ],
 
-            // transfer — both locations required; prohibited for sale/adjustment
+            // transfer/sale — from_location required; adjustment — optional (nullable)
             'from_location_id' => [
                 Rule::when(
                     in_array($type, [MovementType::Transfer->value, MovementType::Sale->value], true),
                     ['required', 'integer', 'exists:inventory_locations,id'],
-                    ['prohibited']
+                    ['nullable', 'integer', 'exists:inventory_locations,id']
                 ),
             ],
+            // transfer — to_location required; sale/adjustment — optional (nullable)
             'to_location_id' => [
                 Rule::when(
                     $type === MovementType::Transfer->value,
                     ['required', 'integer', 'exists:inventory_locations,id', 'different:from_location_id'],
-                    ['prohibited']
+                    ['nullable', 'integer', 'exists:inventory_locations,id']
                 ),
             ],
 

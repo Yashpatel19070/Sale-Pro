@@ -38,6 +38,9 @@ beforeEach(function () {
         'inventory_location_id'   => $this->locationA->id,
         'status'                  => 'in_stock',
     ]);
+
+    // Seed sequences row for bulk receive tests (value reset each test via RefreshDatabase)
+    DB::table('sequences')->insert(['name' => 'serial_number', 'value' => 0]);
 });
 
 // ── index ─────────────────────────────────────────────────────────────────────
@@ -50,7 +53,7 @@ it('admin can view movement history index', function () {
         'user_id'             => $this->admin->id,
     ]);
 
-    $response = $this->get(route('admin.inventory-movements.index'));
+    $response = $this->get(route('inventory-movements.index'));
 
     $response->assertOk();
     $response->assertViewHas('movements');
@@ -59,13 +62,13 @@ it('admin can view movement history index', function () {
 it('sales can view movement history index', function () {
     $this->actingAs($this->sales);
 
-    $response = $this->get(route('admin.inventory-movements.index'));
+    $response = $this->get(route('inventory-movements.index'));
 
     $response->assertOk();
 });
 
 it('unauthenticated user is redirected from index', function () {
-    $response = $this->get(route('admin.inventory-movements.index'));
+    $response = $this->get(route('inventory-movements.index'));
 
     $response->assertRedirect(route('login'));
 });
@@ -73,7 +76,7 @@ it('unauthenticated user is redirected from index', function () {
 it('index filters by serial number', function () {
     $this->actingAs($this->admin);
 
-    $response = $this->get(route('admin.inventory-movements.index', [
+    $response = $this->get(route('inventory-movements.index', [
         'serial_number' => $this->serial->serial_number,
     ]));
 
@@ -84,7 +87,7 @@ it('index filters by serial number', function () {
 it('index filters by type', function () {
     $this->actingAs($this->admin);
 
-    $response = $this->get(route('admin.inventory-movements.index', [
+    $response = $this->get(route('inventory-movements.index', [
         'type' => 'transfer',
     ]));
 
@@ -96,7 +99,7 @@ it('index filters by type', function () {
 it('admin can view the create movement form', function () {
     $this->actingAs($this->admin);
 
-    $response = $this->get(route('admin.inventory-movements.create'));
+    $response = $this->get(route('inventory-movements.create'));
 
     $response->assertOk();
     $response->assertViewHas('serials');
@@ -107,7 +110,7 @@ it('admin can view the create movement form', function () {
 it('sales can view the create movement form', function () {
     $this->actingAs($this->sales);
 
-    $response = $this->get(route('admin.inventory-movements.create'));
+    $response = $this->get(route('inventory-movements.create'));
 
     $response->assertOk();
 });
@@ -117,7 +120,7 @@ it('sales can view the create movement form', function () {
 it('admin can record a transfer movement', function () {
     $this->actingAs($this->admin);
 
-    $response = $this->post(route('admin.inventory-movements.store'), [
+    $response = $this->post(route('inventory-movements.store'), [
         'inventory_serial_id' => $this->serial->id,
         'type'                => 'transfer',
         'from_location_id'    => $this->locationA->id,
@@ -126,7 +129,7 @@ it('admin can record a transfer movement', function () {
         'notes'               => 'Reorganising shelves',
     ]);
 
-    $response->assertRedirect(route('admin.inventory-movements.index'));
+    $response->assertRedirect(route('inventory-movements.index'));
     $response->assertSessionHas('success');
 
     $this->assertDatabaseHas('inventory_movements', [
@@ -143,14 +146,14 @@ it('admin can record a transfer movement', function () {
 it('sales can record a transfer movement', function () {
     $this->actingAs($this->sales);
 
-    $response = $this->post(route('admin.inventory-movements.store'), [
+    $response = $this->post(route('inventory-movements.store'), [
         'inventory_serial_id' => $this->serial->id,
         'type'                => 'transfer',
         'from_location_id'    => $this->locationA->id,
         'to_location_id'      => $this->locationB->id,
     ]);
 
-    $response->assertRedirect(route('admin.inventory-movements.index'));
+    $response->assertRedirect(route('inventory-movements.index'));
     expect($this->serial->fresh()->inventory_location_id)->toBe($this->locationB->id);
 });
 
@@ -159,7 +162,7 @@ it('rejects transfer when from_location does not match serial current location',
 
     $wrongLocation = InventoryLocation::factory()->create(['is_active' => true]);
 
-    $response = $this->post(route('admin.inventory-movements.store'), [
+    $response = $this->post(route('inventory-movements.store'), [
         'inventory_serial_id' => $this->serial->id,
         'type'                => 'transfer',
         'from_location_id'    => $wrongLocation->id,
@@ -175,7 +178,7 @@ it('rejects transfer when serial is not in_stock', function () {
 
     $this->serial->update(['status' => 'sold']);
 
-    $response = $this->post(route('admin.inventory-movements.store'), [
+    $response = $this->post(route('inventory-movements.store'), [
         'inventory_serial_id' => $this->serial->id,
         'type'                => 'transfer',
         'from_location_id'    => $this->locationA->id,
@@ -189,7 +192,7 @@ it('rejects transfer when serial is not in_stock', function () {
 it('requires from_location_id for transfer', function () {
     $this->actingAs($this->admin);
 
-    $response = $this->post(route('admin.inventory-movements.store'), [
+    $response = $this->post(route('inventory-movements.store'), [
         'inventory_serial_id' => $this->serial->id,
         'type'                => 'transfer',
         'to_location_id'      => $this->locationB->id,
@@ -201,7 +204,7 @@ it('requires from_location_id for transfer', function () {
 it('requires to_location_id for transfer', function () {
     $this->actingAs($this->admin);
 
-    $response = $this->post(route('admin.inventory-movements.store'), [
+    $response = $this->post(route('inventory-movements.store'), [
         'inventory_serial_id' => $this->serial->id,
         'type'                => 'transfer',
         'from_location_id'    => $this->locationA->id,
@@ -215,7 +218,7 @@ it('requires to_location_id for transfer', function () {
 it('admin can record a sale movement', function () {
     $this->actingAs($this->admin);
 
-    $response = $this->post(route('admin.inventory-movements.store'), [
+    $response = $this->post(route('inventory-movements.store'), [
         'inventory_serial_id' => $this->serial->id,
         'type'                => 'sale',
         'from_location_id'    => $this->locationA->id,
@@ -223,7 +226,7 @@ it('admin can record a sale movement', function () {
         'notes'               => 'Customer order shipped',
     ]);
 
-    $response->assertRedirect(route('admin.inventory-movements.index'));
+    $response->assertRedirect(route('inventory-movements.index'));
     $response->assertSessionHas('success');
 
     $this->assertDatabaseHas('inventory_movements', [
@@ -241,13 +244,13 @@ it('admin can record a sale movement', function () {
 it('sales can record a sale movement', function () {
     $this->actingAs($this->sales);
 
-    $response = $this->post(route('admin.inventory-movements.store'), [
+    $response = $this->post(route('inventory-movements.store'), [
         'inventory_serial_id' => $this->serial->id,
         'type'                => 'sale',
         'from_location_id'    => $this->locationA->id,
     ]);
 
-    $response->assertRedirect(route('admin.inventory-movements.index'));
+    $response->assertRedirect(route('inventory-movements.index'));
     expect($this->serial->fresh()->status)->toBe('sold');
 });
 
@@ -256,7 +259,7 @@ it('rejects sale when serial is not in_stock', function () {
 
     $this->serial->update(['status' => 'damaged']);
 
-    $response = $this->post(route('admin.inventory-movements.store'), [
+    $response = $this->post(route('inventory-movements.store'), [
         'inventory_serial_id' => $this->serial->id,
         'type'                => 'sale',
         'from_location_id'    => $this->locationA->id,
@@ -271,14 +274,14 @@ it('rejects sale when serial is not in_stock', function () {
 it('admin can record an adjustment movement (damaged)', function () {
     $this->actingAs($this->admin);
 
-    $response = $this->post(route('admin.inventory-movements.store'), [
+    $response = $this->post(route('inventory-movements.store'), [
         'inventory_serial_id' => $this->serial->id,
         'type'                => 'adjustment',
         'adjustment_status'   => 'damaged',
         'notes'               => 'Dropped during transport, cracked screen',
     ]);
 
-    $response->assertRedirect(route('admin.inventory-movements.index'));
+    $response->assertRedirect(route('inventory-movements.index'));
     $response->assertSessionHas('success');
 
     $this->assertDatabaseHas('inventory_movements', [
@@ -294,14 +297,14 @@ it('admin can record an adjustment movement (damaged)', function () {
 it('admin can record an adjustment movement (missing)', function () {
     $this->actingAs($this->admin);
 
-    $response = $this->post(route('admin.inventory-movements.store'), [
+    $response = $this->post(route('inventory-movements.store'), [
         'inventory_serial_id' => $this->serial->id,
         'type'                => 'adjustment',
         'adjustment_status'   => 'missing',
         'reference'           => 'CYCLE-COUNT-2024-Q1',
     ]);
 
-    $response->assertRedirect(route('admin.inventory-movements.index'));
+    $response->assertRedirect(route('inventory-movements.index'));
 
     $fresh = $this->serial->fresh();
     expect($fresh->status)->toBe('missing');
@@ -310,7 +313,7 @@ it('admin can record an adjustment movement (missing)', function () {
 it('sales cannot record an adjustment movement', function () {
     $this->actingAs($this->sales);
 
-    $response = $this->post(route('admin.inventory-movements.store'), [
+    $response = $this->post(route('inventory-movements.store'), [
         'inventory_serial_id' => $this->serial->id,
         'type'                => 'adjustment',
         'adjustment_status'   => 'damaged',
@@ -323,7 +326,7 @@ it('sales cannot record an adjustment movement', function () {
 it('rejects adjustment with invalid adjustment_status', function () {
     $this->actingAs($this->admin);
 
-    $response = $this->post(route('admin.inventory-movements.store'), [
+    $response = $this->post(route('inventory-movements.store'), [
         'inventory_serial_id' => $this->serial->id,
         'type'                => 'adjustment',
         'adjustment_status'   => 'scrapped', // invalid
@@ -335,7 +338,7 @@ it('rejects adjustment with invalid adjustment_status', function () {
 it('rejects receive type via the UI', function () {
     $this->actingAs($this->admin);
 
-    $response = $this->post(route('admin.inventory-movements.store'), [
+    $response = $this->post(route('inventory-movements.store'), [
         'inventory_serial_id' => $this->serial->id,
         'type'                => 'receive',
     ]);
@@ -352,7 +355,7 @@ it('has no edit route', function () {
     ]);
 
     // No route named admin.inventory-movements.edit should exist
-    expect(fn () => route('admin.inventory-movements.edit', $movement))
+    expect(fn () => route('inventory-movements.edit', $movement))
         ->toThrow(\Exception::class);
 });
 
@@ -362,20 +365,20 @@ it('has no delete route', function () {
         'user_id'             => $this->admin->id,
     ]);
 
-    expect(fn () => route('admin.inventory-movements.destroy', $movement))
+    expect(fn () => route('inventory-movements.destroy', $movement))
         ->toThrow(\Exception::class);
 });
 
 it('movement records cannot be updated', function () {
     $movement = InventoryMovement::factory()->transfer()->create();
-    $this->actingAs(adminUser())
+    $this->actingAs($this->admin)
         ->put(route('inventory-movements.update', $movement), [])
         ->assertStatus(404);
 });
 
 it('movement records cannot be deleted', function () {
     $movement = InventoryMovement::factory()->transfer()->create();
-    $this->actingAs(adminUser())
+    $this->actingAs($this->admin)
         ->delete(route('inventory-movements.destroy', $movement))
         ->assertStatus(404);
 });
@@ -390,11 +393,173 @@ it('admin can view serial movement timeline', function () {
         'user_id'             => $this->admin->id,
     ]);
 
-    $response = $this->get(route('admin.inventory-serials.movements', $this->serial));
+    $response = $this->get(route('inventory-serials.movements', $this->serial));
 
     $response->assertOk();
     $response->assertViewHas('movements');
     $response->assertViewHas('inventorySerial');
+});
+
+// ── bulk receive ──────────────────────────────────────────────────────────────
+
+it('admin can view bulk receive form', function () {
+    $this->actingAs($this->admin);
+
+    $response = $this->get(route('inventory-movements.bulk-receive'));
+
+    $response->assertOk();
+    $response->assertViewHas('products');
+    $response->assertViewHas('locations');
+});
+
+it('admin can bulk receive serials', function () {
+    $this->actingAs($this->admin);
+
+    $response = $this->post(route('inventory-movements.bulk-receive.store'), [
+        'product_id'            => $this->product->id,
+        'qty'                   => 5,
+        'inventory_location_id' => $this->locationA->id,
+        'purchase_price'        => '99.00',
+        'source_ref'            => 'GRN-2026-0001',
+    ]);
+
+    $response->assertRedirect(route('inventory-movements.bulk-receive-print'));
+    $response->assertSessionHas('success');
+
+    // beforeEach creates 1 serial + 5 bulk = 6 total; movements = 5 (beforeEach serial has no movement)
+    $this->assertDatabaseCount('inventory_serials', 6);
+    $this->assertDatabaseCount('inventory_movements', 5);
+
+    $this->assertDatabaseHas('inventory_movements', [
+        'type'           => 'receive',
+        'from_location_id' => null,
+        'to_location_id' => $this->locationA->id,
+        'reference'      => 'GRN-2026-0001',
+    ]);
+
+    expect(session('bulk_receive_ids'))->toHaveCount(5);
+});
+
+it('bulk receive generates unique serial numbers', function () {
+    $this->actingAs($this->admin);
+
+    $this->post(route('inventory-movements.bulk-receive.store'), [
+        'product_id'            => $this->product->id,
+        'qty'                   => 10,
+        'inventory_location_id' => $this->locationA->id,
+        'purchase_price'        => '50.00',
+    ]);
+
+    // beforeEach creates 1 serial + 10 bulk = 11 total; all unique (factory sn differs from SN-YYYY format)
+    $serials = \App\Models\InventorySerial::pluck('serial_number');
+    expect($serials->unique()->count())->toBe(11);
+});
+
+it('bulk receive serial format matches SN-{YEAR}-{6digits}', function () {
+    $this->actingAs($this->admin);
+
+    $this->post(route('inventory-movements.bulk-receive.store'), [
+        'product_id'            => $this->product->id,
+        'qty'                   => 1,
+        'inventory_location_id' => $this->locationA->id,
+        'purchase_price'        => '50.00',
+    ]);
+
+    // Use latest() to get the bulk-generated serial, not the beforeEach factory serial
+    $serial = \App\Models\InventorySerial::orderByDesc('id')->first();
+    expect($serial->serial_number)->toMatch('/^SN-\d{4}-\d{6}$/');
+});
+
+it('print view renders with generated serials and clears session', function () {
+    $serials = \App\Models\InventorySerial::factory()->count(3)->create([
+        'product_id'            => $this->product->id,
+        'inventory_location_id' => $this->locationA->id,
+    ]);
+
+    $this->actingAs($this->admin);
+    session(['bulk_receive_ids' => $serials->pluck('id')->toArray()]);
+
+    $response = $this->get(route('inventory-movements.bulk-receive-print'));
+
+    $response->assertOk();
+    $response->assertViewHas('serials');
+    $response->assertSee($serials->first()->serial_number);
+
+    // Session cleared after render
+    expect(session('bulk_receive_ids'))->toBeNull();
+});
+
+it('print view redirects when session is empty', function () {
+    $this->actingAs($this->admin);
+
+    $response = $this->get(route('inventory-movements.bulk-receive-print'));
+
+    $response->assertRedirect(route('inventory-movements.bulk-receive'));
+    $response->assertSessionHasErrors('error');
+});
+
+it('manager can bulk receive serials', function () {
+    $manager = User::factory()->create()->assignRole('manager');
+    $this->actingAs($manager);
+
+    $response = $this->post(route('inventory-movements.bulk-receive.store'), [
+        'product_id'            => $this->product->id,
+        'qty'                   => 3,
+        'inventory_location_id' => $this->locationA->id,
+        'purchase_price'        => '75.00',
+    ]);
+
+    $response->assertRedirect(route('inventory-movements.bulk-receive-print'));
+    $this->assertDatabaseCount('inventory_serials', 4); // 1 beforeEach + 3 bulk
+});
+
+it('sales cannot access bulk receive form', function () {
+    $this->actingAs($this->sales);
+
+    $response = $this->get(route('inventory-movements.bulk-receive'));
+
+    $response->assertForbidden();
+});
+
+it('sales cannot post bulk receive', function () {
+    $this->actingAs($this->sales);
+
+    $response = $this->post(route('inventory-movements.bulk-receive.store'), [
+        'product_id'            => $this->product->id,
+        'qty'                   => 3,
+        'inventory_location_id' => $this->locationA->id,
+        'purchase_price'        => '50.00',
+    ]);
+
+    $response->assertForbidden();
+    $this->assertDatabaseCount('inventory_serials', 1); // only the beforeEach serial
+});
+
+it('bulk receive rejects qty over 500', function () {
+    $this->actingAs($this->admin);
+
+    $response = $this->post(route('inventory-movements.bulk-receive.store'), [
+        'product_id'            => $this->product->id,
+        'qty'                   => 501,
+        'inventory_location_id' => $this->locationA->id,
+        'purchase_price'        => '50.00',
+    ]);
+
+    $response->assertSessionHasErrors(['qty']);
+    $this->assertDatabaseCount('inventory_serials', 1); // only the beforeEach serial
+});
+
+it('bulk receive rejects qty 0', function () {
+    $this->actingAs($this->admin);
+
+    $response = $this->post(route('inventory-movements.bulk-receive.store'), [
+        'product_id'            => $this->product->id,
+        'qty'                   => 0,
+        'inventory_location_id' => $this->locationA->id,
+        'purchase_price'        => '50.00',
+    ]);
+
+    $response->assertSessionHasErrors(['qty']);
 });
 ```
 
@@ -430,6 +595,9 @@ beforeEach(function () {
         'inventory_location_id' => $this->locationA->id,
         'status'                => 'in_stock',
     ]);
+
+    // Seed sequences row for bulkReceive() tests (reset each test via RefreshDatabase)
+    DB::table('sequences')->insert(['name' => 'serial_number', 'value' => 0]);
 });
 
 // ── transfer() ────────────────────────────────────────────────────────────────
@@ -754,5 +922,107 @@ it('listMovements() filters by location', function () {
     ]);
 
     expect($result->total())->toBe(1);
+});
+
+// ── bulkReceive() ─────────────────────────────────────────────────────────────
+
+it('bulkReceive() creates correct count of serials and movements', function () {
+    $serials = $this->service->bulkReceive([
+        'product_id'            => $this->product->id,
+        'qty'                   => 10,
+        'inventory_location_id' => $this->locationA->id,
+        'purchase_price'        => 99.00,
+    ], $this->user);
+
+    expect($serials)->toHaveCount(10);
+    $this->assertDatabaseCount('inventory_serials', 11); // 1 beforeEach + 10 bulk
+    $this->assertDatabaseCount('inventory_movements', 10);
+});
+
+it('bulkReceive() increments sequences table by qty', function () {
+    $this->service->bulkReceive([
+        'product_id'            => $this->product->id,
+        'qty'                   => 5,
+        'inventory_location_id' => $this->locationA->id,
+        'purchase_price'        => 50.00,
+    ], $this->user);
+
+    $value = DB::table('sequences')->where('name', 'serial_number')->value('value');
+    expect($value)->toBe(5);
+});
+
+it('bulkReceive() generates unique serial numbers across two consecutive calls', function () {
+    $a = $this->service->bulkReceive([
+        'product_id'            => $this->product->id,
+        'qty'                   => 10,
+        'inventory_location_id' => $this->locationA->id,
+        'purchase_price'        => 50.00,
+    ], $this->user);
+
+    $b = $this->service->bulkReceive([
+        'product_id'            => $this->product->id,
+        'qty'                   => 10,
+        'inventory_location_id' => $this->locationA->id,
+        'purchase_price'        => 50.00,
+    ], $this->user);
+
+    $all = $a->merge($b)->pluck('serial_number');
+    expect($all->unique()->count())->toBe(20);
+});
+
+it('bulkReceive() creates movements with correct type, location, and source_ref', function () {
+    $this->service->bulkReceive([
+        'product_id'            => $this->product->id,
+        'qty'                   => 3,
+        'inventory_location_id' => $this->locationA->id,
+        'purchase_price'        => 99.00,
+        'source_ref'            => 'GRN-2026-0001',
+    ], $this->user);
+
+    $this->assertDatabaseHas('inventory_movements', [
+        'type'           => 'receive',
+        'to_location_id' => $this->locationA->id,
+        'from_location_id' => null,
+        'reference'      => 'GRN-2026-0001',
+        'user_id'        => $this->user->id,
+    ]);
+});
+
+it('bulkReceive() serial number format is SN-{YEAR}-{6digits}', function () {
+    // Update sequences to 41 so next serial is SN-YYYY-000042
+    DB::table('sequences')->where('name', 'serial_number')->update(['value' => 41]);
+
+    $serials = $this->service->bulkReceive([
+        'product_id'            => $this->product->id,
+        'qty'                   => 1,
+        'inventory_location_id' => $this->locationA->id,
+        'purchase_price'        => 50.00,
+    ], $this->user);
+
+    expect($serials->first()->serial_number)->toMatch('/^SN-\d{4}-\d{6}$/');
+    expect($serials->first()->serial_number)->toEndWith('-000042');
+});
+
+it('bulkReceive() throws DomainException for qty 0', function () {
+    expect(fn () => $this->service->bulkReceive([
+        'product_id'            => $this->product->id,
+        'qty'                   => 0,
+        'inventory_location_id' => $this->locationA->id,
+        'purchase_price'        => 50.00,
+    ], $this->user))->toThrow(\DomainException::class);
+
+    $this->assertDatabaseCount('inventory_serials', 1); // only the beforeEach serial; no new ones created
+});
+
+it('bulkReceive() throws DomainException for qty over 500', function () {
+    expect(fn () => $this->service->bulkReceive([
+        'product_id'            => $this->product->id,
+        'qty'                   => 501,
+        'inventory_location_id' => $this->locationA->id,
+        'purchase_price'        => 50.00,
+    ], $this->user))->toThrow(\DomainException::class);
+
+    $this->assertDatabaseCount('inventory_serials', 1); // only the beforeEach serial
+    $this->assertDatabaseCount('inventory_movements', 0);
 });
 ```

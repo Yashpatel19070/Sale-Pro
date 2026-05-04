@@ -46,6 +46,7 @@ class InventoryMovementService
                 'from_location_id' => null,
                 'to_location_id' => $serial->inventory_location_id,
                 'type' => MovementType::Receive,
+                'purchase_price' => $data['purchase_price'],
                 'reference' => $serial->supplier_name,
                 'notes' => "Received serial {$serial->serial_number}.",
                 'user_id' => $receivedBy->id,
@@ -180,6 +181,10 @@ class InventoryMovementService
                 \DomainException::class,
                 "Only in_stock serials can be adjusted. Current status: {$serial->status->value}."
             );
+
+            // No assertSerialInStockAt() here — adjustment deliberately skips the location check.
+            // A damaged or missing serial may have an unknown or stale shelf location.
+            // We only require in_stock status; location is cleared to null as part of the adjustment.
 
             $movement = InventoryMovement::create([
                 'inventory_serial_id' => $serial->id,

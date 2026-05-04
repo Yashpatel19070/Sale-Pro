@@ -4,6 +4,7 @@
 - `inventory-location` module fully built and migrated
 - `inventory-serial` module fully built and migrated
 - InventorySerial model and SerialStatus enum must exist
+- `sequences` table migrated (from `inventory-serial` module schema) with seed row `name='serial_number', value=0` — required for `bulkReceive()`
 
 ---
 
@@ -36,7 +37,7 @@ Admin-only. No customer-portal exposure.
 | Record location/status change | `InventoryMovementService` |
 | Paginated history list | `InventoryMovementController@index` |
 | Per-serial timeline | `InventoryMovementService::historyForSerial()` |
-| "Receive" movement (new stock) | Created by `InventorySerialService::receive()` — NOT this module's UI |
+| "Receive" movement (new stock) | Created by `InventoryMovementService::receive()` — NOT this module's UI |
 
 ---
 
@@ -69,10 +70,13 @@ graph TD
 | 3 | Record adjustment — mark serial damaged or missing with reason | POST `/admin/inventory-movements` |
 | 4 | Movement history — paginated log filterable by serial, location, type, date | GET `/admin/inventory-movements` |
 | 5 | Serial timeline — all movements for one serial (used on serial show page) | GET `/admin/inventory-serials/{serial}/movements` |
+| 6 | Bulk receive — auto-generate N serials for one SKU, batch insert, print Code128 labels | GET+POST `/admin/inventory-movements/bulk-receive` |
+| 7 | Print labels — render generated serials as printable barcode label sheet | GET `/admin/inventory-movements/bulk-receive/print` |
 
-> NOTE: `receive` movements are created automatically by InventorySerialService::receive()
+> NOTE: `receive` movements are created automatically by `InventoryMovementService::receive()`
 > when a new serial is registered. There is NO UI form for receive movements in this module.
 > The movement create form only shows: transfer, sale, adjustment.
+> `InventorySerialService` handles reads and non-stock edits only — never creates movement rows.
 
 ---
 
@@ -85,6 +89,7 @@ graph TD
 | Transfer | ✅ | ✅ | ✅ |
 | Sale | ✅ | ✅ | ✅ |
 | Adjustment | ✅ | ✅ | ❌ |
+| Bulk receive | ✅ | ✅ | ❌ |
 
 ---
 
@@ -99,9 +104,13 @@ graph TD
 | Service | `app/Services/InventoryMovementService.php` |
 | Controller | `app/Http/Controllers/InventoryMovementController.php` |
 | FormRequest | `app/Http/Requests/Inventory/StoreInventoryMovementRequest.php` |
+| FormRequest (bulk) | `app/Http/Requests/Inventory/StoreBulkReceiveRequest.php` |
 | Policy | `app/Policies/InventoryMovementPolicy.php` |
 | View: index | `resources/views/inventory/movements/index.blade.php` |
 | View: create | `resources/views/inventory/movements/create.blade.php` |
+| View: bulk-receive | `resources/views/inventory/movements/bulk-receive.blade.php` |
+| View: bulk-receive-print | `resources/views/inventory/movements/bulk-receive-print.blade.php` |
+| View: serial-timeline    | `resources/views/inventory/movements/serial-timeline.blade.php`     |
 | Permission Seeder | `database/seeders/InventoryMovementPermissionSeeder.php` |
 | Feature Test | `tests/Feature/InventoryMovementControllerTest.php` |
 | Unit Test | `tests/Unit/Services/InventoryMovementServiceTest.php` |
@@ -112,7 +121,7 @@ graph TD
 
 | File | Change |
 |------|--------|
-| `app/Enums/Permission.php` | Add `INVENTORY_MOVEMENTS_VIEW`, `INVENTORY_MOVEMENTS_TRANSFER`, `INVENTORY_MOVEMENTS_SELL`, `INVENTORY_MOVEMENTS_ADJUST` constants |
+| `app/Enums/Permission.php` | Add `INVENTORY_MOVEMENTS_VIEW`, `INVENTORY_MOVEMENTS_TRANSFER`, `INVENTORY_MOVEMENTS_SELL`, `INVENTORY_MOVEMENTS_ADJUST`, `INVENTORY_MOVEMENTS_BULK_RECEIVE` constants |
 | `app/Models/InventorySerial.php` | Add `movements(): HasMany` relationship |
 | `app/Providers/AppServiceProvider.php` | Register `InventoryMovementPolicy` |
 | `routes/web.php` | Add movement routes inside admin group |
@@ -126,7 +135,7 @@ graph TD
 2. **Enum** — `MovementType` (receive, transfer, sale, adjustment)
 3. **Model** — `InventoryMovement` with relationships, scopes, no soft deletes
 4. **Factory** — `InventoryMovementFactory`
-5. **Service** — `InventoryMovementService` with `transfer()`, `sale()`, `adjustment()`, `historyForSerial()`, `listMovements()`
+5. **Service** — `InventoryMovementService` with `transfer()`, `sale()`, `adjustment()`, `bulkReceive()`, `historyForSerial()`, `listMovements()`
 6. **FormRequest** — `StoreInventoryMovementRequest` with type-conditional validation
 7. **Policy** — `InventoryMovementPolicy`
 8. **Permission constants** — add to `Permission` enum
@@ -140,6 +149,12 @@ graph TD
 
 ## Key Rules
 
+- **`sequences` table required** — migrate `create_sequences_table` before first bulk receive; seeds `serial_number` row at value 0
+- **bulkReceive() owns its own transaction** — never nested inside GRN complete()
+- **Serial range reserved atomically** — `lockForUpdate()` on `sequences` row, not `MAX(serial_number)`
+- **All serial creation lives in InventoryMovementService** — single source of truth for single and bulk receive
+- **Print view uses JsBarcode locally** — download `JsBarcode.all.min.js` from jsDelivr, save to `public/js/jsbarcode.min.js`; CDN silently fails without internet
+- **Manual receive is for external/manufacturer serials only** — never enter `SN-YYYY-NNNNNN` format manually; that range belongs to `bulkReceive()`. Collision = unique constraint crash.
 - **Immutability** — no `update()`, `delete()`, or `SoftDeletes` on `InventoryMovement`
 - **Atomic writes** — every service method wraps both the movement insert and the serial update in `DB::transaction()`
 - **TOCTOU guard inside transaction** — status and location checks happen inside the transaction, not before
