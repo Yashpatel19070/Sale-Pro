@@ -140,16 +140,25 @@ class InventoryMovementController extends Controller
 
     /**
      * Show the bulk receive form — auto-generate serials for one SKU.
-     * Accessible by: admin, manager only.
+     * Standalone receive only — NOT used for QC serial assignment.
+     * QC serial assignment uses GoodsReceiptController::assignSerials() instead,
+     * which guarantees goods_receipt_id is always set via route parameter.
+     * Accepts ?product_id=X&qty=Y to pre-fill from external links.
      */
-    public function bulkReceive(): View
+    public function bulkReceive(Request $request): View
     {
         $this->authorize('bulkReceive', InventoryMovement::class);
 
         $products  = Product::orderBy('name')->get(['id', 'sku', 'name']);
         $locations = $this->locationService->activeForDropdown();
 
-        return view('inventory.movements.bulk-receive', compact('products', 'locations'));
+        // Pre-fill values from query params (0 = not provided → no pre-selection)
+        $prefilledProductId = $request->integer('product_id', 0);
+        $prefilledQty       = $request->integer('qty', 0);
+
+        return view('inventory.movements.bulk-receive', compact(
+            'products', 'locations', 'prefilledProductId', 'prefilledQty'
+        ));
     }
 
     /**
@@ -274,6 +283,13 @@ form so the operator doesn't have to search for it again.
 - `viewAny` — all roles (admin, manager, sales)
 - `create` — all roles, but the Policy additionally restricts `adjustment` type to admin and manager
   (handled in `StoreInventoryMovementRequest::authorize()` per-type, not controller-level)
+
+### bulkReceive() — pre-fill via query params
+
+When navigating from PO show page "Assign Serials" link, `?product_id=X&qty=Y` is appended.
+The view must pre-select the product in the dropdown and pre-fill the qty input.
+If params are absent (direct navigation), form renders empty — no defaults.
+`prefilledProductId=0` means not provided; view treats 0 as no selection.
 
 ### bulkReceive() — session-based print handoff
 

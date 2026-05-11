@@ -8,6 +8,7 @@ use App\Models\InventoryLocation;
 use App\Models\InventorySerial;
 use App\Models\Product;
 use App\Models\ProductCategory;
+use App\Models\Supplier;
 use App\Models\User;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
@@ -18,6 +19,7 @@ use Illuminate\Support\Facades\Hash;
  * Known state after seeding:
  *   Users:    admin@sale-pro.test / password  (admin role)
  *             sales@sale-pro.test / password   (sales role)
+ *   Suppliers: Acme Supplies, Beta Traders
  *   Locations: L1 (active), L2 (active)
  *   Products:  WIDGET-001 (Widget Alpha), WIDGET-002 (Widget Beta)
  *   Serials:
@@ -48,7 +50,13 @@ class E2ESeeder extends Seeder
             InventorySerialPermissionSeeder::class,
             InventoryMovementPermissionSeeder::class,
             InventoryPermissionSeeder::class,
+            SupplierPermissionSeeder::class,
+            PurchaseOrderPermissionSeeder::class,
         ]);
+
+        // ── Suppliers ─────────────────────────────────────────────────────────
+        Supplier::factory()->create(['name' => 'Acme Supplies']);
+        Supplier::factory()->create(['name' => 'Beta Traders']);
 
         // ── Users ─────────────────────────────────────────────────────────────
         $admin = User::create([

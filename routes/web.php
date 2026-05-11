@@ -171,6 +171,7 @@ Route::prefix('admin')->group(function () {
             Route::post('/{purchaseOrder}/reject', [PurchaseOrderController::class, 'reject'])->name('reject');
             Route::post('/{purchaseOrder}/on-the-way', [PurchaseOrderController::class, 'markOnTheWay'])->name('markOnTheWay');
             Route::post('/{purchaseOrder}/cancel', [PurchaseOrderController::class, 'cancel'])->name('cancel');
+            Route::post('/{purchaseOrder}/quality-check', [PurchaseOrderController::class, 'qualityCheck'])->name('qualityCheck');
             Route::get('/{purchaseOrder}/print', [PurchaseOrderController::class, 'print'])->name('print');
 
             Route::prefix('/{purchaseOrder}/goods-receipts')->name('goods-receipts.')->group(function () {
@@ -180,6 +181,9 @@ Route::prefix('admin')->group(function () {
                 Route::get('/{goodsReceipt}/edit', [GoodsReceiptController::class, 'edit'])->name('edit');
                 Route::put('/{goodsReceipt}', [GoodsReceiptController::class, 'update'])->name('update');
                 Route::post('/{goodsReceipt}/complete', [GoodsReceiptController::class, 'complete'])->name('complete');
+                Route::post('/{goodsReceipt}/qc', [GoodsReceiptController::class, 'submitQc'])->name('submitQc');
+                Route::get('/{goodsReceipt}/assign-serials', [GoodsReceiptController::class, 'assignSerials'])->name('assignSerials');
+                Route::post('/{goodsReceipt}/assign-serials', [GoodsReceiptController::class, 'storeSerials'])->name('storeSerials');
                 Route::delete('/{goodsReceipt}', [GoodsReceiptController::class, 'destroy'])->name('destroy');
             });
 

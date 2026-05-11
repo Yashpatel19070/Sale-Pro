@@ -106,6 +106,10 @@
                            class="rounded-md bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700">Receive Goods</a>
                     @endcan
 
+                {{-- Quality Check — handled per-GRN, not at PO level --}}
+                @elseif($purchaseOrder->status === \App\Enums\PurchaseOrderStatus::QualityCheck)
+                    <span class="text-sm text-gray-500">QC in progress — open a goods receipt below to submit inspection results.</span>
+
                 {{-- Received actions --}}
                 @elseif($purchaseOrder->status === \App\Enums\PurchaseOrderStatus::Received)
                     @can('create', App\Models\Invoice::class)
@@ -148,7 +152,7 @@
 
             {{-- Rejection form (shown for pending_approval to allow reject action) --}}
             @if($purchaseOrder->status === \App\Enums\PurchaseOrderStatus::PendingApproval)
-                @can('approve', $purchaseOrder)
+                @can('reject', $purchaseOrder)
                     <div class="rounded-lg bg-white shadow p-4">
                         <form method="POST" action="{{ route('purchase-orders.reject', $purchaseOrder) }}"
                               class="flex items-end gap-3"
@@ -295,6 +299,7 @@
                 </table>
             </div>
 
+
             {{-- Goods Receipts --}}
             <div class="overflow-hidden rounded-lg bg-white shadow">
                 <div class="flex items-center justify-between border-b border-gray-200 px-6 py-4">
@@ -328,14 +333,29 @@
                         </thead>
                         <tbody class="divide-y divide-gray-200 bg-white">
                             @foreach($purchaseOrder->goodsReceipts as $grn)
+                                @php
+                                    $grnQcDone = $grn->status === \App\Enums\GoodsReceiptStatus::Complete
+                                        && $grn->lines->isNotEmpty()
+                                        && $grn->lines->every(fn ($l) => $l->qty_passed !== null);
+                                    $grnSerialsAssigned = isset($assignedGrnIds[$grn->id]);
+                                @endphp
                                 <tr>
                                     <td class="px-4 py-3 text-sm font-medium text-gray-900">{{ $grn->grn_number }}</td>
                                     <td class="px-4 py-3 text-sm text-gray-900">{{ $grn->received_date->format('M d, Y') }}</td>
                                     <td class="px-4 py-3 text-sm text-gray-900">{{ $grn->receivedBy->name ?? '—' }}</td>
                                     <td class="px-4 py-3 text-sm">
-                                        <span class="px-2 py-1 text-xs font-medium rounded-full bg-{{ $grn->status->color() }}-100 text-{{ $grn->status->color() }}-700">
-                                            {{ $grn->status->label() }}
-                                        </span>
+                                        <div class="flex flex-wrap items-center gap-1">
+                                            <span class="px-2 py-1 text-xs font-medium rounded-full bg-{{ $grn->status->color() }}-100 text-{{ $grn->status->color() }}-700">
+                                                {{ $grn->status->label() }}
+                                            </span>
+                                            @if($grn->status === \App\Enums\GoodsReceiptStatus::Complete && ! $grnQcDone)
+                                                <span class="px-2 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-700">QC Pending</span>
+                                            @elseif($grnQcDone && ! $grnSerialsAssigned)
+                                                <span class="px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-700">Serials Pending</span>
+                                            @elseif($grnSerialsAssigned)
+                                                <span class="px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-700">Serials Assigned</span>
+                                            @endif
+                                        </div>
                                     </td>
                                     <td class="px-4 py-3 text-sm">
                                         <div class="flex items-center gap-3">
@@ -362,6 +382,14 @@
                                                         <button type="submit"
                                                                 class="text-red-600 hover:text-red-900">Delete</button>
                                                     </form>
+                                                @endcan
+                                            @elseif($grn->status === \App\Enums\GoodsReceiptStatus::Complete && ! $grnQcDone)
+                                                <a href="{{ route('purchase-orders.goods-receipts.show', [$purchaseOrder, $grn]) }}"
+                                                   class="text-yellow-600 hover:text-yellow-800 font-medium">Submit QC →</a>
+                                            @elseif($grnQcDone && ! $grnSerialsAssigned)
+                                                @can('bulkReceive', App\Models\InventoryMovement::class)
+                                                    <a href="{{ route('purchase-orders.goods-receipts.assignSerials', [$purchaseOrder, $grn]) }}"
+                                                       class="text-indigo-600 hover:text-indigo-800 font-medium">Assign Serials →</a>
                                                 @endcan
                                             @endif
                                         </div>

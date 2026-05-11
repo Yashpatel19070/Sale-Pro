@@ -58,6 +58,14 @@
 - Returns fresh PO
 - **Strict guard** — throws even if already `on_the_way`. The controller/view must not show the "Mark On The Way" button for POs already in that state.
 
+#### `passQualityCheck(PurchaseOrder $po, ?string $notes): PurchaseOrder`
+- Guards: throw `DomainException` if status not `quality_check`
+- Checks if all PO lines fully received (`qty_received >= qty_ordered` for every line)
+  - All done → status = `received`
+  - Still outstanding → status = `partially_received` (more GRNs still allowed)
+- Saves `qc_notes` if provided (nullable text column on `purchase_orders`)
+- Returns fresh PO
+
 #### `cancel(PurchaseOrder $po): PurchaseOrder`
 - Guards: throw `DomainException` if status is `closed`, `cancelled`, or `returned`
 - Updates status → `cancelled`
@@ -110,14 +118,33 @@
 - Deletes existing lines, recreates from `$data['lines']`
 - Returns fresh GRN with lines
 
-#### `complete(GoodsReceipt $grn): GoodsReceipt`
-- Guards: throw `DomainException` if status already `complete`
+#### `complete(GoodsReceipt $grn, ?PurchaseOrder $po = null): GoodsReceipt`
+- Guard: throw `DomainException` if GRN status already `complete`
+- Guard: throw `DomainException` if PO status is `cancelled` or `rejected` — completing a GRN for a terminal PO is never valid (BUG-007)
+  - `$po ??= $grn->purchaseOrder` — resolves PO before transaction for guard check
 - Wraps in `DB::transaction()`
 - Updates status → `complete`
-- Calls `updatePoQtyReceived()` — recalculates `qty_received` on each PO line (completed GRNs only)
-- Calls `updatePoStatus()` — recalculates PO status
+- Inside transaction: `$po->load('lines')` then calls `updatePoQtyReceived($po)` and `updatePoStatus($po)`
 - Returns `$grn->loadMissing(['lines.purchaseOrderLine.product', 'purchaseOrder.supplier', 'receivedBy'])`
   (use `loadMissing` not `fresh` — avoids re-running the base query on an already-loaded model)
+
+#### `submitQc(GoodsReceipt $grn, array $data, User $inspector): GoodsReceipt`
+- Wraps entirely in `DB::transaction()` — all guards inside (TOCTOU rule)
+- Inside transaction:
+  - Guard: throw `DomainException` if GRN status is not `complete`
+  - Guard: throw `DomainException` if PO status is not `quality_check`
+  - Guard: throw `DomainException` if QC already submitted — uses `->lockForUpdate()` on the lines query to prevent concurrent double-submission (BUG-011):
+    ```php
+    $alreadyDone = $grn->lines()->lockForUpdate()->whereNotNull('qty_passed')->exists();
+    ```
+  - For each line in `$data['lines']`:
+    - Finds `GoodsReceiptLine` by `goods_receipt_line_id`
+    - **Service-level invariant:** `qty_passed + qty_failed === (int) $line->qty_received` — throw `DomainException` if violated (double guard — FormRequest also validates, service is authoritative)
+    - Sets `qty_passed`, `qty_failed`, `qc_inspected_at = now()`, `qc_inspected_by = $inspector->id`
+  - After all lines saved: calls `$this->poService->passQualityCheck($po, null)`
+    - PO → `received` if all lines fully received, else `partially_received`
+- Returns `$grn->fresh(['lines.purchaseOrderLine.product', 'purchaseOrder'])`
+- **Constructor:** `GoodsReceiptService` injects `PurchaseOrderService $poService` — one-way dependency, no circular risk
 
 #### `delete(GoodsReceipt $grn): void`
 - Guards: throw `DomainException` if status is `complete`
@@ -139,10 +166,19 @@
 
 #### `updatePoStatus(PurchaseOrder $po): void`
 - Internal helper
+- **Terminal status guard (BUG-013):** Returns early without any change if current PO status is in `[quality_check, partially_received, received, cancelled, rejected]` — these statuses must not be downgraded by a subsequent GRN completion. Only statuses that precede `quality_check` in the workflow (`approved`, `on_the_way`) are eligible for advancement.
 - Load all PO lines with `qty_ordered` and `qty_received`
-- If all lines `qty_received >= qty_ordered` → PO status = `received`
-- If some lines have `qty_received > 0` but not all full → PO status = `partially_received`
+- If ANY line has `qty_received > 0` → PO status = `quality_check` (every GRN completion triggers QC, partial or full)
 - Saves PO
+- Note: PO reaches `received` or `partially_received` only via `passQualityCheck()` — never directly from GRN complete
+
+#### `validateLineQtys(PurchaseOrder $po, array $lines, ?int $excludeGrnId = null): void`
+- Private helper — called from `store()` and `update()`
+- Loads PO lines via `$po->load('lines')`
+- For each submitted line, looks up the matching `PurchaseOrderLine` by ID in the loaded collection
+- **Cross-PO ownership guard (BUG-009):** Throws `DomainException` if `purchase_order_line_id` does not belong to this PO — never silently skips
+- Queries completed GRN qty already received for each line ID (excludes soft-deleted GRNs, draft GRNs, and optionally the current GRN being updated via `$excludeGrnId`)
+- Throws `DomainException` if `qty_received > remaining_qty` (where `remaining = qty_ordered - already_received`)
 
 #### `generateGrnNumber(): string`
 - Same pattern as `generatePoNumber()` but uses `GRN-{YEAR}-{SEQUENCE}`
@@ -157,7 +193,8 @@
 ### Methods
 
 #### `store(PurchaseOrder $po, array $data): Invoice`
-- Guards: throw `DomainException` if PO status not in `[approved, on_the_way, partially_received, received]`
+- Guards: throw `DomainException` if PO status not in `[approved, on_the_way, partially_received, received, invoiced]`
+- Note: `quality_check` NOT allowed — invoice requires QC to pass first
 - Creates `Invoice` record linked to PO
 - Sets `status = InvoiceStatus::Pending`
 - **Conditional PO status transition:** if PO status is `received`, update PO status → `invoiced` immediately (goods are received; invoice is now the active step)

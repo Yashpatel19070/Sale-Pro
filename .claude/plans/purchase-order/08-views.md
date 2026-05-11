@@ -44,6 +44,7 @@ All views use `<x-app-layout>` (not `@extends('layouts.admin')`). Follow existin
   - `approved` → Mark On The Way, Cancel, + "Receive Goods" button
   - `on_the_way` → "Receive Goods" button, Cancel
   - `partially_received` → "Receive Goods" button
+  - `quality_check` → informational text: "QC in progress — open a goods receipt below to submit inspection results." (no action button — QC is per-GRN)
   - `received` → "Add Invoice" button
   - `invoiced` → (no major actions)
   - `closed` → (read-only)
@@ -73,9 +74,21 @@ All views use `<x-app-layout>` (not `@extends('layouts.admin')`). Follow existin
 - Subtotal, Tax Total, Grand Total footer row
 
 #### Goods Receipts Section
-- Table: GRN number, received date, received by, status badge, actions (View, Edit if draft, Complete if draft, Delete if draft)
+- "Record Goods Receipt" button in section header (shown when PO status IN `[approved, on_the_way, partially_received]`)
 - Empty state if no GRNs yet
-- "Record Goods Receipt" button (if allowed by status)
+- Table columns: GRN Number, Received Date, Received By, Status, Actions
+- **Status column:** primary status badge + contextual workflow badge:
+  - GRN `complete` + QC not done → yellow "QC Pending" badge
+  - QC done + serials not assigned → blue "Serials Pending" badge
+  - Serials assigned → green "Serials Assigned" badge
+  - `$grnQcDone` = `status === Complete && lines->every(fn($l) => $l->qty_passed !== null)` (computed per row in `@php`)
+  - `$grnSerialsAssigned` = `isset($assignedGrnIds[$grn->id])` — uses controller-provided set
+- **Actions column:**
+  - Always: "View" link
+  - Draft: "Edit", "Complete" (POST form), "Delete" (DELETE form with confirm)
+  - Complete + QC not done: "Submit QC →" link → GRN show page
+  - QC done + serials not assigned: "Assign Serials →" link → `assignSerials` route (gated with `@can('bulkReceive', InventoryMovement::class)`)
+  - QC done + serials assigned: no action link (Serials Assigned badge shown)
 
 #### Invoices Section
 - Table: Invoice number, date, due date, amount, status, actions (View, Approve, Mark Paid, Delete)
@@ -165,6 +178,64 @@ Service `update()` never re-queries inventory — it reads this value from the r
   - Edit button → `goods-receipts.edit`
   - Complete button → `goods-receipts.complete` (POST form)
   - Delete button → `goods-receipts.destroy` (DELETE form)
+
+### QC Inspection Section
+**Shown when:** GRN status = `complete` AND PO status = `quality_check` AND `! $qcDone` (where `$qcDone = $goodsReceipt->lines->every(fn($l) => $l->qcDone())`)
+
+#### QC form
+- Heading: "Quality Check Inspection"
+- Subheading: "Enter pass/fail counts for each received line"
+- POST form → `route('purchase-orders.goods-receipts.submitQc', [$purchaseOrder, $goodsReceipt])`
+- Per line row:
+  - Product name (read-only)
+  - Received qty (read-only)
+  - `<input name="lines[i][goods_receipt_line_id]" type="hidden" value="...">`
+  - `<input name="lines[i][qty_passed]" type="number" min="0" max="{qty_received}">` — Passed
+  - `<input name="lines[i][qty_failed]" type="number" min="0" max="{qty_received}">` — Failed
+  - Live sum display: "X of Y inspected" (Alpine.js)
+- Submit button: "Submit QC" — disabled (Alpine.js) until pass+fail === received for every line
+- Alpine.js: per-row `sum = qty_passed + qty_failed`, compare to `qty_received`; all rows valid → enable submit
+- Hidden input: `<input name="lines[i][goods_receipt_line_id]" type="hidden">`
+- **PHP 8.5 note:** Alpine component defined via `Alpine.data('qcForm', fn)` in a `<script>` block above the div. Do NOT use arrow functions (`=>`) inside `x-data="..."` HTML attributes — the `>` closes the HTML tag in PHP 8.5's parser. All JS logic lives in the script block; `x-data="qcForm(@json($qcLineData))"` passes the data as an argument.
+
+#### QC Results (read-only, shown when `$qcDone = true`)
+- Table: product | received | passed (green badge) | failed (red badge) | inspected by | inspected at
+- Total passed / total failed summary footer row
+- Section header contains the serial assignment CTA (gated `@can('inventory-movements.bulk-receive')`):
+  - PO status IN `[partially_received, received]` AND `! $serialsAssigned` → "Assign Serial Numbers →" button → `assignSerials` route
+  - `$serialsAssigned` → green "Serials Assigned ✓" badge (no link)
+  - `$serialsAssigned` comes from controller: `InventoryMovement::where('goods_receipt_id', $goodsReceipt->id)->exists()`
+
+---
+
+## View: `goods-receipts/assign-serials.blade.php`
+
+### Elements
+- Header: "Assign Serial Numbers — {{ $goodsReceipt->grn_number }}"
+- Subheading: PO number, supplier name
+- GRN context summary: received date, received by
+
+### Per-line form
+One card per GRN line (only lines where `qty_passed > 0`):
+- Product name + SKU (read-only)
+- Qty to generate: **`{{ $grnLine->qty_passed }}`** (read-only — fixed at QC time, user cannot change)
+- Location select (required, from `$locations`)
+- Purchase price input (numeric, required) — **pre-filled from `$line->purchaseOrderLine->unit_cost`** (PO agreed price). Uses `old('...', $line->purchaseOrderLine->unit_cost)` so validation failures restore typed value. User can override if needed.
+- Hidden: `<input name="lines[i][goods_receipt_line_id]" type="hidden" value="{{ $grnLine->id }}">`
+
+### Submit
+- POST → `route('purchase-orders.goods-receipts.storeSerials', [$purchaseOrder, $goodsReceipt])`
+- Button: "Generate {{ $totalPassed }} Serials"
+
+### After generation
+- Success flash: "Generated X serial numbers."
+- Print labels link → `route('inventory-movements.bulk-receive-print')` (reuses existing print session)
+- Back to PO link
+
+### Key rules
+- Qty field is read-only — sourced from `qty_passed`, never editable
+- `goods_receipt_id` never appears in the form — it's a route parameter, set by controller/service
+- Lines with `qty_passed = 0` are not shown (skipped entirely)
 
 ---
 

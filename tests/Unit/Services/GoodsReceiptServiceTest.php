@@ -22,7 +22,7 @@ beforeEach(function () {
     $this->seed(RoleSeeder::class);
     $this->seed(PurchaseOrderPermissionSeeder::class);
 
-    $this->service = new GoodsReceiptService;
+    $this->service = app(GoodsReceiptService::class);
     $this->supplier = Supplier::factory()->create();
     $this->product = Product::factory()->create();
     $this->user = User::factory()->create();
@@ -281,11 +281,11 @@ it('complete() sets PO status to partially_received for a partial delivery', fun
 
     $this->assertDatabaseHas('purchase_orders', [
         'id' => $this->po->id,
-        'status' => PurchaseOrderStatus::PartiallyReceived->value,
+        'status' => PurchaseOrderStatus::QualityCheck->value,
     ]);
 });
 
-it('complete() sets PO status to received for a full delivery', function () {
+it('complete() sets PO status to quality_check for a full delivery', function () {
     $grn = GoodsReceipt::factory()->create([
         'purchase_order_id' => $this->po->id,
         'status' => GoodsReceiptStatus::Draft,
@@ -301,7 +301,7 @@ it('complete() sets PO status to received for a full delivery', function () {
 
     $this->assertDatabaseHas('purchase_orders', [
         'id' => $this->po->id,
-        'status' => PurchaseOrderStatus::Received->value,
+        'status' => PurchaseOrderStatus::QualityCheck->value,
     ]);
 });
 
@@ -326,4 +326,131 @@ it('delete() throws DomainException when status is complete', function () {
 
     expect(fn () => $this->service->delete($grn))
         ->toThrow(DomainException::class);
+});
+
+// ── updatePoStatus() ──────────────────────────────────────────────────────────
+
+it('updatePoStatus() sets quality_check when all lines are fully received', function () {
+    $po = PurchaseOrder::factory()->create([
+        'supplier_id' => $this->supplier->id,
+        'status' => PurchaseOrderStatus::Approved,
+    ]);
+
+    $line = PurchaseOrderLine::factory()->create([
+        'purchase_order_id' => $po->id,
+        'product_id' => $this->product->id,
+        'qty_ordered' => 10,
+        'qty_received' => 10,
+    ]);
+
+    $this->service->updatePoStatus($po);
+
+    $this->assertDatabaseHas('purchase_orders', [
+        'id' => $po->id,
+        'status' => PurchaseOrderStatus::QualityCheck->value,
+    ]);
+});
+
+it('updatePoStatus() sets partially_received when some lines are received', function () {
+    $po = PurchaseOrder::factory()->create([
+        'supplier_id' => $this->supplier->id,
+        'status' => PurchaseOrderStatus::Approved,
+    ]);
+
+    $line = PurchaseOrderLine::factory()->create([
+        'purchase_order_id' => $po->id,
+        'product_id' => $this->product->id,
+        'qty_ordered' => 10,
+        'qty_received' => 5, // Partial
+    ]);
+
+    $this->service->updatePoStatus($po);
+
+    $this->assertDatabaseHas('purchase_orders', [
+        'id' => $po->id,
+        'status' => PurchaseOrderStatus::QualityCheck->value,
+    ]);
+});
+
+it('updatePoStatus() does not change status when no lines received', function () {
+    $po = PurchaseOrder::factory()->create([
+        'supplier_id' => $this->supplier->id,
+        'status' => PurchaseOrderStatus::Approved,
+    ]);
+
+    $line = PurchaseOrderLine::factory()->create([
+        'purchase_order_id' => $po->id,
+        'product_id' => $this->product->id,
+        'qty_ordered' => 10,
+        'qty_received' => 0,
+    ]);
+
+    $this->service->updatePoStatus($po);
+
+    $this->assertDatabaseHas('purchase_orders', [
+        'id' => $po->id,
+        'status' => PurchaseOrderStatus::Approved->value,
+    ]);
+});
+
+it('updatePoStatus() handles multiple lines — all full', function () {
+    $po = PurchaseOrder::factory()->create([
+        'supplier_id' => $this->supplier->id,
+        'status' => PurchaseOrderStatus::Approved,
+    ]);
+
+    $product2 = Product::factory()->create();
+
+    PurchaseOrderLine::factory()->create([
+        'purchase_order_id' => $po->id,
+        'product_id' => $this->product->id,
+        'qty_ordered' => 5,
+        'qty_received' => 5,
+    ]);
+
+    PurchaseOrderLine::factory()->create([
+        'purchase_order_id' => $po->id,
+        'product_id' => $product2->id,
+        'qty_ordered' => 10,
+        'qty_received' => 10,
+    ]);
+
+    $this->service->updatePoStatus($po);
+
+    $this->assertDatabaseHas('purchase_orders', [
+        'id' => $po->id,
+        'status' => PurchaseOrderStatus::QualityCheck->value,
+    ]);
+});
+
+it('updatePoStatus() handles multiple lines — some partial', function () {
+    $po = PurchaseOrder::factory()->create([
+        'supplier_id' => $this->supplier->id,
+        'status' => PurchaseOrderStatus::Approved,
+    ]);
+
+    $product2 = Product::factory()->create();
+
+    PurchaseOrderLine::factory()->create([
+        'purchase_order_id' => $po->id,
+        'product_id' => $this->product->id,
+        'qty_ordered' => 5,
+        'qty_received' => 5,
+    ]);
+
+    PurchaseOrderLine::factory()->create([
+        'purchase_order_id' => $po->id,
+        'product_id' => $product2->id,
+        'qty_ordered' => 10,
+        'qty_received' => 7, // Partial
+    ]);
+
+    $this->service->updatePoStatus($po);
+
+    // updatePoStatus only advances to QualityCheck — the PartiallyReceived/Received
+    // transition happens in PurchaseOrderService::passQualityCheck() after QC is submitted.
+    $this->assertDatabaseHas('purchase_orders', [
+        'id' => $po->id,
+        'status' => PurchaseOrderStatus::QualityCheck->value,
+    ]);
 });

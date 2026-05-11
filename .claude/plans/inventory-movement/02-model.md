@@ -38,6 +38,7 @@ class InventoryMovement extends Model
         'reference',
         'notes',
         'user_id',
+        'goods_receipt_id',  // nullable — set when triggered from QC serial assignment flow
     ];
 
     // No $hidden — purchase_price must be visible for admin cost reports and audit
@@ -86,6 +87,15 @@ class InventoryMovement extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    /**
+     * GRN this movement originated from — null for standalone receives.
+     * Set when bulk-receive is triggered via the QC serial assignment flow.
+     */
+    public function goodsReceipt(): BelongsTo
+    {
+        return $this->belongsTo(\App\Models\GoodsReceipt::class);
     }
 
     // ── Local Scopes ─────────────────────────────────────────────────────────

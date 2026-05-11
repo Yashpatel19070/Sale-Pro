@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Enums\PurchaseOrderStatus;
+use App\Models\InventoryMovement;
 use App\Models\InventorySerial;
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderLine;
@@ -119,83 +120,126 @@ class PurchaseOrderService
 
     public function submit(PurchaseOrder $po): PurchaseOrder
     {
-        throw_if(
-            ! $po->status->isEditable(),
-            \DomainException::class,
-            'Only draft or rejected purchase orders can be submitted.'
-        );
+        return DB::transaction(function () use ($po): PurchaseOrder {
+            $locked = PurchaseOrder::lockForUpdate()->findOrFail($po->id);
 
-        $po->update([
-            'status' => PurchaseOrderStatus::PendingApproval,
-            'rejection_reason' => null,
-        ]);
+            throw_if(
+                ! $locked->status->isEditable(),
+                \DomainException::class,
+                'Only draft or rejected purchase orders can be submitted.'
+            );
 
-        return $po->fresh();
+            $locked->update([
+                'status' => PurchaseOrderStatus::PendingApproval,
+                'rejection_reason' => null,
+            ]);
+
+            return $locked->fresh();
+        });
     }
 
     public function approve(PurchaseOrder $po, User $approver): PurchaseOrder
     {
-        throw_if(
-            $po->status !== PurchaseOrderStatus::PendingApproval,
-            \DomainException::class,
-            'Only pending approval purchase orders can be approved.'
-        );
+        return DB::transaction(function () use ($po, $approver): PurchaseOrder {
+            $locked = PurchaseOrder::lockForUpdate()->findOrFail($po->id);
 
-        $po->update([
-            'status' => PurchaseOrderStatus::Approved,
-            'approved_by' => $approver->id,
-            'approved_at' => now(),
-        ]);
+            throw_if(
+                $locked->status !== PurchaseOrderStatus::PendingApproval,
+                \DomainException::class,
+                'Only pending approval purchase orders can be approved.'
+            );
 
-        return $po->fresh();
+            $locked->update([
+                'status' => PurchaseOrderStatus::Approved,
+                'approved_by' => $approver->id,
+                'approved_at' => now(),
+            ]);
+
+            return $locked->fresh();
+        });
     }
 
     public function reject(PurchaseOrder $po, string $reason): PurchaseOrder
     {
-        throw_if(
-            $po->status !== PurchaseOrderStatus::PendingApproval,
-            \DomainException::class,
-            'Only pending approval purchase orders can be rejected.'
-        );
+        return DB::transaction(function () use ($po, $reason): PurchaseOrder {
+            $locked = PurchaseOrder::lockForUpdate()->findOrFail($po->id);
 
-        $po->update([
-            'status' => PurchaseOrderStatus::Rejected,
-            'rejection_reason' => $reason,
-            'approved_by' => null,
-            'approved_at' => null,
-        ]);
+            throw_if(
+                $locked->status !== PurchaseOrderStatus::PendingApproval,
+                \DomainException::class,
+                'Only pending approval purchase orders can be rejected.'
+            );
 
-        return $po->fresh();
+            $locked->update([
+                'status' => PurchaseOrderStatus::Rejected,
+                'rejection_reason' => $reason,
+                'approved_by' => null,
+                'approved_at' => null,
+            ]);
+
+            return $locked->fresh();
+        });
     }
 
     public function markOnTheWay(PurchaseOrder $po): PurchaseOrder
     {
-        throw_if(
-            $po->status !== PurchaseOrderStatus::Approved,
-            \DomainException::class,
-            'Only approved purchase orders can be marked as on the way.'
-        );
+        return DB::transaction(function () use ($po): PurchaseOrder {
+            $locked = PurchaseOrder::lockForUpdate()->findOrFail($po->id);
 
-        $po->update(['status' => PurchaseOrderStatus::OnTheWay]);
+            throw_if(
+                $locked->status !== PurchaseOrderStatus::Approved,
+                \DomainException::class,
+                'Only approved purchase orders can be marked as on the way.'
+            );
 
-        return $po->fresh();
+            $locked->update(['status' => PurchaseOrderStatus::OnTheWay]);
+
+            return $locked->fresh();
+        });
     }
 
     public function cancel(PurchaseOrder $po): PurchaseOrder
     {
-        throw_if(
-            in_array($po->status, [
-                PurchaseOrderStatus::Closed,
-                PurchaseOrderStatus::Cancelled,
-                PurchaseOrderStatus::Returned,
-            ], true),
-            \DomainException::class,
-            'This purchase order cannot be cancelled.'
-        );
+        return DB::transaction(function () use ($po): PurchaseOrder {
+            $locked = PurchaseOrder::lockForUpdate()->findOrFail($po->id);
 
-        $po->update(['status' => PurchaseOrderStatus::Cancelled]);
+            throw_if(
+                in_array($locked->status, [
+                    PurchaseOrderStatus::Closed,
+                    PurchaseOrderStatus::Cancelled,
+                    PurchaseOrderStatus::Returned,
+                ], true),
+                \DomainException::class,
+                'This purchase order cannot be cancelled.'
+            );
 
-        return $po->fresh();
+            $locked->update(['status' => PurchaseOrderStatus::Cancelled]);
+
+            return $locked->fresh();
+        });
+    }
+
+    public function passQualityCheck(PurchaseOrder $po, ?string $notes): PurchaseOrder
+    {
+        return DB::transaction(function () use ($po, $notes): PurchaseOrder {
+            $locked = PurchaseOrder::lockForUpdate()->findOrFail($po->id);
+
+            throw_if(
+                $locked->status !== PurchaseOrderStatus::QualityCheck,
+                \DomainException::class,
+                'Quality check can only be performed on orders awaiting quality check.'
+            );
+
+            $locked->load('lines');
+            $allDone = $locked->lines->every(fn ($l) => (float) $l->qty_received >= (float) $l->qty_ordered);
+
+            $locked->update([
+                'status' => $allDone ? PurchaseOrderStatus::Received : PurchaseOrderStatus::PartiallyReceived,
+                'qc_notes' => $notes,
+            ]);
+
+            return $locked->fresh();
+        });
     }
 
     public function delete(PurchaseOrder $po): void
@@ -208,18 +252,35 @@ class PurchaseOrderService
         $po->restore();
     }
 
+    public function getAssignedGrnIds(array $grnIds): array
+    {
+        if (empty($grnIds)) {
+            return [];
+        }
+
+        return InventoryMovement::whereIn('goods_receipt_id', $grnIds)
+            ->select('goods_receipt_id')
+            ->distinct()
+            ->pluck('goods_receipt_id')
+            ->flip()
+            ->all();
+    }
+
     public function generatePoNumber(): string
     {
-        $year = now()->year;
-        $prefix = "PO-{$year}-";
+        return DB::transaction(function (): string {
+            $year = now()->year;
+            $prefix = "PO-{$year}-";
 
-        $max = PurchaseOrder::withTrashed()
-            ->where('po_number', 'like', "{$prefix}%")
-            ->max('po_number');
+            $max = PurchaseOrder::withTrashed()
+                ->where('po_number', 'like', "{$prefix}%")
+                ->lockForUpdate()
+                ->max('po_number');
 
-        $next = $max ? ((int) substr($max, strlen($prefix))) + 1 : 1;
+            $next = $max ? ((int) substr($max, strlen($prefix))) + 1 : 1;
 
-        return $prefix.str_pad((string) $next, 4, '0', STR_PAD_LEFT);
+            return $prefix.str_pad((string) $next, 4, '0', STR_PAD_LEFT);
+        });
     }
 
     public function recalculateTotals(PurchaseOrder $po): void

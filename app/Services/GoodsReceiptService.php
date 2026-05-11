@@ -8,29 +8,34 @@ use App\Enums\GoodsReceiptStatus;
 use App\Enums\PurchaseOrderStatus;
 use App\Models\GoodsReceipt;
 use App\Models\GoodsReceiptLine;
+use App\Models\InventoryMovement;
 use App\Models\PurchaseOrder;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 
 class GoodsReceiptService
 {
+    public function __construct(private readonly PurchaseOrderService $poService) {}
+
     public function store(PurchaseOrder $po, array $data, User $receivedBy): GoodsReceipt
     {
-        $allowedStatuses = [
-            PurchaseOrderStatus::Approved,
-            PurchaseOrderStatus::OnTheWay,
-            PurchaseOrderStatus::PartiallyReceived,
-        ];
-
-        throw_if(
-            ! in_array($po->status, $allowedStatuses, true),
-            \DomainException::class,
-            'Goods receipts can only be created for approved, on-the-way, or partially received purchase orders.'
-        );
-
-        $this->validateLineQtys($po, $data['lines']);
-
         return DB::transaction(function () use ($po, $data, $receivedBy): GoodsReceipt {
+            $lockedPo = PurchaseOrder::lockForUpdate()->findOrFail($po->id);
+
+            $allowedStatuses = [
+                PurchaseOrderStatus::Approved,
+                PurchaseOrderStatus::OnTheWay,
+                PurchaseOrderStatus::PartiallyReceived,
+            ];
+
+            throw_if(
+                ! in_array($lockedPo->status, $allowedStatuses, true),
+                \DomainException::class,
+                'Goods receipts can only be created for approved, on-the-way, or partially received purchase orders.'
+            );
+
+            $this->validateLineQtys($lockedPo, $data['lines']);
+
             $grn = GoodsReceipt::create([
                 'purchase_order_id' => $po->id,
                 'grn_number' => $this->generateGrnNumber(),
@@ -56,16 +61,18 @@ class GoodsReceiptService
 
     public function update(GoodsReceipt $grn, array $data, ?PurchaseOrder $po = null): GoodsReceipt
     {
-        throw_if(
-            $grn->status === GoodsReceiptStatus::Complete,
-            \DomainException::class,
-            'Completed goods receipts cannot be edited.'
-        );
-
         $po ??= $grn->purchaseOrder;
-        $this->validateLineQtys($po, $data['lines'], $grn->id);
 
-        return DB::transaction(function () use ($grn, $data): GoodsReceipt {
+        return DB::transaction(function () use ($grn, $po, $data): GoodsReceipt {
+            $locked = GoodsReceipt::lockForUpdate()->findOrFail($grn->id);
+            throw_if(
+                $locked->status === GoodsReceiptStatus::Complete,
+                \DomainException::class,
+                'Completed goods receipts cannot be edited.'
+            );
+
+            $this->validateLineQtys($po, $data['lines'], $grn->id);
+
             $grn->update([
                 'received_date' => $data['received_date'],
                 'notes' => $data['notes'] ?? null,
@@ -89,21 +96,101 @@ class GoodsReceiptService
 
     public function complete(GoodsReceipt $grn, ?PurchaseOrder $po = null): GoodsReceipt
     {
-        throw_if(
-            $grn->status === GoodsReceiptStatus::Complete,
-            \DomainException::class,
-            'This goods receipt is already complete.'
-        );
+        $po ??= $grn->purchaseOrder;
 
         return DB::transaction(function () use ($grn, $po): GoodsReceipt {
+            $locked = GoodsReceipt::lockForUpdate()->findOrFail($grn->id);
+            throw_if(
+                $locked->status === GoodsReceiptStatus::Complete,
+                \DomainException::class,
+                'This goods receipt is already complete.'
+            );
+
+            $lockedPo = PurchaseOrder::lockForUpdate()->findOrFail($po->id);
+            throw_if(
+                in_array($lockedPo->status, [PurchaseOrderStatus::Cancelled, PurchaseOrderStatus::Rejected], true),
+                \DomainException::class,
+                'Cannot complete a goods receipt for a cancelled or rejected purchase order.'
+            );
+
             $grn->update(['status' => GoodsReceiptStatus::Complete]);
 
-            $po ??= $grn->purchaseOrder()->with('lines')->first();
-            $this->updatePoQtyReceived($po);
-            $this->updatePoStatus($po);
+            $lockedPo->load('lines');
+            $this->updatePoQtyReceived($lockedPo);
+            $this->updatePoStatus($lockedPo);
 
             return $grn->loadMissing(['lines.purchaseOrderLine.product', 'purchaseOrder.supplier', 'receivedBy']);
         });
+    }
+
+    public function submitQc(GoodsReceipt $grn, array $data, User $inspector): GoodsReceipt
+    {
+        $result = DB::transaction(function () use ($grn, $data, $inspector): GoodsReceipt {
+            $grn->refresh();
+            $po = $grn->purchaseOrder()->with('lines')->first();
+
+            throw_if(
+                $grn->status !== GoodsReceiptStatus::Complete,
+                \DomainException::class,
+                'QC can only be submitted for completed goods receipts.'
+            );
+
+            throw_if(
+                $po->status !== PurchaseOrderStatus::QualityCheck,
+                \DomainException::class,
+                'Purchase order is not in quality check status.'
+            );
+
+            $alreadyDone = $grn->lines()->lockForUpdate()->whereNotNull('qty_passed')->exists();
+            throw_if(
+                $alreadyDone,
+                \DomainException::class,
+                'QC has already been submitted for this goods receipt.'
+            );
+
+            foreach ($data['lines'] as $lineData) {
+                $grnLine = GoodsReceiptLine::find($lineData['goods_receipt_line_id']);
+
+                throw_if(
+                    ! $grnLine || $grnLine->goods_receipt_id !== $grn->id,
+                    \DomainException::class,
+                    'Invalid goods receipt line.'
+                );
+
+                $sum = (int) $lineData['qty_passed'] + (int) $lineData['qty_failed'];
+                throw_if(
+                    $sum !== (int) $grnLine->qty_received,
+                    \DomainException::class,
+                    "Pass + fail ({$sum}) must equal received qty ({$grnLine->qty_received})."
+                );
+
+                $grnLine->update([
+                    'qty_passed' => (int) $lineData['qty_passed'],
+                    'qty_failed' => (int) $lineData['qty_failed'],
+                    'qc_inspected_at' => now(),
+                    'qc_inspected_by' => $inspector->id,
+                ]);
+            }
+
+            $this->poService->passQualityCheck($po, null);
+
+            return $grn->fresh(['lines.purchaseOrderLine.product', 'purchaseOrder']);
+        });
+
+        activity()
+            ->causedBy($inspector)
+            ->performedOn($grn)
+            ->withProperties([
+                'grn_number' => $grn->grn_number,
+                'lines' => collect($data['lines'])->map(fn ($l) => [
+                    'goods_receipt_line_id' => $l['goods_receipt_line_id'],
+                    'qty_passed' => $l['qty_passed'],
+                    'qty_failed' => $l['qty_failed'],
+                ])->all(),
+            ])
+            ->log('qc_submitted');
+
+        return $result;
     }
 
     public function delete(GoodsReceipt $grn): void
@@ -138,6 +225,17 @@ class GoodsReceiptService
 
     public function updatePoStatus(PurchaseOrder $po): void
     {
+        $skipStatuses = [
+            PurchaseOrderStatus::QualityCheck,
+            PurchaseOrderStatus::PartiallyReceived,
+            PurchaseOrderStatus::Received,
+            PurchaseOrderStatus::Cancelled,
+            PurchaseOrderStatus::Rejected,
+        ];
+        if (in_array($po->status, $skipStatuses, true)) {
+            return;
+        }
+
         $po->load('lines');
         $lines = $po->lines;
 
@@ -145,28 +243,28 @@ class GoodsReceiptService
             return;
         }
 
-        $allFull = $lines->every(fn ($l) => (float) $l->qty_received >= (float) $l->qty_ordered);
         $anyReceived = $lines->some(fn ($l) => (float) $l->qty_received > 0);
 
-        if ($allFull) {
-            $po->update(['status' => PurchaseOrderStatus::Received]);
-        } elseif ($anyReceived) {
-            $po->update(['status' => PurchaseOrderStatus::PartiallyReceived]);
+        if ($anyReceived) {
+            $po->update(['status' => PurchaseOrderStatus::QualityCheck]);
         }
     }
 
     public function generateGrnNumber(): string
     {
-        $year = now()->year;
-        $prefix = "GRN-{$year}-";
+        return DB::transaction(function (): string {
+            $year = now()->year;
+            $prefix = "GRN-{$year}-";
 
-        $max = GoodsReceipt::withTrashed()
-            ->where('grn_number', 'like', "{$prefix}%")
-            ->max('grn_number');
+            $max = GoodsReceipt::withTrashed()
+                ->where('grn_number', 'like', "{$prefix}%")
+                ->lockForUpdate()
+                ->max('grn_number');
 
-        $next = $max ? ((int) substr($max, strlen($prefix))) + 1 : 1;
+            $next = $max ? ((int) substr($max, strlen($prefix))) + 1 : 1;
 
-        return $prefix.str_pad((string) $next, 4, '0', STR_PAD_LEFT);
+            return $prefix.str_pad((string) $next, 4, '0', STR_PAD_LEFT);
+        });
     }
 
     private function validateLineQtys(PurchaseOrder $po, array $lines, ?int $excludeGrnId = null): void
@@ -188,9 +286,11 @@ class GoodsReceiptService
         foreach ($lines as $lineData) {
             $poLine = $po->lines->firstWhere('id', $lineData['purchase_order_line_id']);
 
-            if (! $poLine) {
-                continue;
-            }
+            throw_if(
+                ! $poLine,
+                \DomainException::class,
+                "Purchase order line {$lineData['purchase_order_line_id']} does not belong to this purchase order."
+            );
 
             $alreadyReceived = (float) ($alreadyReceivedByLine[$poLine->id] ?? 0);
             $remaining = (float) $poLine->qty_ordered - $alreadyReceived;
@@ -201,5 +301,26 @@ class GoodsReceiptService
                 "Quantity received for '{$poLine->description}' exceeds remaining ({$remaining})."
             );
         }
+    }
+
+    public function assertCanAssignSerials(GoodsReceipt $grn, PurchaseOrder $po): void
+    {
+        throw_if(
+            $grn->status !== GoodsReceiptStatus::Complete,
+            \DomainException::class,
+            'Goods receipt is not complete.'
+        );
+
+        throw_if(
+            ! in_array($po->status, [PurchaseOrderStatus::PartiallyReceived, PurchaseOrderStatus::Received], true),
+            \DomainException::class,
+            'Purchase order is not in the correct status for serial assignment.'
+        );
+
+        throw_if(
+            InventoryMovement::where('goods_receipt_id', $grn->id)->exists(),
+            \DomainException::class,
+            'Serials have already been assigned for this goods receipt.'
+        );
     }
 }

@@ -20,6 +20,7 @@ All methods check `$user->can('purchase_orders.{action}')` via Spatie permission
 | `approve(User $user, PurchaseOrder $po)` | `purchase_orders.approve` |
 | `reject(User $user, PurchaseOrder $po)` | `purchase_orders.reject` |
 | `cancel(User $user, PurchaseOrder $po)` | `purchase_orders.cancel` |
+| `qualityCheck(User $user, PurchaseOrder $po)` | `purchase_orders.qualityCheck` |
 
 ---
 
@@ -32,10 +33,12 @@ All methods check `$user->can('purchase_orders.{action}')` via Spatie permission
 | `viewAny(User $user)` | `goods_receipts.viewAny` |
 | `view(User $user, GoodsReceipt $grn)` | `goods_receipts.view` |
 | `create(User $user)` | `goods_receipts.create` |
-| `update(User $user, GoodsReceipt $grn)` | `goods_receipts.create` |
+| `update(User $user, GoodsReceipt $grn)` | `goods_receipts.update` |
 | `delete(User $user, GoodsReceipt $grn)` | `goods_receipts.delete` |
 
-> `update` reuses `goods_receipts.create` — same roles (admin/manager) that can create can edit/complete draft GRNs. No separate `goods_receipts.update` permission needed.
+> `update` checks `goods_receipts.update` — dedicated permission, same role matrix as `create` (admin + manager). Seeded alongside create in `PurchaseOrderPermissionSeeder`.
+
+> `delete` checks `goods_receipts.delete` — only admin/super-admin (not manager, not sales).
 
 ```php
 <?php
@@ -45,6 +48,7 @@ declare(strict_types=1);
 
 namespace App\Policies;
 
+use App\Enums\Permission;
 use App\Models\GoodsReceipt;
 use App\Models\User;
 
@@ -65,10 +69,9 @@ class GoodsReceiptPolicy
         return $user->can('goods_receipts.create');
     }
 
-    /** Edit and complete a draft GRN — reuses create permission. */
     public function update(User $user, GoodsReceipt $grn): bool
     {
-        return $user->can('goods_receipts.create');
+        return $user->can(Permission::GOODS_RECEIPTS_UPDATE);
     }
 
     public function delete(User $user, GoodsReceipt $grn): bool

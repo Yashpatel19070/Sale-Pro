@@ -50,9 +50,9 @@
                         </div>
                     @endcanany
 
-                    @canany(['inventory.view-any', 'viewAny,App\Models\InventoryLocation'])
+                    @canany(['inventory.view-any', 'viewAny,App\Models\InventoryLocation', 'inventory-serials.view-any', 'inventory-movements.view'])
                         <div class="relative flex items-stretch" x-data="{ open: false }" @click.outside="open = false">
-                            <button @click="open = !open" class="inline-flex items-center px-1 pt-1 border-b-2 {{ request()->routeIs('inventory.*') || request()->routeIs('inventory-locations.*') ? 'border-indigo-400 text-gray-900' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300' }} text-sm font-medium leading-5 focus:outline-none transition duration-150 ease-in-out">
+                            <button @click="open = !open" class="inline-flex items-center px-1 pt-1 border-b-2 {{ request()->routeIs('inventory.*') || request()->routeIs('inventory-locations.*') || request()->routeIs('inventory-serials.*') || request()->routeIs('inventory-movements.*') ? 'border-indigo-400 text-gray-900' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300' }} text-sm font-medium leading-5 focus:outline-none transition duration-150 ease-in-out">
                                 {{ __('Inventory') }}
                                 <svg class="ms-1 fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
                                     <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
@@ -73,6 +73,12 @@
                                 @endcan
                                 @can('viewAny', App\Models\InventoryLocation::class)
                                     <x-dropdown-link :href="route('inventory-locations.index')">{{ __('Locations') }}</x-dropdown-link>
+                                @endcan
+                                @can('inventory-serials.view-any')
+                                    <x-dropdown-link :href="route('inventory-serials.index')">{{ __('Serials') }}</x-dropdown-link>
+                                @endcan
+                                @can('inventory-movements.view')
+                                    <x-dropdown-link :href="route('inventory-movements.index')">{{ __('Movements') }}</x-dropdown-link>
                                 @endcan
                             </div>
                         </div>
@@ -206,7 +212,7 @@
                 @endcan
             @endcanany
 
-            @canany(['inventory.view-any', 'viewAny,App\Models\InventoryLocation'])
+            @canany(['inventory.view-any', 'viewAny,App\Models\InventoryLocation', 'inventory-serials.view-any', 'inventory-movements.view'])
                 <div class="px-4 pt-2 pb-1 text-xs font-semibold text-gray-400 uppercase tracking-wider">{{ __('Inventory') }}</div>
                 @can('inventory.view-any')
                     <x-responsive-nav-link :href="route('inventory.index')" :active="request()->routeIs('inventory.*')">
@@ -216,6 +222,16 @@
                 @can('viewAny', App\Models\InventoryLocation::class)
                     <x-responsive-nav-link :href="route('inventory-locations.index')" :active="request()->routeIs('inventory-locations.*')">
                         {{ __('Locations') }}
+                    </x-responsive-nav-link>
+                @endcan
+                @can('inventory-serials.view-any')
+                    <x-responsive-nav-link :href="route('inventory-serials.index')" :active="request()->routeIs('inventory-serials.*')">
+                        {{ __('Serials') }}
+                    </x-responsive-nav-link>
+                @endcan
+                @can('inventory-movements.view')
+                    <x-responsive-nav-link :href="route('inventory-movements.index')" :active="request()->routeIs('inventory-movements.*')">
+                        {{ __('Movements') }}
                     </x-responsive-nav-link>
                 @endcan
             @endcanany

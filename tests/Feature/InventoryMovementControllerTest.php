@@ -2,12 +2,14 @@
 
 declare(strict_types=1);
 
+use App\Enums\Permission;
 use App\Models\InventoryLocation;
 use App\Models\InventoryMovement;
 use App\Models\InventorySerial;
 use App\Models\Product;
 use App\Models\User;
 use Database\Seeders\InventoryMovementPermissionSeeder;
+use Database\Seeders\PurchaseOrderPermissionSeeder;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
@@ -15,6 +17,7 @@ uses(RefreshDatabase::class);
 
 beforeEach(function () {
     $this->seed(RoleSeeder::class);
+    $this->seed(PurchaseOrderPermissionSeeder::class);
     $this->seed(InventoryMovementPermissionSeeder::class);
 
     $this->admin = User::factory()->create()->assignRole('admin');
@@ -490,4 +493,57 @@ it('bulk receive rejects qty 0', function () {
             'purchase_price' => '50.00',
         ])
         ->assertSessionHasErrors(['qty']);
+});
+
+// ── BUG-002: bulk-receive authorization via direct POST ──────────────────────
+
+it('sales user cannot POST to inventory-movements.bulk-receive without bulk-receive permission (403)', function () {
+    $user = User::factory()->create();
+    $user->givePermissionTo([
+        Permission::PURCHASE_ORDERS_VIEW_ANY,
+        Permission::PURCHASE_ORDERS_VIEW,
+        Permission::GOODS_RECEIPTS_VIEW_ANY,
+        Permission::GOODS_RECEIPTS_VIEW,
+        Permission::INVENTORY_MOVEMENTS_VIEW,
+    ]);
+
+    $this->actingAs($user)
+        ->post(route('inventory-movements.bulk-receive'), [
+            'product_id' => $this->product->id,
+            'qty' => 3,
+            'inventory_location_id' => $this->locationA->id,
+            'purchase_price' => '100.00',
+        ])
+        ->assertForbidden();
+});
+
+it('inventory manager can POST to inventory-movements.bulk-receive with bulk-receive permission', function () {
+    $user = User::factory()->create();
+    $user->givePermissionTo([
+        Permission::PURCHASE_ORDERS_VIEW_ANY,
+        Permission::PURCHASE_ORDERS_VIEW,
+        Permission::GOODS_RECEIPTS_VIEW_ANY,
+        Permission::GOODS_RECEIPTS_VIEW,
+        Permission::INVENTORY_MOVEMENTS_VIEW,
+        Permission::INVENTORY_MOVEMENTS_BULK_RECEIVE,
+    ]);
+
+    $this->actingAs($user)
+        ->post(route('inventory-movements.bulk-receive'), [
+            'product_id' => $this->product->id,
+            'qty' => 2,
+            'inventory_location_id' => $this->locationA->id,
+            'purchase_price' => '50.00',
+        ])
+        ->assertRedirect(route('inventory-movements.bulk-receive-print'));
+});
+
+it('guest is redirected to login on inventory-movements.bulk-receive POST', function () {
+    $this->post(route('inventory-movements.bulk-receive'), [
+        'product_id' => $this->product->id,
+        'qty' => 1,
+        'inventory_location_id' => $this->locationA->id,
+        'purchase_price' => '100.00',
+    ])
+        ->assertRedirect(route('login'));
 });

@@ -58,6 +58,12 @@
                 </div>
             @endif
 
+            @if($errors->has('error'))
+                <div class="rounded-md bg-red-100 px-4 py-3 text-red-800">
+                    {{ $errors->first('error') }}
+                </div>
+            @endif
+
             {{-- Summary card --}}
             <div class="overflow-hidden rounded-lg bg-white shadow">
                 <div class="border-b border-gray-200 px-6 py-4">
@@ -137,6 +143,182 @@
                     </tbody>
                 </table>
             </div>
+
+            {{-- QC Section --}}
+            @php
+                $qcDone = $goodsReceipt->lines->every(fn($l) => $l->qcDone());
+                $showQcForm = $goodsReceipt->status === \App\Enums\GoodsReceiptStatus::Complete
+                    && $purchaseOrder->status === \App\Enums\PurchaseOrderStatus::QualityCheck
+                    && ! $qcDone;
+                $showQcResults = $goodsReceipt->status === \App\Enums\GoodsReceiptStatus::Complete && $qcDone;
+            @endphp
+
+            @if($showQcForm)
+                @can('update', $goodsReceipt)
+                @php
+                    $qcLineData = $goodsReceipt->lines->map(fn ($l) => [
+                        'id'           => $l->id,
+                        'qty_received' => (int) $l->qty_received,
+                        'qty_passed'   => 0,
+                        'qty_failed'   => 0,
+                    ])->values()->all();
+                @endphp
+                <script>
+                window.__qcLines = @json($qcLineData);
+                </script>
+                <div class="overflow-hidden rounded-lg bg-white shadow"
+                     x-data="{
+                         lines: window.__qcLines,
+                         get allValid() {
+                             return this.lines.every(function (l) {
+                                 return (l.qty_passed + l.qty_failed) === l.qty_received;
+                             });
+                         }
+                     }">
+                    <div class="border-b border-gray-200 px-6 py-4">
+                        <h3 class="text-base font-semibold text-gray-900">Quality Check Inspection</h3>
+                        <p class="mt-1 text-sm text-gray-500">Enter pass/fail counts for each received line. Pass + Fail must equal Received for every line.</p>
+                    </div>
+
+                    <form method="POST" action="{{ route('purchase-orders.goods-receipts.submitQc', [$purchaseOrder, $goodsReceipt]) }}">
+                        @csrf
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Product</th>
+                                    <th class="px-4 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500">Received</th>
+                                    <th class="px-4 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-500">Passed</th>
+                                    <th class="px-4 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-500">Failed</th>
+                                    <th class="px-4 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-500">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-200 bg-white">
+                                @foreach($goodsReceipt->lines as $i => $line)
+                                    <tr>
+                                        <input type="hidden" name="lines[{{ $i }}][goods_receipt_line_id]" value="{{ $line->id }}">
+                                        <td class="px-4 py-3 text-sm text-gray-900">
+                                            {{ $line->purchaseOrderLine->product->name ?? '—' }}
+                                        </td>
+                                        <td class="px-4 py-3 text-right text-sm text-gray-900">
+                                            {{ (int) $line->qty_received }}
+                                        </td>
+                                        <td class="px-4 py-3 text-center">
+                                            <input type="number"
+                                                   name="lines[{{ $i }}][qty_passed]"
+                                                   min="0"
+                                                   max="{{ (int) $line->qty_received }}"
+                                                   x-model.number="lines[{{ $i }}].qty_passed"
+                                                   class="w-20 rounded-md border-gray-300 text-center text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                                        </td>
+                                        <td class="px-4 py-3 text-center">
+                                            <input type="number"
+                                                   name="lines[{{ $i }}][qty_failed]"
+                                                   min="0"
+                                                   max="{{ (int) $line->qty_received }}"
+                                                   x-model.number="lines[{{ $i }}].qty_failed"
+                                                   class="w-20 rounded-md border-gray-300 text-center text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                                        </td>
+                                        <td class="px-4 py-3 text-center text-sm"
+                                            x-text="(lines[{{ $i }}].qty_passed + lines[{{ $i }}].qty_failed) === lines[{{ $i }}].qty_received
+                                                ? '✓'
+                                                : (lines[{{ $i }}].qty_passed + lines[{{ $i }}].qty_failed) + ' / ' + lines[{{ $i }}].qty_received">
+                                        </td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                        <div class="border-t border-gray-200 px-6 py-4 flex justify-end">
+                            <button type="submit"
+                                    :disabled="! allValid"
+                                    :class="allValid
+                                        ? 'bg-indigo-600 hover:bg-indigo-700 cursor-pointer'
+                                        : 'bg-gray-300 cursor-not-allowed'"
+                                    class="rounded-md px-6 py-2 text-sm font-medium text-white transition-colors">
+                                Submit QC
+                            </button>
+                        </div>
+                    </form>
+                </div>
+                @endcan
+            @endif
+
+            @if($showQcResults)
+                <div class="overflow-hidden rounded-lg bg-white shadow">
+                    <div class="border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+                        <h3 class="text-base font-semibold text-gray-900">QC Results</h3>
+                        @can('bulkReceive', App\Models\InventoryMovement::class)
+                            @php
+                                $allowedForSerials = in_array($purchaseOrder->status, [
+                                    \App\Enums\PurchaseOrderStatus::PartiallyReceived,
+                                    \App\Enums\PurchaseOrderStatus::Received,
+                                ]);
+                            @endphp
+                            @if($allowedForSerials && ! $serialsAssigned)
+                                <a href="{{ route('purchase-orders.goods-receipts.assignSerials', [$purchaseOrder, $goodsReceipt]) }}"
+                                   class="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700">
+                                    Assign Serial Numbers →
+                                </a>
+                            @elseif($serialsAssigned)
+                                <span class="px-3 py-1 text-xs font-medium rounded-full bg-green-100 text-green-700">
+                                    Serials Assigned ✓
+                                </span>
+                            @endif
+                        @endcan
+                    </div>
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Product</th>
+                                <th class="px-4 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500">Received</th>
+                                <th class="px-4 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500">Passed</th>
+                                <th class="px-4 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500">Failed</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Inspected By</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Inspected At</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-200 bg-white">
+                            @foreach($goodsReceipt->lines as $line)
+                                <tr>
+                                    <td class="px-4 py-3 text-sm text-gray-900">
+                                        {{ $line->purchaseOrderLine->product->name ?? '—' }}
+                                    </td>
+                                    <td class="px-4 py-3 text-right text-sm text-gray-900">{{ (int) $line->qty_received }}</td>
+                                    <td class="px-4 py-3 text-right text-sm">
+                                        <span class="px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-700">
+                                            {{ $line->qcPassed() }} passed
+                                        </span>
+                                    </td>
+                                    <td class="px-4 py-3 text-right text-sm">
+                                        @if($line->qcFailed() > 0)
+                                            <span class="px-2 py-1 text-xs font-medium rounded-full bg-red-100 text-red-700">
+                                                {{ $line->qcFailed() }} failed
+                                            </span>
+                                        @else
+                                            <span class="text-gray-400">—</span>
+                                        @endif
+                                    </td>
+                                    <td class="px-4 py-3 text-sm text-gray-900">{{ $line->qcInspectedBy?->name ?? '—' }}</td>
+                                    <td class="px-4 py-3 text-sm text-gray-500">
+                                        {{ $line->qc_inspected_at?->format('M d, Y H:i') ?? '—' }}
+                                    </td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                        <tfoot class="bg-gray-50">
+                            <tr>
+                                <td class="px-4 py-3 text-sm font-medium text-gray-900" colspan="2">Total</td>
+                                <td class="px-4 py-3 text-right text-sm font-medium text-green-700">
+                                    {{ $goodsReceipt->lines->sum(fn($l) => $l->qcPassed()) }} passed
+                                </td>
+                                <td class="px-4 py-3 text-right text-sm font-medium text-red-700">
+                                    {{ $goodsReceipt->lines->sum(fn($l) => $l->qcFailed()) }} failed
+                                </td>
+                                <td colspan="2"></td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            @endif
 
         </div>
     </div>

@@ -146,14 +146,19 @@ class InventoryMovementController extends Controller
      * Show the bulk receive form — auto-generate serials for one SKU.
      * Accessible by: admin, manager only.
      */
-    public function bulkReceive(): View
+    public function bulkReceive(Request $request): View
     {
         $this->authorize('bulkReceive', InventoryMovement::class);
 
         $products = Product::forDropdown()->get();
         $locations = $this->locationService->activeForDropdown();
 
-        return view('inventory.movements.bulk-receive', compact('products', 'locations'));
+        $prefilledProductId = $request->integer('product_id', 0);
+        $prefilledQty = $request->integer('qty', 0);
+
+        return view('inventory.movements.bulk-receive', compact(
+            'products', 'locations', 'prefilledProductId', 'prefilledQty'
+        ));
     }
 
     /**
@@ -161,6 +166,7 @@ class InventoryMovementController extends Controller
      */
     public function storeBulkReceive(StoreBulkReceiveRequest $request): RedirectResponse
     {
+        $this->authorize('bulkReceive', InventoryMovement::class);
         try {
             $serials = $this->movements->bulkReceive(
                 $request->validated(),

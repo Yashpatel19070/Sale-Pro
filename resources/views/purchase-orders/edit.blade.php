@@ -30,17 +30,20 @@
                 </div>
             @endif
 
+            @php
+                $poLinesJson = $purchaseOrder->lines->map(fn ($l) => [
+                    'product_id'           => $l->product_id,
+                    'description'          => $l->description,
+                    'qty_ordered'          => $l->qty_ordered,
+                    'unit_cost'            => $l->unit_cost,
+                    'tax_rate'             => $l->tax_rate,
+                    'line_total'           => $l->line_total,
+                    'qty_on_hand_snapshot' => $l->qty_on_hand_snapshot,
+                ]);
+            @endphp
             <script>
                 window.__poProducts = @json($products);
-                window.__poLines = @json($purchaseOrder->lines->map(fn ($l) => [
-                    'product_id'          => $l->product_id,
-                    'description'         => $l->description,
-                    'qty_ordered'         => $l->qty_ordered,
-                    'unit_cost'           => $l->unit_cost,
-                    'tax_rate'            => $l->tax_rate,
-                    'line_total'          => $l->line_total,
-                    'qty_on_hand_snapshot' => $l->qty_on_hand_snapshot,
-                ]));
+                window.__poLines = @json($poLinesJson);
             </script>
 
             <form method="POST" action="{{ route('purchase-orders.update', $purchaseOrder) }}"

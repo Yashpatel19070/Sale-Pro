@@ -7,6 +7,7 @@ namespace App\Http\Controllers;
 use App\Enums\PurchaseOrderStatus;
 use App\Http\Requests\PurchaseOrder\RejectPurchaseOrderRequest;
 use App\Http\Requests\PurchaseOrder\StorePurchaseOrderRequest;
+use App\Http\Requests\PurchaseOrder\StoreQcNotesRequest;
 use App\Http\Requests\PurchaseOrder\UpdatePurchaseOrderRequest;
 use App\Models\Product;
 use App\Models\PurchaseOrder;
@@ -42,6 +43,7 @@ class PurchaseOrderController extends Controller
 
     public function store(StorePurchaseOrderRequest $request): RedirectResponse
     {
+        $this->authorize('create', PurchaseOrder::class);
         $po = $this->service->store($request->validated(), $request->user());
 
         return redirect()->route('purchase-orders.show', $po)->with('success', "Purchase order {$po->po_number} created.");
@@ -56,7 +58,10 @@ class PurchaseOrderController extends Controller
             'invoices.approvedBy', 'createdBy', 'approvedBy',
         ]);
 
-        return view('purchase-orders.show', compact('purchaseOrder'));
+        $grnIds = $purchaseOrder->goodsReceipts->pluck('id')->all();
+        $assignedGrnIds = $this->service->getAssignedGrnIds($grnIds);
+
+        return view('purchase-orders.show', compact('purchaseOrder', 'assignedGrnIds'));
     }
 
     public function edit(PurchaseOrder $purchaseOrder): View|RedirectResponse
@@ -139,7 +144,7 @@ class PurchaseOrderController extends Controller
 
     public function markOnTheWay(PurchaseOrder $purchaseOrder): RedirectResponse
     {
-        $this->authorize('update', $purchaseOrder);
+        $this->authorize('markOnTheWay', $purchaseOrder);
         try {
             $this->service->markOnTheWay($purchaseOrder);
         } catch (\DomainException $e) {
@@ -159,6 +164,21 @@ class PurchaseOrderController extends Controller
         }
 
         return redirect()->route('purchase-orders.show', $purchaseOrder)->with('success', 'Purchase order cancelled.');
+    }
+
+    public function qualityCheck(StoreQcNotesRequest $request, PurchaseOrder $purchaseOrder): RedirectResponse
+    {
+        $this->authorize('qualityCheck', $purchaseOrder);
+
+        try {
+            $this->service->passQualityCheck($purchaseOrder, $request->validated()['qc_notes'] ?? null);
+        } catch (\DomainException $e) {
+            return redirect()->route('purchase-orders.show', $purchaseOrder)
+                ->withErrors(['error' => $e->getMessage()]);
+        }
+
+        return redirect()->route('purchase-orders.show', $purchaseOrder)
+            ->with('success', 'Quality check passed. Purchase order marked as received.');
     }
 
     public function print(PurchaseOrder $purchaseOrder): View

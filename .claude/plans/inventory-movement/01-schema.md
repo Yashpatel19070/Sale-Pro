@@ -48,6 +48,14 @@ return new class extends Migration
             // Optional long-form notes
             $table->text('notes')->nullable();
 
+            // GRN traceability — set when bulk-receive is triggered from QC flow
+            // NULL = standalone receive (non-PO stock); NOT NULL = came from a completed GRN
+            // Enables serial→GRN→PO→supplier provenance chain for supplier failure rate reports
+            $table->foreignId('goods_receipt_id')
+                  ->nullable()
+                  ->constrained('goods_receipts')
+                  ->nullOnDelete();
+
             // Who recorded this movement
             $table->foreignId('user_id')
                   ->constrained('users')
@@ -148,3 +156,14 @@ const INVENTORY_MOVEMENTS_BULK_RECEIVE  = 'inventory-movements.bulk-receive';
 - `restrictOnDelete` on `inventory_serial_id` — hard-deleting a serial that has movements throws a DB constraint error, protecting the audit trail. Application layer must also prevent it.
 - `purchase_price` is only meaningful on `receive` type. Service validates this.
 - `reference` max 150 chars — enough for order numbers (e.g. `ORD-2024-00123`) and PO numbers.
+- `goods_receipt_id` is nullable — null means standalone receive not from QC flow. `nullOnDelete` because GRNs can be soft-deleted; movement history must be preserved.
+- When `goods_receipt_id` is set, the serial provenance chain is: `serial → movement → GRN → PO → supplier`
+- **Supplier failure rate report query:**
+  ```sql
+  SELECT po.supplier_id, SUM(grl.qty_failed) / SUM(grl.qty_received) AS failure_rate
+  FROM goods_receipt_lines grl
+  JOIN goods_receipts gr ON gr.id = grl.goods_receipt_id
+  JOIN purchase_orders po ON po.id = gr.purchase_order_id
+  WHERE grl.qty_passed IS NOT NULL
+  GROUP BY po.supplier_id
+  ```

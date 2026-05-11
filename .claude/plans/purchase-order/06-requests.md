@@ -95,6 +95,73 @@ return $this->user()->can('goods_receipts.create');
 
 ---
 
+## Request: `StoreGoodsReceiptQcRequest`
+
+**File:** `app/Http/Requests/GoodsReceipt/StoreGoodsReceiptQcRequest.php`
+
+### authorize()
+```php
+return $this->user()->can(Permission::GOODS_RECEIPTS_UPDATE);
+```
+
+### rules()
+| Field | Rules |
+|-------|-------|
+| `lines` | required, array, min:1 |
+| `lines.*.goods_receipt_line_id` | required, integer, exists:goods_receipt_lines,id |
+| `lines.*.qty_passed` | required, integer, min:0 |
+| `lines.*.qty_failed` | required, integer, min:0 |
+
+### after()
+Cross-field rule — `qty_passed + qty_failed` must equal `qty_received` exactly. Uses `after()` per reference (not `withValidator()`):
+```php
+public function after(): array
+{
+    return [
+        function ($validator) {
+            foreach ($this->input('lines', []) as $i => $line) {
+                $grnLine = \App\Models\GoodsReceiptLine::find($line['goods_receipt_line_id'] ?? null);
+                if (! $grnLine) continue;
+                $sum = (int) ($line['qty_passed'] ?? 0) + (int) ($line['qty_failed'] ?? 0);
+                if ($sum !== (int) $grnLine->qty_received) {
+                    $validator->errors()->add(
+                        "lines.{$i}.qty_failed",
+                        "Pass + fail ({$sum}) must equal received qty ({$grnLine->qty_received})."
+                    );
+                }
+            }
+        },
+    ];
+}
+```
+
+> **Agent note:** `after()` fires after standard rules pass. Service also enforces this invariant inside transaction — double guard, service is authoritative.
+
+---
+
+## Request: `StoreGrnSerialRequest`
+
+**File:** `app/Http/Requests/GoodsReceipt/StoreGrnSerialRequest.php`
+
+### authorize()
+```php
+return $this->user()->can(Permission::INVENTORY_MOVEMENTS_BULK_RECEIVE);
+```
+
+### rules()
+| Field | Rules |
+|-------|-------|
+| `lines` | required, array, min:1 |
+| `lines.*.goods_receipt_line_id` | required, integer, exists:goods_receipt_lines,id |
+| `lines.*.inventory_location_id` | required, integer, exists:inventory_locations,id |
+| `lines.*.purchase_price` | required, numeric, min:0, max:999999.99 |
+
+> **No `qty` field** — qty comes from `qty_passed` on the GRN line (set at QC time). Service reads it directly from the model; user cannot override it.
+> **No `product_id` field** — product fixed from GRN line → `purchaseOrderLine.product_id`. Not user-supplied.
+> **No `grn_id` field** — GRN is a route parameter (`{goodsReceipt}`), never from request body. Guaranteed non-null.
+
+---
+
 ## Request: `StoreInvoiceRequest`
 
 **File:** `app/Http/Requests/Invoice/StoreInvoiceRequest.php`

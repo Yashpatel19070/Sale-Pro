@@ -325,3 +325,95 @@ it('generatePoNumber() increments when POs already exist', function () {
 
     expect($number)->toBe("PO-{$year}-0002");
 });
+
+// ── passQualityCheck() ────────────────────────────────────────────────────────
+
+it('passQualityCheck() sets status to received', function () {
+    $po = PurchaseOrder::factory()->create([
+        'supplier_id' => $this->supplier->id,
+        'status' => PurchaseOrderStatus::QualityCheck,
+        'qc_notes' => null,
+    ]);
+
+    $result = $this->service->passQualityCheck($po, null);
+
+    expect($result->status)->toBe(PurchaseOrderStatus::Received);
+    $this->assertDatabaseHas('purchase_orders', [
+        'id' => $po->id,
+        'status' => PurchaseOrderStatus::Received->value,
+    ]);
+});
+
+it('passQualityCheck() saves qc_notes when provided', function () {
+    $po = PurchaseOrder::factory()->create([
+        'supplier_id' => $this->supplier->id,
+        'status' => PurchaseOrderStatus::QualityCheck,
+        'qc_notes' => null,
+    ]);
+
+    $notes = 'All items inspected and approved. No defects found.';
+
+    $result = $this->service->passQualityCheck($po, $notes);
+
+    expect($result->qc_notes)->toBe($notes);
+    $this->assertDatabaseHas('purchase_orders', [
+        'id' => $po->id,
+        'qc_notes' => $notes,
+    ]);
+});
+
+it('passQualityCheck() with null notes does not fail', function () {
+    $po = PurchaseOrder::factory()->create([
+        'supplier_id' => $this->supplier->id,
+        'status' => PurchaseOrderStatus::QualityCheck,
+        'qc_notes' => null,
+    ]);
+
+    $result = $this->service->passQualityCheck($po, null);
+
+    expect($result->qc_notes)->toBeNull();
+    $this->assertDatabaseHas('purchase_orders', [
+        'id' => $po->id,
+        'qc_notes' => null,
+    ]);
+});
+
+it('passQualityCheck() throws DomainException when status is draft', function () {
+    $po = PurchaseOrder::factory()->create([
+        'supplier_id' => $this->supplier->id,
+        'status' => PurchaseOrderStatus::Draft,
+    ]);
+
+    expect(fn () => $this->service->passQualityCheck($po, null))
+        ->toThrow(DomainException::class);
+});
+
+it('passQualityCheck() throws DomainException when status is approved', function () {
+    $po = PurchaseOrder::factory()->create([
+        'supplier_id' => $this->supplier->id,
+        'status' => PurchaseOrderStatus::Approved,
+    ]);
+
+    expect(fn () => $this->service->passQualityCheck($po, null))
+        ->toThrow(DomainException::class);
+});
+
+it('passQualityCheck() throws DomainException when status is received', function () {
+    $po = PurchaseOrder::factory()->create([
+        'supplier_id' => $this->supplier->id,
+        'status' => PurchaseOrderStatus::Received,
+    ]);
+
+    expect(fn () => $this->service->passQualityCheck($po, null))
+        ->toThrow(DomainException::class);
+});
+
+it('passQualityCheck() throws DomainException when status is partially_received', function () {
+    $po = PurchaseOrder::factory()->create([
+        'supplier_id' => $this->supplier->id,
+        'status' => PurchaseOrderStatus::PartiallyReceived,
+    ]);
+
+    expect(fn () => $this->service->passQualityCheck($po, null))
+        ->toThrow(DomainException::class);
+});

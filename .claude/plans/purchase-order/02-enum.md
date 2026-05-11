@@ -15,7 +15,7 @@
 | `OnTheWay` | `on_the_way` | On The Way | indigo |
 | `PartiallyReceived` | `partially_received` | Partially Received | orange |
 | `Received` | `received` | Received | teal |
-| `QualityCheck` | `quality_check` | Quality Check | purple | **V2 only — case exists in enum but service never transitions here in V1** |
+| `QualityCheck` | `quality_check` | Quality Check | purple | GRN complete → full receipt triggers this; requires Pass QC action to advance |
 | `Invoiced` | `invoiced` | Invoiced | cyan |
 | `Returning` | `returning` | Returning | pink |
 | `Returned` | `returned` | Returned | rose |
@@ -55,6 +55,9 @@ Invoice can be created when PO status is:
 - `on_the_way`
 - `partially_received`
 - `received`
+- `invoiced` (multi-invoice scenario — second invoice on same PO allowed)
+
+> Note: `quality_check` is NOT allowed — invoice requires QC to pass first (PO must reach `received`).
 
 ---
 
@@ -67,11 +70,11 @@ Invoice can be created when PO status is:
 | `pending_approval` | reject | `rejected` |
 | `rejected` | resubmit | `pending_approval` |
 | `approved` | mark on_the_way | `on_the_way` |
-| `on_the_way` | create GRN (partial) | `partially_received` |
-| `on_the_way` | create GRN (full) | `received` |
-| `partially_received` | create GRN (remaining) | `received` |
-| `received` | quality check | `quality_check` | **V2 only — not implemented in V1** |
-| `quality_check` | pass QC | `received` | **V2 only — not implemented in V1** |
+| `on_the_way` | create GRN (partial qty) | `partially_received` |
+| `on_the_way` | create GRN (full qty) | `quality_check` |
+| `partially_received` | create GRN (partial remaining) | `partially_received` |
+| `partially_received` | create GRN (all remaining qty) | `quality_check` |
+| `quality_check` | pass QC | `received` |
 | `received` | create invoice | `invoiced` |
 | `invoiced` | mark paid | `closed` |
 | `received` | initiate return | `returning` |
@@ -83,7 +86,7 @@ Invoice can be created when PO status is:
 ## Notes
 - `cancelled` and `closed` are terminal — no transitions out
 - `returned` is terminal
-- `quality_check` case is in the enum for DB compatibility but the service never transitions to it in V1 — treat as unreachable dead code until V2
+- `quality_check` is the mandatory gate between GRN completion and invoice creation — service must guard `passQualityCheck()` with status check
 - Colors match Tailwind CSS v3 color names used in badge components
 - Follow `SupplierStatus` pattern exactly for consistency
 

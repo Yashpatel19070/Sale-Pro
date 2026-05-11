@@ -30,6 +30,7 @@
 | approved_by | foreignId | Yes | null | FK → users.id |
 | approved_at | timestamp | Yes | null | When approved |
 | rejection_reason | text | Yes | null | Set on reject action |
+| qc_notes | text | Yes | null | Set on passQualityCheck action |
 | created_by | foreignId | No | — | FK → users.id |
 | deleted_at | timestamp | Yes | null | Soft delete |
 | created_at | timestamp | Yes | — | Auto |
@@ -96,6 +97,10 @@
 | goods_receipt_id | foreignId | No | — | FK → goods_receipts.id, cascade delete |
 | purchase_order_line_id | foreignId | No | — | FK → purchase_order_lines.id |
 | qty_received | decimal(12,2) unsigned | No | — | Qty received in this GRN for this line |
+| qty_passed | unsignedInteger | Yes | null | Units that passed QC inspection — null = not yet inspected |
+| qty_failed | unsignedInteger | Yes | null | Units that failed QC inspection — null = not yet inspected |
+| qc_inspected_at | timestamp | Yes | null | When QC was submitted for this line |
+| qc_inspected_by | foreignId | Yes | null | FK → users.id — who submitted QC |
 | notes | text | Yes | null | Notes per line (damage, shortage) |
 | created_at | timestamp | Yes | — | Auto |
 | updated_at | timestamp | Yes | — | Auto |
@@ -104,6 +109,10 @@
 - No soft delete — cascade delete when GRN deleted
 - One PO line can appear in multiple GRNs (partial deliveries)
 - Sum of all GRN lines for a PO line = total `qty_received` on that PO line
+- `qty_passed IS NULL` = QC not yet submitted; `qty_passed IS NOT NULL` = QC done
+- Invariant: `qty_passed + qty_failed === qty_received` enforced at FormRequest and service layers
+- QC must be submitted for ALL lines in the GRN before `submitQc()` completes
+- Serial assignment uses `qty_passed` (not `qty_received`) — failed units do not get serials
 
 ---
 
@@ -180,7 +189,25 @@ GoodsReceipt hasMany GoodsReceiptLines
 
 GoodsReceiptLine belongsTo GoodsReceipt
 GoodsReceiptLine belongsTo PurchaseOrderLine
+GoodsReceiptLine belongsTo User (qc_inspected_by)
 
 Invoice belongsTo PurchaseOrder
 Invoice belongsTo User (approved_by)
+
+InventoryMovement belongsTo GoodsReceipt (nullable — null when not from QC flow)
 ```
+
+---
+
+## Cross-Module Schema Addition: `inventory_movements`
+
+The `inventory_movements` table requires one additional column for GRN traceability.
+This is defined in the inventory-movement module schema (`inventory-movement/01-schema.md`)
+but documented here for cross-module awareness:
+
+| Column | Type | Nullable | Notes |
+|--------|------|----------|-------|
+| goods_receipt_id | foreignId | Yes | FK → goods_receipts.id, nullOnDelete. Null = standalone receive not from QC flow. |
+
+**Reporting use:** `serial → inventory_movement.goods_receipt_id → goods_receipt → purchase_order → supplier`
+gives full provenance chain for "which supplier had the most serial failures" reports.

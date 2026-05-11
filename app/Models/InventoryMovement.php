@@ -29,9 +29,8 @@ class InventoryMovement extends Model
         'reference',
         'notes',
         'user_id',
+        'goods_receipt_id',
     ];
-
-    protected $hidden = ['purchase_price'];
 
     protected function casts(): array
     {
@@ -61,6 +60,11 @@ class InventoryMovement extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function goodsReceipt(): BelongsTo
+    {
+        return $this->belongsTo(GoodsReceipt::class);
     }
 
     // ── Local Scopes ─────────────────────────────────────────────────────────────

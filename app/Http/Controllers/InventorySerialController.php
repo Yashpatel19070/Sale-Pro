@@ -47,8 +47,15 @@ class InventorySerialController extends Controller
         ]);
 
         $movements = $inventorySerial->movements()
-            ->select(['id', 'inventory_serial_id', 'from_location_id', 'to_location_id', 'type', 'notes', 'user_id', 'created_at'])
-            ->with(['fromLocation:id,code,name', 'toLocation:id,code,name', 'user:id,name'])
+            ->select(['id', 'inventory_serial_id', 'from_location_id', 'to_location_id', 'type', 'notes', 'user_id', 'goods_receipt_id', 'created_at'])
+            ->with([
+                'fromLocation:id,code,name',
+                'toLocation:id,code,name',
+                'user:id,name',
+                'goodsReceipt:id,grn_number,purchase_order_id',
+                'goodsReceipt.purchaseOrder:id,po_number,supplier_id',
+                'goodsReceipt.purchaseOrder.supplier:id,name',
+            ])
             ->latest()
             ->paginate(15);
 

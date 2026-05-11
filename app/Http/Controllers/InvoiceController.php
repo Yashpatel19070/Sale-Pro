@@ -9,6 +9,7 @@ use App\Models\Invoice;
 use App\Models\PurchaseOrder;
 use App\Services\InvoiceService;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\View\View;
 
 class InvoiceController extends Controller
@@ -43,11 +44,11 @@ class InvoiceController extends Controller
         return view('invoices.show', compact('purchaseOrder', 'invoice'));
     }
 
-    public function approve(PurchaseOrder $purchaseOrder, Invoice $invoice): RedirectResponse
+    public function approve(Request $request, PurchaseOrder $purchaseOrder, Invoice $invoice): RedirectResponse
     {
         $this->authorize('approve', $invoice);
         try {
-            $this->service->approve($invoice, auth()->user());
+            $this->service->approve($invoice, $request->user());
         } catch (\DomainException $e) {
             return back()->withErrors(['error' => $e->getMessage()]);
         }
@@ -59,6 +60,7 @@ class InvoiceController extends Controller
     public function markPaid(PurchaseOrder $purchaseOrder, Invoice $invoice): RedirectResponse
     {
         $this->authorize('markPaid', $invoice);
+        $invoice->load('purchaseOrder');
         try {
             $this->service->markPaid($invoice);
         } catch (\DomainException $e) {

@@ -11,8 +11,8 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
-use Spatie\Activitylog\Support\LogOptions;
 use Spatie\Activitylog\Models\Concerns\LogsActivity;
+use Spatie\Activitylog\Support\LogOptions;
 
 class GoodsReceipt extends Model
 {
@@ -23,10 +23,13 @@ class GoodsReceipt extends Model
         'received_date', 'notes', 'status',
     ];
 
-    protected $casts = [
-        'received_date' => 'date',
-        'status' => GoodsReceiptStatus::class,
-    ];
+    protected function casts(): array
+    {
+        return [
+            'received_date' => 'date',
+            'status' => GoodsReceiptStatus::class,
+        ];
+    }
 
     public function purchaseOrder(): BelongsTo
     {

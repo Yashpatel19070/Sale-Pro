@@ -51,6 +51,8 @@ class AuditLogService
         'login' => 'Login',
         'logout' => 'Logout',
         'login-failed' => 'Login Failed',
+        'qc_submitted' => 'QC Submitted',
+        'serials_generated' => 'Serials Generated',
     ];
 
     /**

@@ -244,3 +244,114 @@ function poSalesUser(): User
 - [ ] `markPaid()` updates PO status to `closed` (not `invoiced`) when all invoices are paid
 - [ ] `markPaid()` throws DomainException if status != approved
 - [ ] `delete()` throws DomainException if status = paid
+
+---
+
+## QC + Serial Assignment Tests
+
+### Feature: `GoodsReceiptQcControllerTest`
+
+**File:** `tests/Feature/GoodsReceiptQcControllerTest.php`
+
+#### submitQc Authorization
+- [x] Guest redirected to login on submitQc
+- [x] User without `goods_receipts.update` permission gets 403
+- [x] Authorized user can submitQc with valid data → redirects to show, flash success
+
+#### submitQc Happy Path
+- [x] submitQc sets qty_passed on GRN lines
+- [x] submitQc sets qty_failed on GRN lines
+- [x] submitQc sets qc_inspected_at timestamp
+- [x] submitQc sets qc_inspected_by to current user
+
+#### submitQc Validation Failures
+- [x] submitQc fails when qty_passed + qty_failed !== qty_received → error flash
+- [x] submitQc fails when GRN is not complete → error flash
+- [x] submitQc fails when PO is not in quality_check status → error flash
+- [x] submitQc fails when QC already submitted → error flash
+
+#### assignSerials Authorization
+- [x] Guest redirected to login on assignSerials GET
+- [x] User without `inventory-movements.bulk-receive` permission gets 403
+- [x] Authorized user can view assignSerials form (200)
+
+#### assignSerials Happy Path
+- [x] assignSerials shows GRN lines with QC data
+- [x] assignSerials loads locations for dropdown
+
+#### assignSerials Validation Failures
+- [x] assignSerials fails when GRN is not complete → error flash
+- [x] assignSerials fails when PO status is not partially_received or received → error flash
+
+#### storeSerials Authorization
+- [x] Guest redirected to login on storeSerials POST
+- [x] User without `inventory-movements.bulk-receive` permission gets 403
+- [x] Authorized user can storeSerials with valid data → redirects with flash
+
+#### storeSerials Happy Path
+- [x] storeSerials creates InventorySerial records for qty_passed
+- [x] storeSerials creates InventoryMovement records with goods_receipt_id
+- [x] storeSerials skips lines with qty_passed = 0
+
+#### storeSerials Validation Failures
+- [x] storeSerials fails when QC not submitted → error flash
+- [x] storeSerials fails when PO status is not partially_received or received → error flash
+
+---
+
+### Unit: `GoodsReceiptServiceQcTest`
+
+**File:** `tests/Unit/Services/GoodsReceiptServiceQcTest.php`
+
+#### submitQc Happy Path
+- [x] `submitQc()` sets qty_passed on GRN lines
+- [x] `submitQc()` sets qty_failed on GRN lines
+- [x] `submitQc()` sets qc_inspected_at timestamp
+- [x] `submitQc()` sets qc_inspected_by to inspector user ID
+- [x] `submitQc()` returns fresh GoodsReceipt with lines loaded
+- [x] `submitQc()` calls PurchaseOrderService::passQualityCheck
+- [x] `submitQc()` with multiple lines all pass
+
+#### submitQc Validation Failures
+- [x] `submitQc()` throws DomainException when GRN status is not complete
+- [x] `submitQc()` throws DomainException when PO status is not quality_check
+- [x] `submitQc()` throws DomainException when QC already submitted
+- [x] `submitQc()` throws DomainException when qty_passed + qty_failed !== qty_received
+- [x] `submitQc()` throws DomainException when qty_passed + qty_failed > qty_received
+- [x] `submitQc()` throws DomainException for invalid goods_receipt_line_id
+
+#### submitQc Transaction Safety (TOCTOU)
+- [x] `submitQc()` rolls back all changes if validation fails mid-transaction
+
+---
+
+### Unit: `InventoryMovementServiceBulkReceiveFromGrnTest`
+
+**File:** `tests/Unit/Services/InventoryMovementServiceBulkReceiveFromGrnTest.php`
+
+#### bulkReceiveFromGrn Happy Path
+- [x] `bulkReceiveFromGrn()` creates InventorySerial for each qty_passed unit
+- [x] `bulkReceiveFromGrn()` creates InventoryMovement for each serial with goods_receipt_id
+- [x] `bulkReceiveFromGrn()` skips lines with qty_passed = 0
+- [x] `bulkReceiveFromGrn()` returns Collection of InventorySerial
+- [x] `bulkReceiveFromGrn()` with multiple lines
+- [x] `bulkReceiveFromGrn()` creates serials in correct location
+- [x] `bulkReceiveFromGrn()` sets purchase_price on movements
+
+#### bulkReceiveFromGrn Validation Failures
+- [x] `bulkReceiveFromGrn()` throws DomainException when QC not submitted on any line
+- [x] `bulkReceiveFromGrn()` throws DomainException when PO status is not partially_received or received
+- [x] `bulkReceiveFromGrn()` throws DomainException when PO status is draft
+- [x] `bulkReceiveFromGrn()` throws DomainException when GRN line not found
+
+#### bulkReceiveFromGrn Serial Details
+- [x] `bulkReceiveFromGrn()` creates serials with correct serial_number format (SN-YYYY-XXXXXX)
+- [x] `bulkReceiveFromGrn()` creates serials with correct product_id
+- [x] `bulkReceiveFromGrn()` creates serials with InStock status
+- [x] `bulkReceiveFromGrn()` creates movements with correct type (receive)
+
+#### bulkReceiveFromGrn Transaction Safety
+- [x] `bulkReceiveFromGrn()` wraps all operations in a transaction
+
+#### bulkReceiveFromGrn Edge Cases
+- [x] `bulkReceiveFromGrn()` handles qty_passed = 0 on some lines but not all

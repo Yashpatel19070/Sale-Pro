@@ -11,17 +11,15 @@ class StoreGoodsReceiptRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return $this->isMethod('PUT')
-            ? $this->user()->can(Permission::GOODS_RECEIPTS_UPDATE)
-            : $this->user()->can(Permission::GOODS_RECEIPTS_CREATE);
+        return $this->user()->can(Permission::GOODS_RECEIPTS_CREATE);
     }
 
     public function prepareForValidation(): void
     {
-        if (is_array($this->lines)) {
+        if (is_array($this->input('lines'))) {
             $filtered = array_values(
                 array_filter(
-                    $this->lines,
+                    $this->input('lines'),
                     fn ($l) => isset($l['qty_received']) && (float) $l['qty_received'] > 0
                 )
             );

@@ -70,7 +70,7 @@ graph TD
 | 3 | Record adjustment — mark serial damaged or missing with reason | POST `/admin/inventory-movements` |
 | 4 | Movement history — paginated log filterable by serial, location, type, date | GET `/admin/inventory-movements` |
 | 5 | Serial timeline — all movements for one serial (used on serial show page) | GET `/admin/inventory-serials/{serial}/movements` |
-| 6 | Bulk receive — auto-generate N serials for one SKU, batch insert, print Code128 labels | GET+POST `/admin/inventory-movements/bulk-receive` |
+| 6 | Bulk receive — auto-generate N serials for one SKU, batch insert, print Code128 labels; accepts `?product_id=X&qty=Y` query params to pre-fill from PO show "Assign Serials" link (each GRN line gets its own link) | GET+POST `/admin/inventory-movements/bulk-receive` |
 | 7 | Print labels — render generated serials as printable barcode label sheet | GET `/admin/inventory-movements/bulk-receive/print` |
 
 > NOTE: `receive` movements are created automatically by `InventoryMovementService::receive()`
@@ -155,7 +155,9 @@ graph TD
 - **All serial creation lives in InventoryMovementService** — single source of truth for single and bulk receive
 - **Print view uses JsBarcode locally** — download `JsBarcode.all.min.js` from jsDelivr, save to `public/js/jsbarcode.min.js`; CDN silently fails without internet
 - **Manual receive is for external/manufacturer serials only** — never enter `SN-YYYY-NNNNNN` format manually; that range belongs to `bulkReceive()`. Collision = unique constraint crash.
-- **Immutability** — no `update()`, `delete()`, or `SoftDeletes` on `InventoryMovement`
+- **Immutability** — no `update()`, `delete()`, or `SoftDeletes` on `InventoryMovement`; policy `update()`/`delete()` return `false` as defensive guards (no routes exist for them — this is intentional)
+- **View authorization** — views use `@can('inventory-movements.transfer')` etc. with raw permission strings, NOT `@can('create', InventoryMovement::class)`. Intentional: UI show/hide uses permissions directly; controller uses policy. Both must agree on which roles get each permission.
+- **bulkReceive() service re-validates qty 1–500** — redundant with request, but guards direct service calls from non-HTTP paths
 - **Atomic writes** — every service method wraps both the movement insert and the serial update in `DB::transaction()`
 - **TOCTOU guard inside transaction** — status and location checks happen inside the transaction, not before
 - **Validation** — cannot transfer/sell a serial with `status != in_stock`

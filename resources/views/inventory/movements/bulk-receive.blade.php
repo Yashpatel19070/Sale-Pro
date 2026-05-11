@@ -19,7 +19,7 @@
         @endif
 
         <form method="POST" action="{{ route('inventory-movements.bulk-receive.store') }}"
-              x-data="{ qty: {{ old('qty', 1) }} }">
+              x-data="{ qty: {{ old('qty', $prefilledQty > 0 ? $prefilledQty : 1) }} }">
             @csrf
 
             <div class="bg-white shadow-sm rounded-lg divide-y divide-gray-100">
@@ -36,7 +36,7 @@
                         <option value="">Select a product…</option>
                         @foreach ($products as $product)
                             <option value="{{ $product->id }}"
-                                    {{ old('product_id') == $product->id ? 'selected' : '' }}>
+                                    {{ (old('product_id', $prefilledProductId) == $product->id) ? 'selected' : '' }}>
                                 {{ $product->sku }} — {{ $product->name }}
                             </option>
                         @endforeach
@@ -54,7 +54,7 @@
                     <input type="number" id="qty" name="qty"
                            x-model.number="qty"
                            min="1" max="500"
-                           value="{{ old('qty', 1) }}"
+                           value="{{ old('qty', $prefilledQty > 0 ? $prefilledQty : 1) }}"
                            class="block w-32 rounded-md border-gray-300 shadow-sm text-sm
                                   focus:border-indigo-500 focus:ring-indigo-500
                                   @error('qty') border-red-300 @enderror">

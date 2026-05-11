@@ -14,50 +14,6 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(RefreshDatabase::class);
 
-function poAdminUser(): User
-{
-    $user = User::factory()->create();
-    $user->givePermissionTo([
-        Permission::PURCHASE_ORDERS_VIEW_ANY,
-        Permission::PURCHASE_ORDERS_VIEW,
-        Permission::PURCHASE_ORDERS_CREATE,
-        Permission::PURCHASE_ORDERS_UPDATE,
-        Permission::PURCHASE_ORDERS_DELETE,
-        Permission::PURCHASE_ORDERS_RESTORE,
-        Permission::PURCHASE_ORDERS_SUBMIT,
-        Permission::PURCHASE_ORDERS_APPROVE,
-        Permission::PURCHASE_ORDERS_REJECT,
-        Permission::PURCHASE_ORDERS_CANCEL,
-        Permission::GOODS_RECEIPTS_VIEW_ANY,
-        Permission::GOODS_RECEIPTS_VIEW,
-        Permission::GOODS_RECEIPTS_CREATE,
-        Permission::GOODS_RECEIPTS_DELETE,
-        Permission::INVOICES_VIEW_ANY,
-        Permission::INVOICES_VIEW,
-        Permission::INVOICES_CREATE,
-        Permission::INVOICES_APPROVE,
-        Permission::INVOICES_MARK_PAID,
-        Permission::INVOICES_DELETE,
-    ]);
-
-    return $user;
-}
-
-function poSalesUser(): User
-{
-    $user = User::factory()->create();
-    $user->givePermissionTo([
-        Permission::PURCHASE_ORDERS_VIEW_ANY,
-        Permission::PURCHASE_ORDERS_VIEW,
-        Permission::GOODS_RECEIPTS_VIEW_ANY,
-        Permission::GOODS_RECEIPTS_VIEW,
-        Permission::INVOICES_VIEW_ANY,
-        Permission::INVOICES_VIEW,
-    ]);
-
-    return $user;
-}
-
 beforeEach(function () {
     $this->seed(RoleSeeder::class);
     $this->seed(PurchaseOrderPermissionSeeder::class);
@@ -426,4 +382,117 @@ it('sales user can view the print page', function () {
     $this->actingAs(poSalesUser())
         ->get(route('purchase-orders.print', $po))
         ->assertOk();
+});
+
+// ── Quality Check ─────────────────────────────────────────────────────────────
+
+it('admin can pass quality check on a purchase order', function () {
+    $po = PurchaseOrder::factory()->create([
+        'supplier_id' => $this->supplier->id,
+        'status' => PurchaseOrderStatus::QualityCheck,
+    ]);
+
+    $this->actingAs(poAdminUser())
+        ->post(route('purchase-orders.qualityCheck', $po), ['qc_notes' => 'All items passed inspection'])
+        ->assertRedirect(route('purchase-orders.show', $po));
+
+    $this->assertDatabaseHas('purchase_orders', [
+        'id' => $po->id,
+        'status' => PurchaseOrderStatus::Received->value,
+        'qc_notes' => 'All items passed inspection',
+    ]);
+});
+
+it('admin can pass quality check without qc_notes', function () {
+    $po = PurchaseOrder::factory()->create([
+        'supplier_id' => $this->supplier->id,
+        'status' => PurchaseOrderStatus::QualityCheck,
+    ]);
+
+    $this->actingAs(poAdminUser())
+        ->post(route('purchase-orders.qualityCheck', $po), [])
+        ->assertRedirect(route('purchase-orders.show', $po));
+
+    $this->assertDatabaseHas('purchase_orders', [
+        'id' => $po->id,
+        'status' => PurchaseOrderStatus::Received->value,
+    ]);
+});
+
+it('quality check returns success flash message', function () {
+    $po = PurchaseOrder::factory()->create([
+        'supplier_id' => $this->supplier->id,
+        'status' => PurchaseOrderStatus::QualityCheck,
+    ]);
+
+    $this->actingAs(poAdminUser())
+        ->post(route('purchase-orders.qualityCheck', $po), [])
+        ->assertSessionHas('success', 'Quality check passed. Purchase order marked as received.');
+});
+
+it('manager can pass quality check', function () {
+    $user = User::factory()->create();
+    $user->givePermissionTo([
+        Permission::PURCHASE_ORDERS_VIEW_ANY,
+        Permission::PURCHASE_ORDERS_VIEW,
+        Permission::PURCHASE_ORDERS_QUALITY_CHECK,
+        Permission::GOODS_RECEIPTS_VIEW_ANY,
+        Permission::GOODS_RECEIPTS_VIEW,
+    ]);
+
+    $po = PurchaseOrder::factory()->create([
+        'supplier_id' => $this->supplier->id,
+        'status' => PurchaseOrderStatus::QualityCheck,
+    ]);
+
+    $this->actingAs($user)
+        ->post(route('purchase-orders.qualityCheck', $po), [])
+        ->assertRedirect(route('purchase-orders.show', $po));
+});
+
+it('sales user cannot pass quality check', function () {
+    $po = PurchaseOrder::factory()->create([
+        'supplier_id' => $this->supplier->id,
+        'status' => PurchaseOrderStatus::QualityCheck,
+    ]);
+
+    $this->actingAs(poSalesUser())
+        ->post(route('purchase-orders.qualityCheck', $po), [])
+        ->assertForbidden();
+});
+
+it('quality check fails when purchase order status is not quality_check', function () {
+    $po = PurchaseOrder::factory()->create([
+        'supplier_id' => $this->supplier->id,
+        'status' => PurchaseOrderStatus::Draft,
+    ]);
+
+    $this->actingAs(poAdminUser())
+        ->post(route('purchase-orders.qualityCheck', $po), [])
+        ->assertRedirect(route('purchase-orders.show', $po))
+        ->assertSessionHasErrors('error');
+});
+
+it('quality check fails when purchase order status is received', function () {
+    $po = PurchaseOrder::factory()->create([
+        'supplier_id' => $this->supplier->id,
+        'status' => PurchaseOrderStatus::Received,
+    ]);
+
+    $this->actingAs(poAdminUser())
+        ->post(route('purchase-orders.qualityCheck', $po), [])
+        ->assertRedirect(route('purchase-orders.show', $po))
+        ->assertSessionHasErrors('error');
+});
+
+it('quality check fails when purchase order status is partially_received', function () {
+    $po = PurchaseOrder::factory()->create([
+        'supplier_id' => $this->supplier->id,
+        'status' => PurchaseOrderStatus::PartiallyReceived,
+    ]);
+
+    $this->actingAs(poAdminUser())
+        ->post(route('purchase-orders.qualityCheck', $po), [])
+        ->assertRedirect(route('purchase-orders.show', $po))
+        ->assertSessionHasErrors('error');
 });

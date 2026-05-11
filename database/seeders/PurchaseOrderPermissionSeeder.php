@@ -27,6 +27,7 @@ class PurchaseOrderPermissionSeeder extends Seeder
             Permission::PURCHASE_ORDERS_APPROVE,
             Permission::PURCHASE_ORDERS_REJECT,
             Permission::PURCHASE_ORDERS_CANCEL,
+            Permission::PURCHASE_ORDERS_QUALITY_CHECK,
             Permission::GOODS_RECEIPTS_VIEW_ANY,
             Permission::GOODS_RECEIPTS_VIEW,
             Permission::GOODS_RECEIPTS_CREATE,

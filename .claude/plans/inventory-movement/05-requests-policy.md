@@ -179,6 +179,8 @@ class StoreBulkReceiveRequest extends FormRequest
             'inventory_location_id' => ['required', 'integer', 'exists:inventory_locations,id'],
             'purchase_price'        => ['required', 'numeric', 'min:0', 'max:999999.99'],
             'source_ref'            => ['nullable', 'string', 'max:100'],
+            // grn_id intentionally absent — standalone bulk-receive never has a GRN.
+            // QC serial assignment uses GoodsReceiptController::storeSerials() + StoreGrnSerialRequest instead.
         ];
     }
 

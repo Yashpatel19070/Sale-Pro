@@ -59,4 +59,14 @@ class PurchaseOrderPolicy
     {
         return $user->can(Permission::PURCHASE_ORDERS_CANCEL);
     }
+
+    public function markOnTheWay(User $user, PurchaseOrder $po): bool
+    {
+        return $user->can(Permission::PURCHASE_ORDERS_UPDATE);
+    }
+
+    public function qualityCheck(User $user, PurchaseOrder $po): bool
+    {
+        return $user->can(Permission::PURCHASE_ORDERS_QUALITY_CHECK);
+    }
 }

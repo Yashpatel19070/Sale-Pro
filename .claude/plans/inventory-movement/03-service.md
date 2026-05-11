@@ -301,6 +301,48 @@ public function receive(array $data, User $receivedBy): InventorySerial
 
 ---
 
+## bulkReceiveFromGrn() — QC-Triggered Serial Generation
+
+**Single source of truth:** all serial generation lives in `InventoryMovementService`.
+`bulkReceiveFromGrn()` is the QC-flow entry point; it delegates to `bulkReceive()` internally.
+
+```php
+/**
+ * Generate serials for a completed, QC-inspected GRN.
+ * goods_receipt_id is always $grn->id — never null, never from request.
+ *
+ * @param  GoodsReceipt  $grn   route-bound model, already loaded with lines.purchaseOrderLine.product
+ * @param  array{
+ *     lines: array<int, array{
+ *         goods_receipt_line_id: int,
+ *         inventory_location_id: int,
+ *         purchase_price: numeric-string|float,
+ *     }>
+ * }  $data   from StoreGrnSerialRequest — no qty, no product_id, no grn_id
+ * @param  User  $user
+ * @return \Illuminate\Database\Eloquent\Collection<int, InventorySerial>
+ * @throws \DomainException  if QC not submitted, PO status invalid, or line not found
+ */
+public function bulkReceiveFromGrn(GoodsReceipt $grn, array $data, User $user): Collection
+```
+
+#### Rules
+- Wraps entirely in `DB::transaction()` — guards inside (TOCTOU rule)
+- Inside transaction (order matters):
+  1. Guard: throw `DomainException` if `InventoryMovement::where('goods_receipt_id', $grn->id)->exists()` — prevents double assignment. Uses existing FK column, no schema change needed.
+  2. Guard: throw `DomainException` if any GRN line has `qty_passed IS NULL` (QC not submitted)
+  3. Guard: throw `DomainException` if PO status not in `[partially_received, received]`
+  - For each `$data['lines']`:
+    - Loads `GoodsReceiptLine` by `goods_receipt_line_id` from `$grn->lines`
+    - Reads `qty = $grnLine->qty_passed` — NOT from request (immutable at QC time)
+    - Skips lines where `qty_passed === 0`
+    - Calls `$this->bulkReceive([..., 'goods_receipt_id' => $grn->id], $user)`
+    - `goods_receipt_id` is always `$grn->id` — set here, never from HTTP input
+- Returns flat `Collection` of all generated `InventorySerial` records across all lines
+- **Edge case:** if ALL lines have `qty_passed = 0`, no movements are created — double-assignment guard will not block a retry (correct behaviour: nothing was assigned)
+
+---
+
 ## bulkReceive() — Batch Serial Auto-Generation
 
 ```php
@@ -316,6 +358,7 @@ public function receive(array $data, User $receivedBy): InventorySerial
  *     inventory_location_id: int,
  *     purchase_price: numeric-string|float,
  *     source_ref?: string|null,
+ *     goods_receipt_id?: int|null,  // set by GoodsReceiptService::bulkReceiveFromGrn() only — never from HTTP request
  * }  $data
  * @param  User  $receivedBy
  * @return \Illuminate\Database\Eloquent\Collection<int, InventorySerial>
@@ -375,6 +418,7 @@ public function bulkReceive(array $data, User $receivedBy): Collection
             ->get();
 
         // 5. Batch INSERT movements — 1 query regardless of N
+        // goods_receipt_id: null for standalone receives; set by InventoryMovementService::bulkReceiveFromGrn()
         $movementRows = $serials->map(fn (InventorySerial $serial) => [
             'inventory_serial_id' => $serial->id,
             'type'                => MovementType::Receive->value,
@@ -384,6 +428,7 @@ public function bulkReceive(array $data, User $receivedBy): Collection
             'reference'           => $data['source_ref'] ?? null,
             'notes'               => null,
             'user_id'             => $receivedBy->id,
+            'goods_receipt_id'    => $data['goods_receipt_id'] ?? null,
             'created_at'          => $now,
             'updated_at'          => $now,
         ])->toArray();
@@ -481,6 +526,20 @@ $allowedStatuses = [SerialStatus::Damaged->value, SerialStatus::Missing->value];
 ```
 
 This keeps the guard in sync with the `SerialStatus` enum automatically.
+
+### 10. No double assignment — `bulkReceiveFromGrn()` is idempotent-blocked
+
+`bulkReceiveFromGrn()` checks `InventoryMovement::where('goods_receipt_id', $grn->id)->exists()` inside the transaction
+before creating any serials. If movements already exist for this GRN, it throws `DomainException`.
+
+- No schema change — uses the existing `goods_receipt_id` FK on `inventory_movements`
+- Guard is INSIDE the transaction for TOCTOU safety (concurrent duplicate requests blocked)
+- Exception: if ALL lines have `qty_passed = 0`, no movements are written — retry is allowed
+
+The controller (`GoodsReceiptController::assignSerials`) mirrors this check as a UI gate:
+redirects to GRN show with an error if movements already exist, preventing the form from rendering.
+
+---
 
 ### 8. `historyForSerial()` is intentionally unpaginated
 

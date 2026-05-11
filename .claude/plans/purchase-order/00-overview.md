@@ -40,6 +40,7 @@ Manage the full procurement lifecycle: create POs against suppliers, get manager
 | 9 | Cancel PO — any status, soft record |
 | 10 | Soft delete / restore |
 | 11 | Print view — browser print / save as PDF (HTML + print CSS, no package) |
+| 12 | Pass Quality Check — physical inspection step after full receipt; optional notes; sets PO to `received` |
 
 ### Goods Receipt (GRN)
 | # | Feature |
@@ -47,7 +48,7 @@ Manage the full procurement lifecycle: create POs against suppliers, get manager
 | 1 | Create GRN — against approved/on_the_way/partially_received PO, saved as draft |
 | 2 | Edit GRN — draft only, fix qty mistakes freely |
 | 3 | Complete GRN — locks record, commits qty_received to PO lines, recalculates PO status |
-| 4 | Auto-update PO status → `partially_received` or `received` on complete |
+| 4 | Auto-update PO status → `partially_received` or `quality_check` on complete |
 | 5 | View / list GRNs per PO |
 | 6 | Soft delete GRN — draft only |
 
@@ -167,13 +168,14 @@ Manage the full procurement lifecycle: create POs against suppliers, get manager
 
 ```
 draft → pending_approval → approved → on_the_way
-  → partially_received OR received
-  → quality_check
+  → partially_received  (more GRNs still allowed)
+  → quality_check       (all qty received, pending physical inspection)
+  → received            (QC passed — serials can now be assigned via bulk receive)
   → invoiced
   → closed
 
 any stage → cancelled
-received/partially_received → returning → returned
+received/partially_received → returning → returned  (future)
 ```
 
 | Status | Meaning |
@@ -183,12 +185,12 @@ received/partially_received → returning → returned
 | `rejected` | Manager rejected, user must fix + resubmit |
 | `approved` | Approved, ready to ship |
 | `on_the_way` | Supplier shipped, not yet arrived |
-| `partially_received` | Some qty received via GRN |
-| `received` | All qty received |
-| `quality_check` | Goods under inspection before stock update — **V2 only, not reachable in V1** |
+| `partially_received` | Some qty received via GRN — more GRNs allowed |
+| `quality_check` | All qty received; awaiting physical inspection before stock update |
+| `received` | QC passed — invoice can be created; serials assignable via Inventory → Bulk Receive |
 | `invoiced` | Invoice matched, awaiting payment |
-| `returning` | Goods being returned to supplier |
-| `returned` | Return complete |
+| `returning` | Goods being returned to supplier — future |
+| `returned` | Return complete — future |
 | `closed` | Paid and complete |
 | `cancelled` | Terminated at any stage |
 
@@ -207,6 +209,7 @@ received/partially_received → returning → returned
 | approve | ✅ | ✅ | ✅ | ❌ |
 | reject | ✅ | ✅ | ✅ | ❌ |
 | cancel | ✅ | ✅ | ✅ | ❌ |
+| qualityCheck | ✅ | ✅ | ✅ | ❌ |
 
 ### Goods Receipts
 | Permission | Super Admin | Admin | Manager | Sales |

@@ -17,12 +17,14 @@ const PURCHASE_ORDERS_RESTORE  = 'purchase_orders.restore';
 const PURCHASE_ORDERS_SUBMIT   = 'purchase_orders.submit';
 const PURCHASE_ORDERS_APPROVE  = 'purchase_orders.approve';
 const PURCHASE_ORDERS_REJECT   = 'purchase_orders.reject';
-const PURCHASE_ORDERS_CANCEL   = 'purchase_orders.cancel';
+const PURCHASE_ORDERS_CANCEL         = 'purchase_orders.cancel';
+const PURCHASE_ORDERS_QUALITY_CHECK  = 'purchase_orders.qualityCheck';
 
 // Goods Receipts
 const GOODS_RECEIPTS_VIEW_ANY = 'goods_receipts.viewAny';
 const GOODS_RECEIPTS_VIEW     = 'goods_receipts.view';
 const GOODS_RECEIPTS_CREATE   = 'goods_receipts.create';
+const GOODS_RECEIPTS_UPDATE   = 'goods_receipts.update';
 const GOODS_RECEIPTS_DELETE   = 'goods_receipts.delete';
 
 // Invoices
@@ -68,9 +70,11 @@ class PurchaseOrderPermissionSeeder extends Seeder
             Permission::PURCHASE_ORDERS_APPROVE,
             Permission::PURCHASE_ORDERS_REJECT,
             Permission::PURCHASE_ORDERS_CANCEL,
+            Permission::PURCHASE_ORDERS_QUALITY_CHECK,
             Permission::GOODS_RECEIPTS_VIEW_ANY,
             Permission::GOODS_RECEIPTS_VIEW,
             Permission::GOODS_RECEIPTS_CREATE,
+            Permission::GOODS_RECEIPTS_UPDATE,
             Permission::GOODS_RECEIPTS_DELETE,
             Permission::INVOICES_VIEW_ANY,
             Permission::INVOICES_VIEW,
@@ -130,6 +134,7 @@ class PurchaseOrderPermissionSeeder extends Seeder
 | `purchase_orders.approve` | ✅ | ✅ | ✅ | ❌ |
 | `purchase_orders.reject` | ✅ | ✅ | ✅ | ❌ |
 | `purchase_orders.cancel` | ✅ | ✅ | ✅ | ❌ |
+| `purchase_orders.qualityCheck` | ✅ | ✅ | ✅ | ❌ |
 
 ### Goods Receipts
 | Permission | Super Admin | Admin | Manager | Sales |
@@ -176,6 +181,7 @@ Route::prefix('purchase-orders')->name('purchase-orders.')->group(function () {
     Route::post('/{purchaseOrder}/approve',                  [PurchaseOrderController::class, 'approve'])->name('approve');
     Route::post('/{purchaseOrder}/reject',                   [PurchaseOrderController::class, 'reject'])->name('reject');
     Route::post('/{purchaseOrder}/on-the-way',               [PurchaseOrderController::class, 'markOnTheWay'])->name('markOnTheWay');
+    Route::post('/{purchaseOrder}/quality-check',            [PurchaseOrderController::class, 'qualityCheck'])->name('qualityCheck');
     Route::post('/{purchaseOrder}/cancel',                   [PurchaseOrderController::class, 'cancel'])->name('cancel');
     Route::get('/{purchaseOrder}/print',                     [PurchaseOrderController::class, 'print'])->name('print');
 

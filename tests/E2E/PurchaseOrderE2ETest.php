@@ -839,7 +839,7 @@ it('[GRN-16] admin POST complete on draft GRN with full qty → GRN complete, PO
     ]);
     $this->assertDatabaseHas('purchase_orders', [
         'id' => $po->id,
-        'status' => PurchaseOrderStatus::Received->value,
+        'status' => PurchaseOrderStatus::QualityCheck->value,
     ]);
     $this->assertDatabaseHas('purchase_order_lines', [
         'id' => $poLine->id,
@@ -878,7 +878,7 @@ it('[GRN-17] admin POST complete on draft GRN with partial qty (5 of 10) → GRN
     ]);
     $this->assertDatabaseHas('purchase_orders', [
         'id' => $po->id,
-        'status' => PurchaseOrderStatus::PartiallyReceived->value,
+        'status' => PurchaseOrderStatus::QualityCheck->value,
     ]);
 });
 
@@ -1370,7 +1370,17 @@ it('[J-01] full procurement pipeline: draft → submit → approve → GRN → c
         ->post(route('purchase-orders.goods-receipts.complete', [$po, $grn]))
         ->assertRedirect();
 
-    // 6. Assert PO status=received
+    // 6. Assert PO status=quality_check (any GRN completion triggers QC gate)
+    $this->assertDatabaseHas('purchase_orders', [
+        'id' => $po->id,
+        'status' => PurchaseOrderStatus::QualityCheck->value,
+    ]);
+
+    // 6b. POST purchase-orders.qualityCheck → received (all 10 units received)
+    $this->actingAs($this->admin)
+        ->post(route('purchase-orders.qualityCheck', $po), ['qc_notes' => null])
+        ->assertRedirect();
+
     $this->assertDatabaseHas('purchase_orders', [
         'id' => $po->id,
         'status' => PurchaseOrderStatus::Received->value,
@@ -1446,6 +1456,17 @@ it('[J-02] partial then full receive: first GRN sets partially_received, second 
         ->post(route('purchase-orders.goods-receipts.complete', [$po, $grn1]))
         ->assertRedirect();
 
+    // Any GRN completion triggers quality_check gate
+    $this->assertDatabaseHas('purchase_orders', [
+        'id' => $po->id,
+        'status' => PurchaseOrderStatus::QualityCheck->value,
+    ]);
+
+    // Pass QC → partially_received (4 of 10 received)
+    $this->actingAs($this->admin)
+        ->post(route('purchase-orders.qualityCheck', $po), ['qc_notes' => null])
+        ->assertRedirect();
+
     $this->assertDatabaseHas('purchase_orders', [
         'id' => $po->id,
         'status' => PurchaseOrderStatus::PartiallyReceived->value,
@@ -1468,6 +1489,17 @@ it('[J-02] partial then full receive: first GRN sets partially_received, second 
 
     $this->actingAs($this->admin)
         ->post(route('purchase-orders.goods-receipts.complete', [$po, $grn2]))
+        ->assertRedirect();
+
+    // Second GRN completion also triggers quality_check
+    $this->assertDatabaseHas('purchase_orders', [
+        'id' => $po->id,
+        'status' => PurchaseOrderStatus::QualityCheck->value,
+    ]);
+
+    // Pass QC → received (all 10 units received now)
+    $this->actingAs($this->admin)
+        ->post(route('purchase-orders.qualityCheck', $po), ['qc_notes' => null])
         ->assertRedirect();
 
     $this->assertDatabaseHas('purchase_orders', [

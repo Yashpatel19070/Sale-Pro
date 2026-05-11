@@ -5,7 +5,9 @@
     "scripts": {
         "build": "vite build",
         "dev": "vite",
-        "test:e2e": "php artisan migrate:fresh --seed --seeder=E2ESeeder && npx playwright test; php artisan db:seed"
+        "test:e2e": "php artisan migrate:fresh --seed --seeder=E2ESeeder && npx playwright test; php artisan db:seed",
+        "test:e2e:procurement": "php artisan migrate:fresh --seed && npx playwright test tests/Browser/procurement.spec.ts; php artisan db:seed",
+        "test:e2e:all": "php artisan migrate:fresh --seed && npx playwright test; php artisan db:seed"
     },
     "devDependencies": {
         "@playwright/test": "^1.59.1",

@@ -15,7 +15,7 @@
 ```
 supplier_id, status, expected_delivery_date, notes,
 subtotal, tax_total, grand_total,
-approved_by, approved_at, rejection_reason, created_by, po_number
+approved_by, approved_at, rejection_reason, qc_notes, created_by, po_number
 ```
 
 ### Casts
@@ -26,7 +26,10 @@ approved_by, approved_at, rejection_reason, created_by, po_number
 'subtotal'                => 'decimal:2',
 'tax_total'               => 'decimal:2',
 'grand_total'             => 'decimal:2',
+// qc_notes — nullable text, no cast needed (default string)
 ```
+
+> `qc_notes` is a nullable `text` column. It is in `$fillable` and auto-logged via `LogsActivity` (`logFillable()->logOnlyDirty()`) — no extra audit code needed.
 
 ### Relationships
 ```php
@@ -151,18 +154,28 @@ getActivitylogOptions(): LogOptions
 
 ### Fillable
 ```
-goods_receipt_id, purchase_order_line_id, qty_received, notes
+goods_receipt_id, purchase_order_line_id, qty_received,
+qty_passed, qty_failed, qc_inspected_at, qc_inspected_by, notes
 ```
 
 ### Casts
 ```php
-'qty_received' => 'decimal:2',
+'qty_received'    => 'decimal:2',
+'qc_inspected_at' => 'datetime',
 ```
 
 ### Relationships
 ```php
 goodsReceipt()       → belongsTo(GoodsReceipt::class)
 purchaseOrderLine()  → belongsTo(PurchaseOrderLine::class)
+qcInspectedBy()      → belongsTo(User::class, 'qc_inspected_by')
+```
+
+### Helper Methods
+```php
+qcDone(): bool      // qty_passed IS NOT NULL
+qcPassed(): int     // (int) ($this->qty_passed ?? 0)
+qcFailed(): int     // (int) ($this->qty_failed ?? 0)
 ```
 
 ---

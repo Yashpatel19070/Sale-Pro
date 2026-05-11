@@ -12,6 +12,7 @@ use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderLine;
 use App\Models\Supplier;
 use App\Models\User;
+use Database\Seeders\InventoryMovementPermissionSeeder;
 use Database\Seeders\PurchaseOrderPermissionSeeder;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -21,6 +22,7 @@ uses(RefreshDatabase::class);
 beforeEach(function () {
     $this->seed(RoleSeeder::class);
     $this->seed(PurchaseOrderPermissionSeeder::class);
+    $this->seed(InventoryMovementPermissionSeeder::class);
 
     $this->supplier = Supplier::factory()->create();
     $this->product = Product::factory()->create();
@@ -357,9 +359,11 @@ it('completing a full receipt sets PO status to received', function () {
     $this->actingAs($admin)
         ->post(route('purchase-orders.goods-receipts.complete', [$this->po, $grn]));
 
+    // Completing a GRN moves PO to quality_check (not received).
+    // received status only happens after QC is submitted via submitQc().
     $this->assertDatabaseHas('purchase_orders', [
         'id' => $this->po->id,
-        'status' => PurchaseOrderStatus::Received->value,
+        'status' => PurchaseOrderStatus::QualityCheck->value,
     ]);
 });
 
@@ -427,4 +431,88 @@ it('cannot delete a complete GRN', function () {
         ->assertSessionHasErrors();
 
     $this->assertDatabaseHas('goods_receipts', ['id' => $grn->id]);
+});
+
+// ── BUG-004: Edit form must load supplier ──────────────────────────────────────
+
+it('edit form loads supplier when rendering draft GRN', function () {
+    $admin = User::factory()->create();
+    $admin->givePermissionTo([
+        Permission::PURCHASE_ORDERS_VIEW_ANY,
+        Permission::PURCHASE_ORDERS_VIEW,
+        Permission::GOODS_RECEIPTS_VIEW_ANY,
+        Permission::GOODS_RECEIPTS_VIEW,
+        Permission::GOODS_RECEIPTS_UPDATE,
+    ]);
+
+    $supplier = Supplier::factory()->create(['name' => 'Test Supplier Inc']);
+    $po = PurchaseOrder::factory()->create([
+        'supplier_id' => $supplier->id,
+        'status' => PurchaseOrderStatus::Approved,
+    ]);
+
+    $grn = GoodsReceipt::factory()->create([
+        'purchase_order_id' => $po->id,
+        'status' => GoodsReceiptStatus::Draft,
+    ]);
+
+    $response = $this->actingAs($admin)
+        ->get(route('purchase-orders.goods-receipts.edit', [$po, $grn]));
+
+    $response->assertOk();
+    expect($response['purchaseOrder']->supplier)->not->toBeNull();
+    expect($response['purchaseOrder']->supplier->name)->toBe('Test Supplier Inc');
+});
+
+// ── BUG-006: Assign serials form must load supplier and receivedBy ────────────
+
+it('assign-serials form loads supplier and receivedBy when rendering', function () {
+    $admin = User::factory()->create();
+    $admin->givePermissionTo([
+        Permission::PURCHASE_ORDERS_VIEW_ANY,
+        Permission::PURCHASE_ORDERS_VIEW,
+        Permission::GOODS_RECEIPTS_VIEW_ANY,
+        Permission::GOODS_RECEIPTS_VIEW,
+        Permission::INVENTORY_MOVEMENTS_BULK_RECEIVE,
+    ]);
+
+    $supplier = Supplier::factory()->create(['name' => 'Acme Corp']);
+    $receiver = User::factory()->create(['name' => 'John Receiver']);
+
+    $po = PurchaseOrder::factory()->create([
+        'supplier_id' => $supplier->id,
+        'status' => PurchaseOrderStatus::Received,
+    ]);
+
+    $poLine = PurchaseOrderLine::factory()->create([
+        'purchase_order_id' => $po->id,
+        'product_id' => $this->product->id,
+        'qty_ordered' => 5,
+        'qty_received' => 5,
+    ]);
+
+    $grn = GoodsReceipt::factory()->create([
+        'purchase_order_id' => $po->id,
+        'status' => GoodsReceiptStatus::Complete,
+        'received_by' => $receiver->id,
+    ]);
+
+    GoodsReceiptLine::factory()->create([
+        'goods_receipt_id' => $grn->id,
+        'purchase_order_line_id' => $poLine->id,
+        'qty_received' => 5,
+        'qty_passed' => 5,
+        'qty_failed' => 0,
+        'qc_inspected_at' => now(),
+        'qc_inspected_by' => $admin->id,
+    ]);
+
+    $response = $this->actingAs($admin)
+        ->get(route('purchase-orders.goods-receipts.assignSerials', [$po, $grn]));
+
+    $response->assertOk();
+    expect($response['purchaseOrder']->supplier)->not->toBeNull();
+    expect($response['purchaseOrder']->supplier->name)->toBe('Acme Corp');
+    expect($response['goodsReceipt']->receivedBy)->not->toBeNull();
+    expect($response['goodsReceipt']->receivedBy->name)->toBe('John Receiver');
 });

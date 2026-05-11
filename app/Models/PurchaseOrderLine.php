@@ -19,14 +19,17 @@ class PurchaseOrderLine extends Model
         'unit_cost', 'tax_rate', 'line_total',
     ];
 
-    protected $casts = [
-        'qty_ordered' => 'decimal:2',
-        'qty_received' => 'decimal:2',
-        'qty_on_hand_snapshot' => 'decimal:2',
-        'unit_cost' => 'decimal:2',
-        'tax_rate' => 'decimal:2',
-        'line_total' => 'decimal:2',
-    ];
+    protected function casts(): array
+    {
+        return [
+            'qty_ordered' => 'decimal:2',
+            'qty_received' => 'decimal:2',
+            'qty_on_hand_snapshot' => 'decimal:2',
+            'unit_cost' => 'decimal:2',
+            'tax_rate' => 'decimal:2',
+            'line_total' => 'decimal:2',
+        ];
+    }
 
     public function purchaseOrder(): BelongsTo
     {

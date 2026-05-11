@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Enums\MovementType;
+use App\Enums\PurchaseOrderStatus;
 use App\Enums\SerialStatus;
+use App\Models\GoodsReceipt;
 use App\Models\InventoryLocation;
 use App\Models\InventoryMovement;
 use App\Models\InventorySerial;
@@ -327,6 +329,7 @@ class InventoryMovementService
                     'inventory_location_id' => $data['inventory_location_id'],
                     'serial_number' => $serialNumber,
                     'purchase_price' => $data['purchase_price'],
+                    'supplier_name' => $data['supplier_name'] ?? null,
                     'received_at' => $today,
                     'received_by_user_id' => $receivedBy->id,
                     'status' => SerialStatus::InStock->value,
@@ -350,6 +353,7 @@ class InventoryMovementService
                 'reference' => $data['source_ref'] ?? null,
                 'notes' => null,
                 'user_id' => $receivedBy->id,
+                'goods_receipt_id' => $data['goods_receipt_id'] ?? null,
                 'created_at' => $nowString,
                 'updated_at' => $nowString,
             ])->toArray();
@@ -357,6 +361,90 @@ class InventoryMovementService
             InventoryMovement::insert($movementRows);
 
             return $serials;
+        });
+    }
+
+    /**
+     * Generate serials for every QC-passed unit in a completed GRN.
+     * goods_receipt_id is always $grn->id — never null, never from HTTP input.
+     *
+     * @param  array{lines: array<int, array{goods_receipt_line_id: int, inventory_location_id: int, purchase_price: numeric-string|float}>}  $data
+     * @return Collection<int, InventorySerial>
+     *
+     * @throws \DomainException
+     */
+    public function bulkReceiveFromGrn(GoodsReceipt $grn, array $data, User $user): Collection
+    {
+        return DB::transaction(function () use ($grn, $data, $user): Collection {
+            $grn->refresh();
+            $grn->load(['lines.purchaseOrderLine.product', 'purchaseOrder']);
+
+            throw_if(
+                InventoryMovement::where('goods_receipt_id', $grn->id)->exists(),
+                \DomainException::class,
+                'Serials have already been assigned for this goods receipt.'
+            );
+
+            $anyNotInspected = $grn->lines->some(fn ($l) => $l->qty_passed === null);
+            throw_if(
+                $anyNotInspected,
+                \DomainException::class,
+                'QC has not been submitted for all lines on this goods receipt.'
+            );
+
+            $allowedPoStatuses = [
+                PurchaseOrderStatus::PartiallyReceived,
+                PurchaseOrderStatus::Received,
+            ];
+            throw_if(
+                ! in_array($grn->purchaseOrder->status, $allowedPoStatuses, true),
+                \DomainException::class,
+                'Serial assignment requires the purchase order to be in received or partially received status.'
+            );
+
+            $allSerials = new Collection;
+
+            foreach ($data['lines'] as $lineData) {
+                $grnLine = $grn->lines->firstWhere('id', $lineData['goods_receipt_line_id']);
+
+                throw_if(
+                    ! $grnLine,
+                    \DomainException::class,
+                    "Goods receipt line {$lineData['goods_receipt_line_id']} not found on this GRN."
+                );
+
+                $qty = $grnLine->qcPassed();
+
+                if ($qty === 0) {
+                    continue;
+                }
+
+                $serials = $this->bulkReceive([
+                    'product_id' => $grnLine->purchaseOrderLine->product_id,
+                    'qty' => $qty,
+                    'inventory_location_id' => $lineData['inventory_location_id'],
+                    'purchase_price' => $lineData['purchase_price'],
+                    'source_ref' => $grn->grn_number,
+                    'goods_receipt_id' => $grn->id,
+                    'supplier_name' => $grn->purchaseOrder->supplier->name,
+                ], $user);
+
+                $allSerials = $allSerials->concat($serials);
+            }
+
+            if ($allSerials->isNotEmpty()) {
+                activity()
+                    ->causedBy($user)
+                    ->performedOn($grn)
+                    ->withProperties([
+                        'grn_number' => $grn->grn_number,
+                        'serials_generated' => $allSerials->count(),
+                        'serial_numbers' => $allSerials->pluck('serial_number')->all(),
+                    ])
+                    ->log('serials_generated');
+            }
+
+            return $allSerials;
         });
     }
 }

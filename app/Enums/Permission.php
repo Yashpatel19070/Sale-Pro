@@ -180,6 +180,8 @@ class Permission
 
     const PURCHASE_ORDERS_CANCEL = 'purchase_orders.cancel';
 
+    const PURCHASE_ORDERS_QUALITY_CHECK = 'purchase_orders.qualityCheck';
+
     // Goods Receipts
     const GOODS_RECEIPTS_VIEW_ANY = 'goods_receipts.viewAny';
 

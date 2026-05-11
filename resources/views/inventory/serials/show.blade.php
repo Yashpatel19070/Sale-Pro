@@ -126,6 +126,7 @@
                                 <th class="px-4 py-2 text-left text-xs font-medium uppercase text-gray-500">Type</th>
                                 <th class="px-4 py-2 text-left text-xs font-medium uppercase text-gray-500">From</th>
                                 <th class="px-4 py-2 text-left text-xs font-medium uppercase text-gray-500">To</th>
+                                <th class="px-4 py-2 text-left text-xs font-medium uppercase text-gray-500">Source</th>
                                 <th class="px-4 py-2 text-left text-xs font-medium uppercase text-gray-500">Notes</th>
                             </tr>
                         </thead>
@@ -145,6 +146,23 @@
                                     </td>
                                     <td class="px-4 py-2 font-mono text-sm text-gray-600">
                                         {{ $movement->toLocation?->code ?? '—' }}
+                                    </td>
+                                    <td class="px-4 py-2 text-sm text-gray-600">
+                                        @if($movement->goodsReceipt)
+                                            <a href="{{ route('purchase-orders.goods-receipts.show', [$movement->goodsReceipt->purchaseOrder, $movement->goodsReceipt]) }}"
+                                               class="font-mono text-xs text-indigo-600 hover:underline">
+                                                {{ $movement->goodsReceipt->grn_number }}
+                                            </a>
+                                            <div class="text-xs text-gray-400">
+                                                <a href="{{ route('purchase-orders.show', $movement->goodsReceipt->purchaseOrder) }}"
+                                                   class="hover:underline">
+                                                    {{ $movement->goodsReceipt->purchaseOrder->po_number }}
+                                                </a>
+                                                — {{ $movement->goodsReceipt->purchaseOrder->supplier->name }}
+                                            </div>
+                                        @else
+                                            <span class="text-gray-400">—</span>
+                                        @endif
                                     </td>
                                     <td class="px-4 py-2 text-sm text-gray-600">
                                         {{ $movement->notes ?? '—' }}

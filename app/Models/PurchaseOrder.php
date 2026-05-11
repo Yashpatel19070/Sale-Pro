@@ -11,8 +11,8 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
-use Spatie\Activitylog\Support\LogOptions;
 use Spatie\Activitylog\Models\Concerns\LogsActivity;
+use Spatie\Activitylog\Support\LogOptions;
 
 class PurchaseOrder extends Model
 {
@@ -21,17 +21,20 @@ class PurchaseOrder extends Model
     protected $fillable = [
         'supplier_id', 'po_number', 'status', 'expected_delivery_date', 'notes',
         'subtotal', 'tax_total', 'grand_total',
-        'approved_by', 'approved_at', 'rejection_reason', 'created_by',
+        'approved_by', 'approved_at', 'rejection_reason', 'qc_notes', 'created_by',
     ];
 
-    protected $casts = [
-        'status' => PurchaseOrderStatus::class,
-        'expected_delivery_date' => 'date',
-        'approved_at' => 'datetime',
-        'subtotal' => 'decimal:2',
-        'tax_total' => 'decimal:2',
-        'grand_total' => 'decimal:2',
-    ];
+    protected function casts(): array
+    {
+        return [
+            'status' => PurchaseOrderStatus::class,
+            'expected_delivery_date' => 'date',
+            'approved_at' => 'datetime',
+            'subtotal' => 'decimal:2',
+            'tax_total' => 'decimal:2',
+            'grand_total' => 'decimal:2',
+        ];
+    }
 
     public function supplier(): BelongsTo
     {

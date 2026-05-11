@@ -10,8 +10,8 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
-use Spatie\Activitylog\Support\LogOptions;
 use Spatie\Activitylog\Models\Concerns\LogsActivity;
+use Spatie\Activitylog\Support\LogOptions;
 
 class Invoice extends Model
 {
@@ -22,14 +22,17 @@ class Invoice extends Model
         'amount', 'status', 'notes', 'approved_by', 'approved_at', 'paid_at',
     ];
 
-    protected $casts = [
-        'invoice_date' => 'date',
-        'due_date' => 'date',
-        'approved_at' => 'datetime',
-        'paid_at' => 'datetime',
-        'amount' => 'decimal:2',
-        'status' => InvoiceStatus::class,
-    ];
+    protected function casts(): array
+    {
+        return [
+            'invoice_date' => 'date',
+            'due_date' => 'date',
+            'approved_at' => 'datetime',
+            'paid_at' => 'datetime',
+            'amount' => 'decimal:2',
+            'status' => InvoiceStatus::class,
+        ];
+    }
 
     public function purchaseOrder(): BelongsTo
     {
