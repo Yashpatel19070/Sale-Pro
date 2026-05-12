@@ -12,7 +12,7 @@ class UpdateProductListingRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return $this->user()->can('update', $this->route('product_listing'));
+        return $this->user()->can('update', $this->route('productListing'));
     }
 
     public function rules(): array

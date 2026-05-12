@@ -73,6 +73,7 @@ See `product-slug/01-schema.md` and `product-slug/00-overview.md` for full desig
 ## Checklist
 - [ ] Migration 1: `product_listings` — after products migration
 - [ ] Migration 2: `product_listing_slug_redirects` — see `product-slug/01-schema.md`
+- [ ] Migration 3: `2026_04_13_230827_add_slug_and_visibility_to_product_listings_table.php` — guard migration; no-op on fresh install; exists because original stub ran on dev DB before slug/visibility were added to migration 1
 - [ ] `slug` is UNIQUE on product_listings
 - [ ] `composer require spatie/laravel-sluggable` done before migration
 - [ ] `php artisan migrate` runs clean

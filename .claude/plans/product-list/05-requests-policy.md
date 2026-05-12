@@ -26,7 +26,7 @@ class StoreProductListingRequest extends FormRequest
         return [
             'product_id' => ['required', 'integer', 'exists:products,id'],
             'title'      => ['required', 'string', 'max:200'],
-            'visibility' => ['required', 'string', Rule::in(array_column(ListingVisibility::cases(), 'value'))],
+            'visibility' => ['required', Rule::enum(ListingVisibility::class)],
             'is_active'  => ['nullable', 'boolean'],
         ];
     }
@@ -53,7 +53,7 @@ class UpdateProductListingRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return $this->user()->can('update', $this->route('product_listing'));
+        return $this->user()->can('update', $this->route('productListing'));
     }
 
     public function rules(): array
@@ -61,7 +61,7 @@ class UpdateProductListingRequest extends FormRequest
         // product_id intentionally absent — immutable after creation
         return [
             'title'      => ['required', 'string', 'max:200'],
-            'visibility' => ['required', 'string', Rule::in(array_column(ListingVisibility::cases(), 'value'))],
+            'visibility' => ['required', Rule::enum(ListingVisibility::class)],
             'is_active'  => ['nullable', 'boolean'],
         ];
     }

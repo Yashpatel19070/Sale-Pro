@@ -96,10 +96,16 @@ class ProductListingService
     }
 
     /**
-     * Soft-delete a listing. Throws if it has active orders (future guard).
+     * Soft-delete a listing.
      */
     public function delete(ProductListing $listing): void
     {
+        // TODO(orders): throw \RuntimeException if listing has active order lines
+        // throw_if(
+        //     $listing->orderLines()->whereHas('order', fn ($q) => $q->whereIn('status', ['pending', 'processing']))->exists(),
+        //     \RuntimeException::class,
+        //     'Cannot delete a listing that is attached to active orders.'
+        // );
         $listing->delete();
     }
 
