@@ -17,7 +17,14 @@ return new class extends Migration
                 ->constrained('inventory_serials')
                 ->restrictOnDelete(); // protect audit trail — hard-delete of a serial with movements must be blocked, not silently cascaded
 
-            $table->enum('type', ['receive', 'transfer', 'sale', 'adjustment']);
+            $table->enum('type', [
+                'receive',         // PO receiving — new stock from supplier
+                'transfer',        // internal location move
+                'sale',            // sold to customer
+                'adjustment',      // write-off, back to stock, scrap — see schema-references.md
+                'return_in',       // customer return inbound
+                'replacement_out', // replacement unit shipped to customer
+            ]);
 
             $table->foreignId('from_location_id')
                 ->nullable()
