@@ -2,6 +2,7 @@
 
 use App\Enums\Permission;
 use App\Http\Controllers\AuditLogController;
+use App\Http\Controllers\CustomerAddressController;
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\DepartmentController;
 use App\Http\Controllers\GoodsReceiptController;
@@ -10,11 +11,13 @@ use App\Http\Controllers\InventoryLocationController;
 use App\Http\Controllers\InventoryMovementController;
 use App\Http\Controllers\InventorySerialController;
 use App\Http\Controllers\InvoiceController;
+use App\Http\Controllers\MailTestController;
 use App\Http\Controllers\Portal\Auth\AuthenticatedSessionController as PortalSessionController;
 use App\Http\Controllers\Portal\Auth\EmailVerificationController;
 use App\Http\Controllers\Portal\Auth\NewPasswordController as PortalNewPasswordController;
 use App\Http\Controllers\Portal\Auth\PasswordResetLinkController as PortalPasswordResetController;
 use App\Http\Controllers\Portal\Auth\RegisteredUserController as PortalRegisterController;
+use App\Http\Controllers\Portal\CustomerAddressController as PortalAddressController;
 use App\Http\Controllers\Portal\ProfileController as PortalProfileController;
 use App\Http\Controllers\ProductCategoryController;
 use App\Http\Controllers\ProductController;
@@ -71,6 +74,20 @@ Route::prefix('admin')->group(function () {
             Route::delete('/{customer}', [CustomerController::class, 'destroy'])->name('destroy');
             Route::patch('/{customer}/status', [CustomerController::class, 'changeStatus'])->name('changeStatus');
             Route::post('/{customer}/verify-email', [CustomerController::class, 'verifyEmail'])->name('verifyEmail');
+            Route::post('/{customer}/send-password-reset', [CustomerController::class, 'sendPasswordReset'])
+                ->name('sendPasswordReset')
+                ->middleware('throttle:5,1');
+        });
+
+        // Customer Addresses
+        Route::prefix('customers/{customer}/addresses')->name('customer-addresses.')->scopeBindings()->group(function () {
+            Route::get('/', [CustomerAddressController::class, 'index'])->name('index');
+            Route::get('/create', [CustomerAddressController::class, 'create'])->name('create');
+            Route::post('/', [CustomerAddressController::class, 'store'])->name('store');
+            Route::get('/{address}/edit', [CustomerAddressController::class, 'edit'])->name('edit');
+            Route::put('/{address}', [CustomerAddressController::class, 'update'])->name('update');
+            Route::delete('/{address}', [CustomerAddressController::class, 'destroy'])->name('destroy');
+            Route::patch('/{address}/default', [CustomerAddressController::class, 'setDefault'])->name('setDefault');
         });
 
         // Suppliers
@@ -156,6 +173,10 @@ Route::prefix('admin')->group(function () {
         Route::get('audit-log', [AuditLogController::class, 'index'])->name('audit-log.index');
         Route::get('audit-log/{activity}', [AuditLogController::class, 'show'])->name('audit-log.show');
 
+        // Mail Tester (admin/superadmin only)
+        Route::get('mail-test', [MailTestController::class, 'index'])->name('mail-test.index');
+        Route::post('mail-test', [MailTestController::class, 'send'])->name('mail-test.send');
+
         // Purchase Orders
         Route::prefix('purchase-orders')->name('purchase-orders.')->group(function () {
             Route::get('/', [PurchaseOrderController::class, 'index'])->name('index');
@@ -210,21 +231,23 @@ Route::prefix('admin')->group(function () {
     });
 });
 
-// ── Portal Guest Routes ───────────────────────────────────────────────────────
-Route::middleware('guest')->name('portal.')->group(function () {
-    Route::get('/register', [PortalRegisterController::class, 'create'])->name('register');
-    Route::post('/register', [PortalRegisterController::class, 'store'])->name('register.store')->middleware('throttle:register');
-    Route::get('/login', [PortalSessionController::class, 'create'])->name('login');
-    Route::post('/login', [PortalSessionController::class, 'store'])->name('login.store')->middleware('throttle:login');
-    Route::get('/forgot-password', [PortalPasswordResetController::class, 'create'])->name('password.request');
-    Route::post('/forgot-password', [PortalPasswordResetController::class, 'store'])->name('password.email')->middleware('throttle:forgot-password');
-    Route::get('/reset-password/{token}', [PortalNewPasswordController::class, 'create'])->name('password.reset');
-    Route::post('/reset-password', [PortalNewPasswordController::class, 'store'])->name('password.update');
-});
+// ── Portal Routes ─────────────────────────────────────────────────────────────
+Route::name('portal.')->group(function () {
 
-// ── Portal Authenticated Routes ───────────────────────────────────────────────
-Route::middleware(['auth', 'verified:portal.verification.notice', 'role:customer', 'active', 'customer.active'])
-    ->name('portal.')->group(function () {
+    // Guest only (customer guard)
+    Route::middleware('guest:customer')->group(function () {
+        Route::get('/register', [PortalRegisterController::class, 'create'])->name('register');
+        Route::post('/register', [PortalRegisterController::class, 'store'])->name('register.store')->middleware('throttle:register');
+        Route::get('/login', [PortalSessionController::class, 'create'])->name('login');
+        Route::post('/login', [PortalSessionController::class, 'store'])->name('login.store')->middleware('throttle:login');
+        Route::get('/forgot-password', [PortalPasswordResetController::class, 'create'])->name('password.request');
+        Route::post('/forgot-password', [PortalPasswordResetController::class, 'store'])->name('password.email')->middleware('throttle:forgot-password');
+        Route::get('/reset-password/{token}', [PortalNewPasswordController::class, 'create'])->name('password.reset');
+        Route::post('/reset-password', [PortalNewPasswordController::class, 'store'])->name('password.update');
+    });
+
+    // Authenticated (customer guard)
+    Route::middleware(['auth:customer', 'verified:portal.verification.notice', 'customer.active'])->group(function () {
 
         // Email verification — exempt from the verified middleware
         Route::get('/email/verify', [EmailVerificationController::class, 'notice'])
@@ -241,11 +264,11 @@ Route::middleware(['auth', 'verified:portal.verification.notice', 'role:customer
             ->middleware('throttle:6,1')
             ->withoutMiddleware('verified:portal.verification.notice');
 
-        // Logout
         Route::post('/logout', [PortalSessionController::class, 'destroy'])->name('logout');
 
-        // Dashboard
-        Route::get('/dashboard', [PortalProfileController::class, 'dashboard'])->name('dashboard');
+        Route::get('/dashboard', fn () => view('portal.dashboard', [
+            'customer' => auth('customer')->user(),
+        ]))->name('dashboard');
 
         // Profile
         Route::get('/profile', [PortalProfileController::class, 'show'])->name('profile.show');
@@ -253,6 +276,18 @@ Route::middleware(['auth', 'verified:portal.verification.notice', 'role:customer
         Route::put('/profile', [PortalProfileController::class, 'update'])->name('profile.update');
         Route::get('/profile/password', [PortalProfileController::class, 'passwordForm'])->name('profile.password');
         Route::put('/profile/password', [PortalProfileController::class, 'updatePassword'])->name('profile.password.update');
+
+        // Addresses
+        Route::prefix('addresses')->name('addresses.')->group(function () {
+            Route::get('/', [PortalAddressController::class, 'index'])->name('index');
+            Route::get('/create', [PortalAddressController::class, 'create'])->name('create');
+            Route::post('/', [PortalAddressController::class, 'store'])->name('store');
+            Route::get('/{address}/edit', [PortalAddressController::class, 'edit'])->name('edit');
+            Route::put('/{address}', [PortalAddressController::class, 'update'])->name('update');
+            Route::delete('/{address}', [PortalAddressController::class, 'destroy'])->name('destroy');
+            Route::patch('/{address}/default', [PortalAddressController::class, 'setDefault'])->name('setDefault');
+        });
     });
+});
 
 require __DIR__.'/auth.php';

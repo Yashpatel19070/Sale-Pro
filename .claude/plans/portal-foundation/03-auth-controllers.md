@@ -1,6 +1,7 @@
 # Portal Foundation — Auth Controllers
 
-Four controllers in `App\Http\Controllers\Portal\Auth` namespace.
+Five controllers in `App\Http\Controllers\Portal\Auth` namespace.
+All use the `customer` guard — never the `web` guard.
 
 ---
 
@@ -26,27 +27,18 @@ class RegisteredUserController extends Controller
 {
     public function __construct(private readonly CustomerService $service) {}
 
-    /**
-     * GET /portal/register
-     */
     public function create(): View
     {
         return view('portal.auth.register');
     }
 
-    /**
-     * POST /portal/register
-     */
     public function store(RegisterRequest $request): RedirectResponse
     {
         $customer = $this->service->register($request->validated());
 
-        // Load user relationship explicitly — never lazy load
-        $customer->load('user');
+        Auth::guard('customer')->login($customer);
 
-        Auth::login($customer->user);
-
-        $customer->user->sendEmailVerificationNotification();
+        $customer->sendEmailVerificationNotification();
 
         return redirect()->route('portal.verification.notice');
     }
@@ -68,7 +60,6 @@ namespace App\Http\Controllers\Portal\Auth;
 
 use App\Enums\CustomerStatus;
 use App\Http\Controllers\Controller;
-use App\Services\CustomerService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -76,19 +67,11 @@ use Illuminate\View\View;
 
 class AuthenticatedSessionController extends Controller
 {
-    public function __construct(private readonly CustomerService $service) {}
-
-    /**
-     * GET /portal/login
-     */
     public function create(): View
     {
         return view('portal.auth.login');
     }
 
-    /**
-     * POST /portal/login
-     */
     public function store(Request $request): RedirectResponse
     {
         $credentials = $request->validate([
@@ -96,45 +79,33 @@ class AuthenticatedSessionController extends Controller
             'password' => ['required', 'string'],
         ]);
 
-        // Attempt login
-        if (! Auth::attempt($credentials, $request->boolean('remember'))) {
+        if (! Auth::guard('customer')->attempt($credentials, $request->boolean('remember'))) {
             return back()
                 ->withErrors(['email' => 'These credentials do not match our records.'])
                 ->onlyInput('email');
         }
 
-        $user = Auth::user();
-
-        // Must have customer role
-        if (! $user->hasRole('customer')) {
-            Auth::logout();
-            return back()
-                ->withErrors(['email' => 'This login is for customers only.'])
-                ->onlyInput('email');
-        }
-
-        // Check customer status — blocked/inactive cannot login
-        $customer = $this->service->getByUser($user);
+        /** @var \App\Models\Customer $customer */
+        $customer = Auth::guard('customer')->user();
 
         if ($customer->status !== CustomerStatus::Active) {
-            Auth::logout();
+            Auth::guard('customer')->logout();
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+
             return back()
                 ->withErrors(['email' => 'Your account has been deactivated. Please contact support.'])
                 ->onlyInput('email');
         }
 
-        // Prevent session fixation
         $request->session()->regenerate();
 
         return redirect()->intended(route('portal.dashboard'));
     }
 
-    /**
-     * POST /portal/logout
-     */
     public function destroy(Request $request): RedirectResponse
     {
-        Auth::logout();
+        Auth::guard('customer')->logout();
 
         $request->session()->invalidate();
         $request->session()->regenerateToken();
@@ -143,6 +114,11 @@ class AuthenticatedSessionController extends Controller
     }
 }
 ```
+
+**Key changes from old design:**
+- `Auth::guard('customer')->attempt()` — not the web guard
+- No `hasRole('customer')` check — guard enforces this automatically
+- No `getByUser()` lookup — `Auth::guard('customer')->user()` IS the Customer model directly
 
 ---
 
@@ -165,22 +141,16 @@ use Illuminate\View\View;
 
 class PasswordResetLinkController extends Controller
 {
-    /**
-     * GET /portal/forgot-password
-     */
     public function create(): View
     {
         return view('portal.auth.forgot-password');
     }
 
-    /**
-     * POST /portal/forgot-password
-     */
     public function store(Request $request): RedirectResponse
     {
         $request->validate(['email' => ['required', 'email']]);
 
-        Password::sendResetLink($request->only('email'));
+        Password::broker('customers')->sendResetLink($request->only('email'));
 
         // Always return success — never reveal if email exists
         return back()->with('status', 'If that email exists, a reset link has been sent.');
@@ -188,7 +158,7 @@ class PasswordResetLinkController extends Controller
 }
 ```
 
-**Security note:** Always return the same message regardless of whether the email exists. This prevents email enumeration attacks.
+**Key:** `Password::broker('customers')` — uses the `customers` broker from config/auth.php.
 
 ---
 
@@ -214,9 +184,6 @@ use Illuminate\View\View;
 
 class NewPasswordController extends Controller
 {
-    /**
-     * GET /portal/reset-password/{token}
-     */
     public function create(Request $request, string $token): View
     {
         return view('portal.auth.reset-password', [
@@ -225,26 +192,23 @@ class NewPasswordController extends Controller
         ]);
     }
 
-    /**
-     * POST /portal/reset-password
-     */
     public function store(Request $request): RedirectResponse
     {
         $request->validate([
-            'token'                 => ['required'],
-            'email'                 => ['required', 'email'],
-            'password'              => ['required', 'string', 'min:8', 'confirmed'],
+            'token'    => ['required'],
+            'email'    => ['required', 'email'],
+            'password' => ['required', 'string', 'min:8', 'confirmed'],
         ]);
 
-        $status = Password::reset(
+        $status = Password::broker('customers')->reset(
             $request->only('email', 'password', 'password_confirmation', 'token'),
-            function ($user, $password) {
-                $user->forceFill([
+            function ($customer, $password) {
+                $customer->forceFill([
                     'password'       => Hash::make($password),
                     'remember_token' => Str::random(60),
                 ])->save();
 
-                event(new PasswordReset($user));
+                event(new PasswordReset($customer));
             }
         );
 
@@ -255,11 +219,16 @@ class NewPasswordController extends Controller
 }
 ```
 
+**Key:** `Password::broker('customers')` on both `sendResetLink()` and `reset()`.
+
 ---
 
 ## 5. EmailVerificationController
 
 **File:** `app/Http/Controllers/Portal/Auth/EmailVerificationController.php`
+
+> **Do NOT use `EmailVerificationRequest`** — it resolves `$this->user()` from the default web guard.
+> Use plain `Request` and verify manually.
 
 ```php
 <?php
@@ -270,74 +239,70 @@ namespace App\Http\Controllers\Portal\Auth;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Auth\Events\Verified;
-use Illuminate\Foundation\Auth\EmailVerificationRequest;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 
 class EmailVerificationController extends Controller
 {
-    /**
-     * GET /portal/email/verify
-     * Show "please verify your email" notice.
-     */
     public function notice(Request $request): RedirectResponse|View
     {
-        if ($request->user()->hasVerifiedEmail()) {
+        /** @var \App\Models\Customer $customer */
+        $customer = $request->user('customer');
+
+        if ($customer->hasVerifiedEmail()) {
             return redirect()->route('portal.dashboard');
         }
 
         return view('portal.auth.verify-email');
     }
 
-    /**
-     * GET /portal/email/verify/{id}/{hash}
-     * Handle the email verification link click.
-     */
-    public function verify(EmailVerificationRequest $request): RedirectResponse
+    public function verify(Request $request, string $id, string $hash): RedirectResponse
     {
-        if ($request->user()->hasVerifiedEmail()) {
-            return redirect()->route('portal.dashboard');
+        /** @var \App\Models\Customer $customer */
+        $customer = $request->user('customer');
+
+        abort_unless((string) $customer->getKey() === $id, 403);
+        abort_unless(hash_equals($hash, sha1($customer->getEmailForVerification())), 403);
+        abort_unless($request->hasValidSignature(), 403);
+
+        if (! $customer->hasVerifiedEmail()) {
+            $customer->markEmailAsVerified();
+            event(new Verified($customer));
         }
 
-        if ($request->user()->markEmailAsVerified()) {
-            event(new Verified($request->user()));
-        }
-
-        return redirect()->route('portal.dashboard')
-            ->with('success', 'Email verified. Welcome!');
+        return redirect()->route('portal.dashboard')->with('success', 'Email verified. Welcome!');
     }
 
-    /**
-     * POST /portal/email/verification-notification
-     * Resend verification email.
-     */
     public function resend(Request $request): RedirectResponse
     {
-        if ($request->user()->hasVerifiedEmail()) {
+        /** @var \App\Models\Customer $customer */
+        $customer = $request->user('customer');
+
+        if ($customer->hasVerifiedEmail()) {
             return redirect()->route('portal.dashboard');
         }
 
-        $request->user()->sendEmailVerificationNotification();
+        $customer->sendEmailVerificationNotification();
 
         return back()->with('status', 'Verification link sent.');
     }
 }
 ```
 
+**Why manual verification:** `EmailVerificationRequest` calls `$this->user()` which uses the web guard — returns null for customers. Manual verification is safe and explicit.
+
 ---
 
-## User Model Requirement
+## Summary of Guard Changes
 
-`User` model must implement `MustVerifyEmail`:
-
-```php
-use Illuminate\Contracts\Auth\MustVerifyEmail;
-
-class User extends Authenticatable implements MustVerifyEmail
-{
-    ...
-}
-```
-
-Check if this is already set before adding it.
+| Before | After |
+|--------|-------|
+| `Auth::attempt()` | `Auth::guard('customer')->attempt()` |
+| `Auth::user()` | `Auth::guard('customer')->user()` |
+| `Auth::logout()` | `Auth::guard('customer')->logout()` |
+| `$request->user()` | `$request->user('customer')` |
+| `Password::sendResetLink()` | `Password::broker('customers')->sendResetLink()` |
+| `Password::reset()` | `Password::broker('customers')->reset()` |
+| `hasRole('customer')` check | Removed — guard handles this |
+| `getByUser($user)` | Removed — guard user IS the Customer directly |

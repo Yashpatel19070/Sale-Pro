@@ -6,10 +6,10 @@ namespace App\Services;
 
 use App\Enums\CustomerStatus;
 use App\Models\Customer;
-use App\Models\User;
+use Illuminate\Auth\Events\Verified;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Password;
 use Illuminate\Validation\ValidationException;
 
 class CustomerService
@@ -64,90 +64,65 @@ class CustomerService
     }
 
     /**
-     * Creates a User account + Customer record in a single transaction.
+     * Portal self-registration — creates Customer record only.
      *
-     * @param  array{name: string, email: string, password: string, phone: string, company_name: ?string, address: string, city: string, state: string, postal_code: string, country: string}  $data
+     * @param  array{name: string, email: string, password: string, phone: string, company_name: ?string}  $data
      */
     public function register(array $data): Customer
     {
-        return DB::transaction(function () use ($data) {
-            $user = User::create([
-                'name' => $data['name'],
-                'email' => $data['email'],
-                'password' => Hash::make($data['password']),
-            ]);
-
-            $user->assignRole('customer');
-
-            return Customer::create([
-                'user_id' => $user->id,
-                'name' => $data['name'],
-                'email' => $data['email'],
-                'phone' => $data['phone'],
-                'company_name' => $data['company_name'] ?? null,
-                'address' => $data['address'],
-                'city' => $data['city'],
-                'state' => $data['state'],
-                'postal_code' => $data['postal_code'],
-                'country' => $data['country'],
-                'status' => CustomerStatus::Active,
-            ]);
-        });
-    }
-
-    public function getByUser(User $user): Customer
-    {
-        return Customer::where('user_id', $user->id)->firstOrFail();
+        return Customer::create([
+            'name' => $data['name'],
+            'email' => $data['email'],
+            'password' => Hash::make($data['password']),
+            'phone' => $data['phone'],
+            'company_name' => $data['company_name'] ?? null,
+            'status' => CustomerStatus::Active,
+        ]);
     }
 
     /**
-     * Portal-only. Does NOT allow email or status changes — those are admin-only.
+     * Portal profile update — name, phone, company_name only.
+     * Email and status are admin-only and are never touched here.
      *
-     * @param  array{name: string, phone: string, company_name: ?string, address: string, city: string, state: string, postal_code: string, country: string}  $data
+     * @param  array{name: string, phone: string, company_name: ?string}  $data
      */
     public function updateProfile(Customer $customer, array $data): Customer
     {
-        return DB::transaction(function () use ($customer, $data) {
-            $customer->update([
-                'name' => $data['name'],
-                'phone' => $data['phone'],
-                'company_name' => $data['company_name'] ?? null,
-                'address' => $data['address'],
-                'city' => $data['city'],
-                'state' => $data['state'],
-                'postal_code' => $data['postal_code'],
-                'country' => $data['country'],
-            ]);
+        $customer->update([
+            'name' => $data['name'],
+            'phone' => $data['phone'],
+            'company_name' => $data['company_name'] ?? null,
+        ]);
 
-            $customer->user()->update(['name' => $data['name']]);
-
-            return $customer;
-        });
-    }
-
-    /**
-     * No-op if the customer has no portal user or is already verified.
-     */
-    public function verifyEmail(Customer $customer): void
-    {
-        if ($customer->user === null || $customer->user->hasVerifiedEmail()) {
-            return;
-        }
-
-        $customer->user->markEmailAsVerified();
+        return $customer;
     }
 
     /**
      * @throws ValidationException if current password is wrong
      */
-    public function changePassword(User $user, string $currentPassword, string $newPassword): void
+    public function changePassword(Customer $customer, string $currentPassword, string $newPassword): void
     {
-        if (! Hash::check($currentPassword, $user->password)) {
+        if (! Hash::check($currentPassword, $customer->password)) {
             throw ValidationException::withMessages([
                 'current_password' => 'Current password is incorrect.',
             ]);
         }
 
-        $user->update(['password' => Hash::make($newPassword)]);
+        $customer->update(['password' => Hash::make($newPassword)]);
+    }
+
+    public function verifyEmail(Customer $customer): void
+    {
+        if ($customer->hasVerifiedEmail()) {
+            return;
+        }
+
+        $customer->markEmailAsVerified();
+        event(new Verified($customer));
+    }
+
+    public function sendPasswordReset(Customer $customer): void
+    {
+        Password::broker('customers')->sendResetLink(['email' => $customer->email]);
     }
 }

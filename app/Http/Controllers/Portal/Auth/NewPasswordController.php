@@ -32,15 +32,20 @@ class NewPasswordController extends Controller
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
         ]);
 
-        $status = Password::reset(
+        $status = Password::broker('customers')->reset(
             $validated,
-            function ($user, $password): void {
-                $user->forceFill([
+            function ($customer, $password) use ($request): void {
+                $customer->forceFill([
                     'password' => Hash::make($password),
                     'remember_token' => Str::random(60),
                 ])->save();
 
-                event(new PasswordReset($user));
+                event(new PasswordReset($customer));
+
+                activity('mail')
+                    ->causedBy($customer)
+                    ->withProperties(['ip' => $request->ip()])
+                    ->log('password-reset-completed');
             }
         );
 

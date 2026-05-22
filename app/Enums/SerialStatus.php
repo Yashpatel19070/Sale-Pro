@@ -8,21 +8,21 @@ enum SerialStatus: string
 {
     case InStock = 'in_stock';
     case Sold = 'sold';
+    case Damaged = 'damaged';
     case Missing = 'missing';
 
-    // case Damaged        = 'damaged'; // TODO: clarify use case — may overlap with scrapped
-
     // complaint/replacement workflow
-    case Assigned = 'assigned';            // replacement shipped, not yet with customer
-    case ExpectedReturn = 'expected_return';      // customer has unit, return requested
-    case UnderExamination = 'under_examination';   // unit received at dock, tech examining
-    case Scrapped = 'scrapped';             // permanently written off
+    case Assigned = 'assigned';
+    case ExpectedReturn = 'expected_return';
+    case UnderExamination = 'under_examination';
+    case Scrapped = 'scrapped';
 
     public function label(): string
     {
         return match ($this) {
             self::InStock => 'In Stock',
             self::Sold => 'Sold',
+            self::Damaged => 'Damaged',
             self::Missing => 'Missing',
             self::Assigned => 'Assigned',
             self::ExpectedReturn => 'Expected Return',
@@ -36,6 +36,7 @@ enum SerialStatus: string
         return match ($this) {
             self::InStock => 'green',
             self::Sold => 'blue',
+            self::Damaged => 'red',
             self::Missing => 'yellow',
             self::Assigned => 'indigo',
             self::ExpectedReturn => 'orange',
@@ -49,6 +50,7 @@ enum SerialStatus: string
         return match ($this) {
             self::InStock => 'bg-green-100 text-green-800',
             self::Sold => 'bg-blue-100 text-blue-800',
+            self::Damaged => 'bg-red-100 text-red-800',
             self::Missing => 'bg-yellow-100 text-yellow-800',
             self::Assigned => 'bg-indigo-100 text-indigo-800',
             self::ExpectedReturn => 'bg-orange-100 text-orange-800',

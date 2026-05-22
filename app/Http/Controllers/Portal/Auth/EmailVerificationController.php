@@ -6,7 +6,6 @@ namespace App\Http\Controllers\Portal\Auth;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Auth\Events\Verified;
-use Illuminate\Foundation\Auth\EmailVerificationRequest;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -15,35 +14,55 @@ class EmailVerificationController extends Controller
 {
     public function notice(Request $request): RedirectResponse|View
     {
-        if ($request->user()->hasVerifiedEmail()) {
+        $customer = $request->user('customer');
+
+        if ($customer->hasVerifiedEmail()) {
             return redirect()->route('portal.dashboard');
         }
 
         return view('portal.auth.verify-email');
     }
 
-    public function verify(EmailVerificationRequest $request): RedirectResponse
+    public function verify(Request $request, string $id, string $hash): RedirectResponse
     {
-        if ($request->user()->hasVerifiedEmail()) {
-            return redirect()->route('portal.dashboard');
+        $customer = $request->user('customer');
+
+        if ((string) $customer->getKey() !== $id) {
+            abort(403);
         }
 
-        if ($request->user()->markEmailAsVerified()) {
-            event(new Verified($request->user()));
+        if (! hash_equals($hash, sha1($customer->getEmailForVerification()))) {
+            abort(403);
         }
 
-        return redirect()->route('portal.dashboard')
-            ->with('success', 'Email verified. Welcome!');
+        if (! $customer->hasVerifiedEmail()) {
+            $customer->markEmailAsVerified();
+            event(new Verified($customer));
+
+            activity('mail')
+                ->causedBy($customer)
+                ->withProperties(['ip' => $request->ip()])
+                ->log('email-verified');
+        }
+
+        return redirect()->route('portal.dashboard')->with('success', 'Email verified. Welcome!');
     }
 
     public function resend(Request $request): RedirectResponse
     {
-        if ($request->user()->hasVerifiedEmail()) {
+        $customer = $request->user('customer');
+
+        if ($customer->hasVerifiedEmail()) {
             return redirect()->route('portal.dashboard');
         }
 
-        $request->user()->sendEmailVerificationNotification();
+        $customer->sendEmailVerificationNotification();
 
-        return back()->with('status', 'Verification link sent.');
+        activity('mail')
+            ->causedBy($customer)
+            ->withProperties(['ip' => $request->ip()])
+            ->log('verification-resent');
+
+        return back()->with('status', 'verification-link-sent');
     }
 }

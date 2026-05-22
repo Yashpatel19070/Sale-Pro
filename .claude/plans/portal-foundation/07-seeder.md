@@ -1,61 +1,33 @@
 # Portal Foundation — Seeder
 
-One seeder: create the `customer` role.
+## No Seeder Required
+
+With the separate `customer` guard architecture, customers authenticate directly against
+the `customers` table. No Spatie role is needed for customers.
+
+**`CustomerRoleSeeder` is deleted.**
+
+- Remove `CustomerRoleSeeder::class` from `database/seeders/DatabaseSeeder.php`
+- Remove `CustomerRoleSeeder::class` from `database/seeders/E2ESeeder.php`
+- Delete file: `database/seeders/CustomerRoleSeeder.php`
 
 ---
 
-## CustomerRoleSeeder
+## CustomerFactory — required for tests
 
-**File:** `database/seeders/CustomerRoleSeeder.php`
+`database/factories/CustomerFactory.php` must include:
 
 ```php
-<?php
-
-declare(strict_types=1);
-
-namespace Database\Seeders;
-
-use Illuminate\Database\Seeder;
-use Spatie\Permission\Models\Role;
-
-class CustomerRoleSeeder extends Seeder
-{
-    public function run(): void
-    {
-        app()[\Spatie\Permission\PermissionRegistrar::class]->forgetCachedPermissions();
-
-        Role::firstOrCreate([
-            'name'       => 'customer',
-            'guard_name' => 'web',
-        ]);
-    }
-}
+'password'          => Hash::make('password'),
+'email_verified_at' => now(),
 ```
 
----
-
-## Register in DatabaseSeeder
-
-**File:** `database/seeders/DatabaseSeeder.php` — add:
-
-```php
-$this->call([
-    // ... existing seeders ...
-    CustomerRoleSeeder::class,
-]);
-```
-
----
-
-## Run
-
-```bash
-php artisan db:seed --class=CustomerRoleSeeder
-```
+So `Customer::factory()->create()` produces a verified, loginable customer without extra setup.
 
 ---
 
 ## Notes
-- `firstOrCreate` — safe to run multiple times, no duplicates
-- `customer` role has NO permissions — access is controlled by `role:customer` middleware only
-- Role is automatically assigned in `CustomerService::register()` via `$user->assignRole('customer')`
+
+- No `customer` Spatie role — guard enforces separation, not role
+- `auth:customer` middleware on portal routes is the only gate for customers
+- Admin/staff cannot access portal routes — `auth:customer` requires a Customer model, not a User

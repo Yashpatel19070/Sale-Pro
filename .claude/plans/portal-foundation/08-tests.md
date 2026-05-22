@@ -21,11 +21,9 @@ use Illuminate\Support\Facades\URL;
 
 uses(RefreshDatabase::class);
 
-// Seed roles before each test — RefreshDatabase wipes them
-// customer role needed for portal, admin/staff roles needed for cross-role tests
+// Seed staff roles for cross-role rejection tests
 beforeEach(function () {
-    $this->seed(\Database\Seeders\CustomerRoleSeeder::class);
-    $this->seed(\Database\Seeders\RoleSeeder::class); // seeds admin, staff roles — verify seeder name matches project
+    $this->seed(\Database\Seeders\RoleSeeder::class);
 });
 
 // Helper — valid registration payload
@@ -38,28 +36,17 @@ function registrationPayload(array $overrides = []): array
         'password_confirmation' => 'password123',
         'phone'                 => '555-123-4567',
         'company_name'          => null,
-        'address'               => '123 Main St',
-        'city'                  => 'Springfield',
-        'state'                 => 'IL',
-        'postal_code'           => '62701',
-        'country'               => 'USA',
     ], $overrides);
 }
 
-// Helper — create a verified customer user
-function verifiedCustomer(): User
+// Helper — create a verified, active customer (ready to login)
+function verifiedCustomer(): Customer
 {
-    $user = User::factory()->create([
+    return Customer::factory()->create([
         'password'          => Hash::make('password123'),
         'email_verified_at' => now(),
+        'status'            => CustomerStatus::Active,
     ]);
-    $user->assignRole('customer');
-    Customer::factory()->create([
-        'user_id' => $user->id,
-        'email'   => $user->email,
-        'status'  => CustomerStatus::Active,
-    ]);
-    return $user;
 }
 
 // ===========================================================
@@ -78,16 +65,16 @@ it('customer can register', function () {
     $this->post(route('portal.register.store'), registrationPayload())
         ->assertRedirect(route('portal.verification.notice'));
 
-    $this->assertDatabaseHas('users', ['email' => 'jane@example.com']);
     $this->assertDatabaseHas('customers', ['email' => 'jane@example.com']);
 
-    $user = User::where('email', 'jane@example.com')->first();
-    expect($user->hasRole('customer'))->toBeTrue();
-    $this->assertAuthenticated();
+    $this->assertAuthenticatedAs(
+        Customer::where('email', 'jane@example.com')->first(),
+        'customer'
+    );
 });
 
 it('register fails with duplicate email', function () {
-    User::factory()->create(['email' => 'jane@example.com']);
+    Customer::factory()->create(['email' => 'jane@example.com']);
 
     $this->post(route('portal.register.store'), registrationPayload())
         ->assertSessionHasErrors('email');
@@ -104,10 +91,10 @@ it('register fails with missing required field', function () {
         ->assertSessionHasErrors('phone');
 });
 
-it('logged in user cannot see register page', function () {
-    $user = verifiedCustomer();
+it('logged in customer cannot see register page', function () {
+    $customer = verifiedCustomer();
 
-    $this->actingAs($user)
+    $this->actingAs($customer, 'customer')
         ->get(route('portal.register'))
         ->assertRedirect();
 });
@@ -123,28 +110,30 @@ it('shows the login page', function () {
 });
 
 it('customer can login with valid credentials', function () {
-    $user = verifiedCustomer();
+    $customer = verifiedCustomer();
 
     $this->post(route('portal.login.store'), [
-        'email'    => $user->email,
+        'email'    => $customer->email,
         'password' => 'password123',
     ])->assertRedirect(route('portal.dashboard'));
 
-    $this->assertAuthenticatedAs($user);
+    $this->assertAuthenticatedAs($customer, 'customer');
 });
 
 it('login fails with wrong password', function () {
-    $user = verifiedCustomer();
+    $customer = verifiedCustomer();
 
     $this->post(route('portal.login.store'), [
-        'email'    => $user->email,
+        'email'    => $customer->email,
         'password' => 'wrongpassword',
     ])->assertSessionHasErrors('email');
 
-    $this->assertGuest();
+    $this->assertGuest('customer');
 });
 
-it('admin cannot login via portal', function () {
+it('admin credentials cannot login via portal', function () {
+    // Staff users are in `users` table — not in `customers` table
+    // customer guard checks `customers` table — staff email will simply not match
     $admin = User::factory()->create(['password' => Hash::make('password123')]);
     $admin->assignRole('admin');
 
@@ -153,47 +142,43 @@ it('admin cannot login via portal', function () {
         'password' => 'password123',
     ])->assertSessionHasErrors('email');
 
-    $this->assertGuest();
+    $this->assertGuest('customer');
 });
 
 it('blocked customer cannot login', function () {
-    $user = User::factory()->create(['password' => Hash::make('password123'), 'email_verified_at' => now()]);
-    $user->assignRole('customer');
-    Customer::factory()->create([
-        'user_id' => $user->id,
-        'email'   => $user->email,
-        'status'  => CustomerStatus::Blocked,
+    $customer = Customer::factory()->create([
+        'password'          => Hash::make('password123'),
+        'email_verified_at' => now(),
+        'status'            => CustomerStatus::Blocked,
     ]);
 
     $this->post(route('portal.login.store'), [
-        'email'    => $user->email,
+        'email'    => $customer->email,
         'password' => 'password123',
     ])->assertSessionHasErrors('email');
 
-    $this->assertGuest();
+    $this->assertGuest('customer');
 });
 
 it('inactive customer cannot login', function () {
-    $user = User::factory()->create(['password' => Hash::make('password123'), 'email_verified_at' => now()]);
-    $user->assignRole('customer');
-    Customer::factory()->create([
-        'user_id' => $user->id,
-        'email'   => $user->email,
-        'status'  => CustomerStatus::Inactive,
+    $customer = Customer::factory()->create([
+        'password'          => Hash::make('password123'),
+        'email_verified_at' => now(),
+        'status'            => CustomerStatus::Inactive,
     ]);
 
     $this->post(route('portal.login.store'), [
-        'email'    => $user->email,
+        'email'    => $customer->email,
         'password' => 'password123',
     ])->assertSessionHasErrors('email');
 
-    $this->assertGuest();
+    $this->assertGuest('customer');
 });
 
-it('logged in user cannot see login page', function () {
-    $user = verifiedCustomer();
+it('logged in customer cannot see login page', function () {
+    $customer = verifiedCustomer();
 
-    $this->actingAs($user)
+    $this->actingAs($customer, 'customer')
         ->get(route('portal.login'))
         ->assertRedirect();
 });
@@ -203,13 +188,13 @@ it('logged in user cannot see login page', function () {
 // ===========================================================
 
 it('customer can logout', function () {
-    $user = verifiedCustomer();
+    $customer = verifiedCustomer();
 
-    $this->actingAs($user)
+    $this->actingAs($customer, 'customer')
         ->post(route('portal.logout'))
         ->assertRedirect(route('portal.login'));
 
-    $this->assertGuest();
+    $this->assertGuest('customer');
 });
 
 // ===========================================================
@@ -217,11 +202,9 @@ it('customer can logout', function () {
 // ===========================================================
 
 it('unverified customer is redirected to verify notice', function () {
-    $user = User::factory()->create(['email_verified_at' => null]);
-    $user->assignRole('customer');
-    Customer::factory()->create(['user_id' => $user->id, 'email' => $user->email]);
+    $customer = Customer::factory()->create(['email_verified_at' => null]);
 
-    $this->actingAs($user)
+    $this->actingAs($customer, 'customer')
         ->get(route('portal.dashboard'))
         ->assertRedirect(route('portal.verification.notice'));
 });
@@ -229,32 +212,28 @@ it('unverified customer is redirected to verify notice', function () {
 it('customer can verify email via signed link', function () {
     Event::fake();
 
-    $user = User::factory()->create(['email_verified_at' => null]);
-    $user->assignRole('customer');
-    Customer::factory()->create(['user_id' => $user->id, 'email' => $user->email]);
+    $customer = Customer::factory()->create(['email_verified_at' => null]);
 
     $verificationUrl = URL::temporarySignedRoute(
         'portal.verification.verify',
         now()->addMinutes(60),
-        ['id' => $user->id, 'hash' => sha1($user->email)]
+        ['id' => $customer->id, 'hash' => sha1($customer->email)]
     );
 
-    $this->actingAs($user)
+    $this->actingAs($customer, 'customer')
         ->get($verificationUrl)
         ->assertRedirect(route('portal.dashboard'));
 
     Event::assertDispatched(Verified::class);
-    expect($user->fresh()->hasVerifiedEmail())->toBeTrue();
+    expect($customer->fresh()->hasVerifiedEmail())->toBeTrue();
 });
 
 it('customer can resend verification email', function () {
     Notification::fake();
 
-    $user = User::factory()->create(['email_verified_at' => null]);
-    $user->assignRole('customer');
-    Customer::factory()->create(['user_id' => $user->id, 'email' => $user->email]);
+    $customer = Customer::factory()->create(['email_verified_at' => null]);
 
-    $this->actingAs($user)
+    $this->actingAs($customer, 'customer')
         ->post(route('portal.verification.send'))
         ->assertRedirect();
 });
@@ -289,19 +268,21 @@ it('guest cannot access dashboard', function () {
         ->assertRedirect(route('portal.login'));
 });
 
-it('admin cannot access portal dashboard', function () {
+it('admin user cannot access portal dashboard', function () {
+    // Staff are authenticated via web guard — portal uses customer guard
+    // actingAs($admin) authenticates web guard only, portal route requires customer guard
     $admin = User::factory()->create(['email_verified_at' => now()]);
     $admin->assignRole('admin');
 
-    $this->actingAs($admin)
+    $this->actingAs($admin) // web guard
         ->get(route('portal.dashboard'))
-        ->assertForbidden();
+        ->assertRedirect(route('portal.login')); // not authenticated on customer guard
 });
 
 it('verified customer can access dashboard', function () {
-    $user = verifiedCustomer();
+    $customer = verifiedCustomer();
 
-    $this->actingAs($user)
+    $this->actingAs($customer, 'customer')
         ->get(route('portal.dashboard'))
         ->assertOk()
         ->assertViewIs('portal.dashboard');
@@ -310,7 +291,22 @@ it('verified customer can access dashboard', function () {
 
 ---
 
+## Key Changes from Old Tests
+
+| Before | After |
+|--------|-------|
+| `$this->seed(CustomerRoleSeeder::class)` | Removed — no customer role |
+| `User::factory()->create()` + `assignRole('customer')` | `Customer::factory()->create()` directly |
+| `Customer::factory()->create(['user_id' => $user->id])` | No `user_id` — Customer IS the auth record |
+| `$this->actingAs($user)` | `$this->actingAs($customer, 'customer')` |
+| `$this->assertAuthenticatedAs($user)` | `$this->assertAuthenticatedAs($customer, 'customer')` |
+| `$this->assertGuest()` | `$this->assertGuest('customer')` |
+| Admin test: `assertForbidden()` | `assertRedirect(route('portal.login'))` — not authenticated on customer guard |
+
+---
+
 ## Running Tests
+
 ```bash
 php artisan test --filter PortalAuthTest
 ```

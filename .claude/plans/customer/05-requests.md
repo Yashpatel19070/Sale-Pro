@@ -16,6 +16,7 @@ declare(strict_types=1);
 namespace App\Http\Requests;
 
 use App\Enums\CustomerStatus;
+use App\Models\Customer;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -23,7 +24,7 @@ class StoreCustomerRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return true; // Authorization handled in controller via Policy
+        return $this->user()->can('create', Customer::class);
     }
 
     public function rules(): array
@@ -33,11 +34,6 @@ class StoreCustomerRequest extends FormRequest
             'email'        => ['required', 'email', 'max:255', 'unique:customers,email'],
             'phone'        => ['required', 'string', 'max:20'],
             'company_name' => ['nullable', 'string', 'max:255'],
-            'address'      => ['required', 'string', 'max:255'],
-            'city'         => ['required', 'string', 'max:100'],
-            'state'        => ['required', 'string', 'max:100'],
-            'postal_code'  => ['required', 'string', 'max:20'],
-            'country'      => ['required', 'string', 'max:100'],
             'status'       => ['required', 'string', Rule::enum(CustomerStatus::class)],
         ];
     }
@@ -65,7 +61,7 @@ class UpdateCustomerRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return true; // Authorization handled in controller via Policy
+        return $this->user()->can('update', $this->route('customer'));
     }
 
     public function rules(): array
@@ -76,15 +72,10 @@ class UpdateCustomerRequest extends FormRequest
                 'required',
                 'email',
                 'max:255',
-                Rule::unique('customers', 'email')->ignore($this->customer),
+                Rule::unique('customers', 'email')->ignore($this->route('customer')),
             ],
             'phone'        => ['required', 'string', 'max:20'],
             'company_name' => ['nullable', 'string', 'max:255'],
-            'address'      => ['required', 'string', 'max:255'],
-            'city'         => ['required', 'string', 'max:100'],
-            'state'        => ['required', 'string', 'max:100'],
-            'postal_code'  => ['required', 'string', 'max:20'],
-            'country'      => ['required', 'string', 'max:100'],
             'status'       => ['required', 'string', Rule::enum(CustomerStatus::class)],
         ];
     }
@@ -92,8 +83,8 @@ class UpdateCustomerRequest extends FormRequest
 ```
 
 ### Key difference from StoreRequest
-- `email` uses `Rule::unique()->ignore($this->customer)` to allow updating without email conflict on the same record
-- `$this->customer` is the route-bound model — available automatically via Laravel
+- `email` uses `Rule::unique()->ignore($this->route('customer'))` to allow updating without email conflict on the same record
+- `$this->route('customer')` is the route-bound model — retrieved explicitly via `$this->route()` for correctness
 
 ---
 
@@ -116,7 +107,7 @@ class ChangeCustomerStatusRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return true; // Authorization handled in controller via Policy
+        return $this->user()->can('changeStatus', $this->route('customer'));
     }
 
     public function rules(): array
@@ -138,16 +129,11 @@ class ChangeCustomerStatusRequest extends FormRequest
 | email | Yes | email | 255 | unique in customers table |
 | phone | Yes | string | 20 | |
 | company_name | No | string | 255 | nullable |
-| address | Yes | string | 255 | |
-| city | Yes | string | 100 | |
-| state | Yes | string | 100 | |
-| postal_code | Yes | string | 20 | |
-| country | Yes | string | 100 | |
 | status | Yes | enum | — | must be a valid CustomerStatus value |
 
 ---
 
 ## Notes
-- `authorize()` always returns `true` — policy checks happen in the controller
+- `authorize()` delegates to `CustomerPolicy` via `$this->user()->can()` — controller also calls `$this->authorize()` (defense in depth)
 - `Rule::enum(CustomerStatus::class)` validates that status is one of: `active`, `inactive`, `blocked`
-- `$this->customer` in `UpdateCustomerRequest` refers to the route-bound `Customer` model automatically
+- `$this->route('customer')` in `UpdateCustomerRequest` retrieves the route-bound `Customer` model explicitly

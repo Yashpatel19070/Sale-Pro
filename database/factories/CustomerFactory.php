@@ -6,6 +6,7 @@ namespace Database\Factories;
 
 use App\Enums\CustomerStatus;
 use Illuminate\Database\Eloquent\Factories\Factory;
+use Illuminate\Support\Facades\Hash;
 
 class CustomerFactory extends Factory
 {
@@ -14,14 +15,11 @@ class CustomerFactory extends Factory
         return [
             'name' => fake()->name(),
             'email' => fake()->unique()->safeEmail(),
+            'password' => Hash::make('password'),
             'phone' => fake()->numerify('###-###-####'),
             'company_name' => fake()->optional()->company(),
-            'address' => fake()->streetAddress(),
-            'city' => fake()->city(),
-            'state' => fake()->state(),
-            'postal_code' => fake()->postcode(),
-            'country' => fake()->country(),
             'status' => CustomerStatus::Active->value,
+            'email_verified_at' => now(),
         ];
     }
 
@@ -33,5 +31,15 @@ class CustomerFactory extends Factory
     public function blocked(): static
     {
         return $this->state(['status' => CustomerStatus::Blocked->value]);
+    }
+
+    public function unverified(): static
+    {
+        return $this->state(['email_verified_at' => null]);
+    }
+
+    public function noPassword(): static
+    {
+        return $this->state(['password' => null]);
     }
 }

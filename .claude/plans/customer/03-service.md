@@ -18,13 +18,11 @@ namespace App\Services;
 use App\Enums\CustomerStatus;
 use App\Models\Customer;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Facades\Hash;
 
 class CustomerService
 {
     /**
-     * Return a paginated list of customers.
-     * Supports optional search (name / email / company_name) and status filter.
-     *
      * @param array{search?: string, status?: string} $filters
      */
     public function paginate(array $filters): LengthAwarePaginator
@@ -44,9 +42,7 @@ class CustomerService
     }
 
     /**
-     * Create a new customer.
-     *
-     * @param array<string, mixed> $data — from StoreCustomerRequest::validated()
+     * @param array<string, mixed> $data
      */
     public function store(array $data): Customer
     {
@@ -54,34 +50,47 @@ class CustomerService
     }
 
     /**
-     * Update an existing customer.
-     *
-     * @param array<string, mixed> $data — from UpdateCustomerRequest::validated()
+     * @param array<string, mixed> $data
      */
     public function update(Customer $customer, array $data): Customer
     {
         $customer->update($data);
 
-        return $customer->fresh();
+        return $customer;
     }
 
-    /**
-     * Change the status of a customer.
-     */
     public function changeStatus(Customer $customer, CustomerStatus $status): Customer
     {
-        $customer->update(['status' => $status->value]);
+        $customer->update(['status' => $status]);
 
-        return $customer->fresh();
+        return $customer;
     }
 
-    /**
-     * Soft-delete a customer.
-     * Record is NOT permanently removed — deleted_at is set.
-     */
     public function delete(Customer $customer): void
     {
         $customer->delete();
+    }
+
+    /**
+     * Admin sets customer portal password directly — no current password required.
+     * Use this for admin-initiated resets, not customer self-service.
+     */
+    public function setPassword(Customer $customer, string $password): void
+    {
+        $customer->update(['password' => Hash::make($password)]);
+    }
+
+    /**
+     * No-op if customer is already verified.
+     * Admin force-verifies email from backend.
+     */
+    public function verifyEmail(Customer $customer): void
+    {
+        if ($customer->hasVerifiedEmail()) {
+            return;
+        }
+
+        $customer->markEmailAsVerified();
     }
 }
 ```
@@ -92,79 +101,102 @@ class CustomerService
 
 | Method | Input | Output | Notes |
 |--------|-------|--------|-------|
-| `paginate(array $filters)` | `search`, `status` keys | `LengthAwarePaginator` | 20 per page, preserves query string |
-| `store(array $data)` | validated array | `Customer` | Calls `Customer::create()` |
-| `update(Customer, array $data)` | model + validated array | `Customer` (fresh) | Returns refreshed model |
-| `changeStatus(Customer, CustomerStatus)` | model + enum | `Customer` (fresh) | Stores enum value string |
+| `paginate(array)` | search, status filters | `LengthAwarePaginator` | 20 per page |
+| `store(array)` | validated array | `Customer` | Admin creates customer CRM record |
+| `update(Customer, array)` | model + validated array | `Customer` | Admin edits customer |
+| `changeStatus(Customer, CustomerStatus)` | model + enum | `Customer` | Admin changes status |
 | `delete(Customer)` | model | void | Soft delete only |
-
----
-
-## Rules
-- Never call `$request->all()` — data must come pre-validated from the controller
-- `store()` and `update()` only receive `$request->validated()` output
-- `delete()` is always soft delete — no `forceDelete()` anywhere in this module
-- `paginate()` uses `withQueryString()` so search/filter params survive pagination links
+| `setPassword(Customer, string)` | model + plaintext password | void | Admin resets portal password |
+| `verifyEmail(Customer)` | model | void | Admin force-verifies email |
 
 ---
 
 ## Portal Methods (add to same CustomerService class)
 
-These methods are used by the Customer Portal Foundation.
+Used by the Customer Portal — customer self-service actions.
 Reference: `.claude/plans/portal-foundation/03-auth-controllers.md`
 
 ```php
-use App\Models\User;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\ValidationException;
 
 /**
  * Register a new customer from the portal.
- * Creates a User account + Customer record in a single transaction.
- * Assigns the 'customer' role to the User.
+ * Customer IS the auth model — no User row created.
  *
- * @param array{name: string, email: string, password: string, phone: string, company_name: ?string, address: string, city: string, state: string, postal_code: string, country: string} $data
+ * @param array{name: string, email: string, password: string, phone: string, company_name: ?string} $data
  */
 public function register(array $data): Customer
 {
-    return DB::transaction(function () use ($data) {
-        $user = User::create([
-            'name'     => $data['name'],
-            'email'    => $data['email'],
-            'password' => Hash::make($data['password']),
-        ]);
-
-        $user->assignRole('customer');
-
-        return Customer::create([
-            'user_id'      => $user->id,
-            'name'         => $data['name'],
-            'email'        => $data['email'],
-            'phone'        => $data['phone'],
-            'company_name' => $data['company_name'] ?? null,
-            'address'      => $data['address'],
-            'city'         => $data['city'],
-            'state'        => $data['state'],
-            'postal_code'  => $data['postal_code'],
-            'country'      => $data['country'],
-            'status'       => CustomerStatus::Active->value,
-        ]);
-    });
+    return Customer::create([
+        'name'         => $data['name'],
+        'email'        => $data['email'],
+        'password'     => Hash::make($data['password']),
+        'phone'        => $data['phone'],
+        'company_name' => $data['company_name'] ?? null,
+        'status'       => CustomerStatus::Active,
+    ]);
 }
 
 /**
- * Get the Customer profile linked to a User.
- * Used in portal controllers to get the current logged-in customer.
+ * Portal customer updates own profile.
+ * Does NOT update email or status — admin-only fields.
+ *
+ * @param array{name: string, phone: string, company_name: ?string} $data
  */
-public function getByUser(User $user): Customer
+public function updateProfile(Customer $customer, array $data): Customer
 {
-    return Customer::where('user_id', $user->id)->firstOrFail();
+    $customer->update([
+        'name'         => $data['name'],
+        'phone'        => $data['phone'],
+        'company_name' => $data['company_name'] ?? null,
+    ]);
+
+    return $customer;
+}
+
+/**
+ * Portal customer changes own password.
+ * Verifies current password before updating.
+ *
+ * @throws ValidationException if current password is wrong
+ */
+public function changePassword(Customer $customer, string $currentPassword, string $newPassword): void
+{
+    if (! Hash::check($currentPassword, $customer->password)) {
+        throw ValidationException::withMessages([
+            'current_password' => 'Current password is incorrect.',
+        ]);
+    }
+
+    $customer->update(['password' => Hash::make($newPassword)]);
 }
 ```
+
+---
 
 ## Portal Method Summary
 
 | Method | Input | Output | Notes |
 |--------|-------|--------|-------|
-| `register(array $data)` | validated registration data | `Customer` | Creates User + Customer in DB::transaction |
-| `getByUser(User $user)` | User model | `Customer` | Throws 404 if no customer linked to user |
+| `register(array)` | validated registration data | `Customer` | Customer self-registration — no User created |
+| `updateProfile(Customer, array)` | customer + data | `Customer` | No email/status — admin-only |
+| `changePassword(Customer, string, string)` | customer + passwords | void | Throws ValidationException if current wrong |
+
+---
+
+## Removed Methods
+
+| Removed | Reason |
+|---------|--------|
+| `getByUser(User $user)` | No longer needed — `auth('customer')->user()` returns Customer directly |
+
+---
+
+## Rules
+
+- `store()` creates CRM record only — no portal account created automatically
+- `register()` creates portal-ready Customer (with password) — called from portal registration controller
+- `setPassword()` — admin use only, no current password check
+- `changePassword()` — customer use only, requires current password
+- `delete()` is always soft delete — no `forceDelete()`

@@ -15,22 +15,20 @@ namespace App\Http\Controllers;
 
 use App\Enums\CustomerStatus;
 use App\Http\Requests\ChangeCustomerStatusRequest;
+use App\Http\Requests\Customer\SetCustomerPasswordRequest;
 use App\Http\Requests\StoreCustomerRequest;
 use App\Http\Requests\UpdateCustomerRequest;
 use App\Models\Customer;
 use App\Services\CustomerService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Password;
 use Illuminate\View\View;
 
 class CustomerController extends Controller
 {
     public function __construct(private readonly CustomerService $service) {}
 
-    /**
-     * GET /customers
-     * List all customers — paginated, searchable, filterable by status.
-     */
     public function index(Request $request): View
     {
         $this->authorize('viewAny', Customer::class);
@@ -46,10 +44,6 @@ class CustomerController extends Controller
         ]);
     }
 
-    /**
-     * GET /customers/create
-     * Show the create customer form.
-     */
     public function create(): View
     {
         $this->authorize('create', Customer::class);
@@ -59,10 +53,6 @@ class CustomerController extends Controller
         ]);
     }
 
-    /**
-     * POST /customers
-     * Store a new customer.
-     */
     public function store(StoreCustomerRequest $request): RedirectResponse
     {
         $this->authorize('create', Customer::class);
@@ -74,24 +64,19 @@ class CustomerController extends Controller
             ->with('success', 'Customer created successfully.');
     }
 
-    /**
-     * GET /customers/{customer}
-     * View a single customer profile.
-     */
     public function show(Customer $customer): View
     {
         $this->authorize('view', $customer);
 
+        $defaultAddress = $customer->addresses()->default()->first();
+
         return view('customers.show', [
-            'customer' => $customer,
-            'statuses' => CustomerStatus::cases(),
+            'customer'       => $customer,
+            'statuses'       => CustomerStatus::cases(),
+            'defaultAddress' => $defaultAddress,
         ]);
     }
 
-    /**
-     * GET /customers/{customer}/edit
-     * Show the edit customer form.
-     */
     public function edit(Customer $customer): View
     {
         $this->authorize('update', $customer);
@@ -102,10 +87,6 @@ class CustomerController extends Controller
         ]);
     }
 
-    /**
-     * PUT /customers/{customer}
-     * Update an existing customer.
-     */
     public function update(UpdateCustomerRequest $request, Customer $customer): RedirectResponse
     {
         $this->authorize('update', $customer);
@@ -117,10 +98,6 @@ class CustomerController extends Controller
             ->with('success', 'Customer updated successfully.');
     }
 
-    /**
-     * DELETE /customers/{customer}
-     * Soft-delete a customer.
-     */
     public function destroy(Customer $customer): RedirectResponse
     {
         $this->authorize('delete', $customer);
@@ -132,10 +109,6 @@ class CustomerController extends Controller
             ->with('success', 'Customer deleted successfully.');
     }
 
-    /**
-     * PATCH /customers/{customer}/status
-     * Change the status of a customer.
-     */
     public function changeStatus(ChangeCustomerStatusRequest $request, Customer $customer): RedirectResponse
     {
         $this->authorize('changeStatus', $customer);
@@ -148,6 +121,48 @@ class CustomerController extends Controller
         return redirect()
             ->back()
             ->with('success', 'Customer status updated.');
+    }
+
+    public function verifyEmail(Customer $customer): RedirectResponse
+    {
+        $this->authorize('update', $customer);
+
+        $this->service->verifyEmail($customer);
+
+        return redirect()
+            ->back()
+            ->with('success', 'Email marked as verified.');
+    }
+
+    /**
+     * Admin sets customer portal password directly.
+     * Permission: customers.update (admin + manager).
+     */
+    public function setPassword(SetCustomerPasswordRequest $request, Customer $customer): RedirectResponse
+    {
+        $this->authorize('update', $customer);
+
+        $this->service->setPassword($customer, $request->validated('password'));
+
+        return redirect()
+            ->back()
+            ->with('success', 'Customer password updated.');
+    }
+
+    /**
+     * Admin sends password reset email to customer.
+     * Customer clicks link and sets their own password.
+     * Permission: customers.update (admin + manager).
+     */
+    public function sendPasswordReset(Customer $customer): RedirectResponse
+    {
+        $this->authorize('update', $customer);
+
+        Password::broker('customers')->sendResetLink(['email' => $customer->email]);
+
+        return redirect()
+            ->back()
+            ->with('success', 'Password reset email sent.');
     }
 }
 ```
@@ -166,13 +181,57 @@ class CustomerController extends Controller
 | `update` | PUT /customers/{customer} | `update` | `update()` |
 | `destroy` | DELETE /customers/{customer} | `delete` | `delete()` |
 | `changeStatus` | PATCH /customers/{customer}/status | `changeStatus` | `changeStatus()` |
+| `verifyEmail` | POST /customers/{customer}/verify-email | `update` | `verifyEmail()` |
+| `setPassword` | PUT /customers/{customer}/password | `update` | `setPassword()` |
+| `sendPasswordReset` | POST /customers/{customer}/password-reset | `update` | — (broker directly) |
+
+---
+
+## SetCustomerPasswordRequest
+
+**File:** `app/Http/Requests/Customer/SetCustomerPasswordRequest.php`
+
+```php
+<?php
+
+declare(strict_types=1);
+
+namespace App\Http\Requests\Customer;
+
+use Illuminate\Foundation\Http\FormRequest;
+
+class SetCustomerPasswordRequest extends FormRequest
+{
+    public function authorize(): bool
+    {
+        return $this->user()->can('update', $this->route('customer'));
+    }
+
+    public function rules(): array
+    {
+        return [
+            'password' => ['required', 'string', 'min:8', 'confirmed'],
+        ];
+    }
+}
+```
+
+---
+
+## Routes to Add
+
+```php
+// Inside the customers.* prefix group in web.php:
+Route::post('/{customer}/verify-email',   [CustomerController::class, 'verifyEmail'])->name('verifyEmail');
+Route::put('/{customer}/password',        [CustomerController::class, 'setPassword'])->name('setPassword');
+Route::post('/{customer}/password-reset', [CustomerController::class, 'sendPasswordReset'])->name('sendPasswordReset');
+```
 
 ---
 
 ## Rules
+
 - Every action calls `$this->authorize()` — no exceptions
-- `store()` and `update()` use typed FormRequest — validated data only
-- `changeStatus()` uses `ChangeCustomerStatusRequest` — not a plain Request
-- Route model binding handles `{customer}` — no manual `Customer::find()` in controller
-- Flash messages: use `with('success', '...')` for all successful operations
-- Redirect after write: `store` → index, `update` → show, `destroy` → index, `changeStatus` → back
+- `setPassword()` and `sendPasswordReset()` reuse `customers.update` permission — no new permission needed
+- `sendPasswordReset()` uses `Password::broker('customers')` — NOT the default broker (which targets `users` table)
+- `show()` passes `$defaultAddress` from controller — never resolve in Blade

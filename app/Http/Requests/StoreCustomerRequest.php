@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Requests;
 
 use App\Enums\CustomerStatus;
+use App\Models\Customer;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -12,7 +13,7 @@ class StoreCustomerRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return true;
+        return $this->user()->can('create', Customer::class);
     }
 
     public function rules(): array
@@ -22,11 +23,6 @@ class StoreCustomerRequest extends FormRequest
             'email' => ['required', 'email', 'max:255', 'unique:customers,email'],
             'phone' => ['required', 'string', 'max:20'],
             'company_name' => ['nullable', 'string', 'max:255'],
-            'address' => ['required', 'string', 'max:255'],
-            'city' => ['required', 'string', 'max:100'],
-            'state' => ['required', 'string', 'max:100'],
-            'postal_code' => ['required', 'string', 'max:20'],
-            'country' => ['required', 'string', 'max:100'],
             'status' => ['required', 'string', Rule::enum(CustomerStatus::class)],
         ];
     }

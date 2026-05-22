@@ -67,6 +67,19 @@ class Permission
 
     const CUSTOMERS_ASSIGN = 'customers.assign';
 
+    // Customer Addresses
+    const CUSTOMER_ADDRESSES_VIEW_ANY = 'customer-addresses.view-any';
+
+    const CUSTOMER_ADDRESSES_VIEW = 'customer-addresses.view';
+
+    const CUSTOMER_ADDRESSES_CREATE = 'customer-addresses.create';
+
+    const CUSTOMER_ADDRESSES_UPDATE = 'customer-addresses.update';
+
+    const CUSTOMER_ADDRESSES_DELETE = 'customer-addresses.delete';
+
+    const CUSTOMER_ADDRESSES_SET_DEFAULT = 'customer-addresses.set-default';
+
     // Products
     const PRODUCTS_VIEW_ANY = 'products.view-any';
 

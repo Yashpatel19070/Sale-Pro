@@ -24,9 +24,14 @@ class RegisteredUserController extends Controller
     {
         $customer = $this->service->register($request->validated());
 
-        Auth::login($customer->user);
+        Auth::guard('customer')->login($customer);
 
-        $customer->user->sendEmailVerificationNotification();
+        $customer->sendEmailVerificationNotification();
+
+        activity('mail')
+            ->causedBy($customer)
+            ->withProperties(['ip' => $request->ip()])
+            ->log('verification-sent');
 
         return redirect()->route('portal.verification.notice');
     }

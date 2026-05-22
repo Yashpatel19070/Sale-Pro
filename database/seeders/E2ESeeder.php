@@ -40,7 +40,6 @@ class E2ESeeder extends Seeder
         // ── Roles & permissions ───────────────────────────────────────────────
         $this->call([
             RoleSeeder::class,
-            CustomerRoleSeeder::class,
             CustomerPermissionSeeder::class,
             ProductCategoryPermissionSeeder::class,
             ProductPermissionSeeder::class,

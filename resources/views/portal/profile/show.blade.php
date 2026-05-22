@@ -15,6 +15,30 @@
         </div>
     </div>
 
+    @if (session('success'))
+        <div class="mb-4 rounded-md bg-green-50 p-4 text-sm text-green-800">{{ session('success') }}</div>
+    @endif
+
+    {{-- Default Address Card --}}
+    <div class="mb-6 overflow-hidden rounded-lg bg-white shadow">
+        <div class="flex items-center justify-between px-6 py-4 border-b">
+            <h2 class="text-sm font-semibold text-gray-700">Default Shipping Address</h2>
+            <a href="{{ route('portal.addresses.index') }}"
+               class="text-sm text-indigo-600 hover:text-indigo-900">Manage Addresses</a>
+        </div>
+        <div class="px-6 py-4 text-sm text-gray-600">
+            @if ($defaultAddress)
+                <p class="font-medium text-gray-800">{{ $defaultAddress->first_name }} {{ $defaultAddress->last_name }}</p>
+                <p>{{ $defaultAddress->address_line1 }}@if($defaultAddress->address_line2), {{ $defaultAddress->address_line2 }}@endif</p>
+                <p>{{ $defaultAddress->city }}, {{ $defaultAddress->state }} {{ $defaultAddress->postal_code }}, {{ $defaultAddress->country }}</p>
+                @if ($defaultAddress->phone)<p class="mt-1 text-gray-500">{{ $defaultAddress->phone }}</p>@endif
+            @else
+                <span class="text-gray-400">No default address set. </span>
+                <a href="{{ route('portal.addresses.create') }}" class="text-indigo-600 hover:underline">Add one now.</a>
+            @endif
+        </div>
+    </div>
+
     <div class="overflow-hidden rounded-lg bg-white shadow">
         <div class="px-6 py-5">
             <dl class="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2">
@@ -33,26 +57,6 @@
                 <div>
                     <dt class="text-sm font-medium text-gray-500">Company</dt>
                     <dd class="mt-1 text-sm text-gray-900">{{ $customer->company_name ?? '—' }}</dd>
-                </div>
-                <div>
-                    <dt class="text-sm font-medium text-gray-500">Address</dt>
-                    <dd class="mt-1 text-sm text-gray-900">{{ $customer->address }}</dd>
-                </div>
-                <div>
-                    <dt class="text-sm font-medium text-gray-500">City</dt>
-                    <dd class="mt-1 text-sm text-gray-900">{{ $customer->city }}</dd>
-                </div>
-                <div>
-                    <dt class="text-sm font-medium text-gray-500">State</dt>
-                    <dd class="mt-1 text-sm text-gray-900">{{ $customer->state }}</dd>
-                </div>
-                <div>
-                    <dt class="text-sm font-medium text-gray-500">Postal Code</dt>
-                    <dd class="mt-1 text-sm text-gray-900">{{ $customer->postal_code }}</dd>
-                </div>
-                <div>
-                    <dt class="text-sm font-medium text-gray-500">Country</dt>
-                    <dd class="mt-1 text-sm text-gray-900">{{ $customer->country }}</dd>
                 </div>
                 <div>
                     <dt class="text-sm font-medium text-gray-500">Status</dt>

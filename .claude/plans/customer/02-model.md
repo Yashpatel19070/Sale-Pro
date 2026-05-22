@@ -50,6 +50,9 @@ enum CustomerStatus: string
 
 **File:** `app/Models/Customer.php`
 
+Customer IS the portal auth model — it extends `Authenticatable`, implements `MustVerifyEmail`.
+No linked `User` row. No Spatie role.
+
 ```php
 <?php
 
@@ -58,32 +61,50 @@ declare(strict_types=1);
 namespace App\Models;
 
 use App\Enums\CustomerStatus;
+use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Foundation\Auth\User as Authenticatable;
+use Illuminate\Notifications\Notifiable;
 
-class Customer extends Model
+class Customer extends Authenticatable implements MustVerifyEmail
 {
     use HasFactory;
+    use Notifiable;
     use SoftDeletes;
 
     protected $fillable = [
         'name',
         'email',
+        'password',
         'phone',
         'company_name',
-        'address',
-        'city',
-        'state',
-        'postal_code',
-        'country',
         'status',
+        'email_verified_at',
     ];
 
-    protected $casts = [
-        'status' => CustomerStatus::class,
+    protected $hidden = [
+        'password',
+        'remember_token',
     ];
+
+    protected function casts(): array
+    {
+        return [
+            'status'            => CustomerStatus::class,
+            'email_verified_at' => 'datetime',
+            'password'          => 'hashed',
+        ];
+    }
+
+    // --- Relationships ---
+
+    public function addresses(): HasMany
+    {
+        return $this->hasMany(CustomerAddress::class);
+    }
 
     // --- Scopes ---
 
@@ -104,9 +125,24 @@ class Customer extends Model
 ```
 
 ### Notes
-- `$fillable` lists every column that can be mass-assigned — matches migration exactly
-- `status` is cast to `CustomerStatus` enum — access as `$customer->status->label()`
+
+- Extends `Illuminate\Foundation\Auth\User as Authenticatable` — NOT `Model`
+- Implements `MustVerifyEmail` — portal registration sends verification email
+- `Notifiable` trait — required for password reset + email verify notifications
+- `$hidden` — `password` and `remember_token` excluded from serialization
+- `$casts` — `password` cast as `'hashed'` (Laravel 10+ auto-hashes on assignment), `email_verified_at` as datetime
+- `addresses()` — hasMany(CustomerAddress::class), added when customer-address module was built
+- `user()` relationship **DELETED** — Customer is standalone; no linked User
 - `scopeByStatus` — filters by a `CustomerStatus` enum case
 - `scopeSearch` — searches name, email, and company_name
-- No relationships in this module — customers are standalone records
-- `HasFactory` is required for tests (factory will be created in 08-tests.md)
+- `HasFactory` is required for tests
+
+### Auth Columns (from migration)
+
+These columns are added by `portal-foundation/01-schema.md`:
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `password` | varchar(255), nullable | null = no portal account set up yet |
+| `remember_token` | varchar(100), nullable | standard Laravel auth |
+| `email_verified_at` | timestamp, nullable | null = unverified |

@@ -56,9 +56,12 @@ class CustomerController extends Controller
     {
         $this->authorize('view', $customer);
 
+        $defaultAddress = $customer->addresses()->default()->first();
+
         return view('customers.show', [
             'customer' => $customer,
             'statuses' => CustomerStatus::cases(),
+            'defaultAddress' => $defaultAddress,
         ]);
     }
 
@@ -117,5 +120,14 @@ class CustomerController extends Controller
         return redirect()
             ->back()
             ->with('success', 'Email marked as verified.');
+    }
+
+    public function sendPasswordReset(Customer $customer): RedirectResponse
+    {
+        $this->authorize('update', $customer);
+
+        $this->service->sendPasswordReset($customer);
+
+        return back()->with('success', "Password reset email sent to {$customer->email}.");
     }
 }

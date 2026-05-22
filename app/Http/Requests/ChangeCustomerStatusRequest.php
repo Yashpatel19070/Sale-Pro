@@ -12,7 +12,7 @@ class ChangeCustomerStatusRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return true;
+        return $this->user()->can('changeStatus', $this->route('customer'));
     }
 
     public function rules(): array

@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace App\Providers;
 
 use App\Listeners\LogAuthActivity;
+use App\Listeners\SendWelcomeMail;
 use App\Models\Customer;
+use App\Models\CustomerAddress;
 use App\Models\Department;
 use App\Models\GoodsReceipt;
 use App\Models\InventoryLocation;
@@ -21,6 +23,7 @@ use App\Models\Supplier;
 use App\Models\User;
 use App\Observers\UserObserver;
 use App\Policies\AuditLogPolicy;
+use App\Policies\CustomerAddressPolicy;
 use App\Policies\CustomerPolicy;
 use App\Policies\DepartmentPolicy;
 use App\Policies\GoodsReceiptPolicy;
@@ -37,6 +40,7 @@ use App\Policies\UserPolicy;
 use Illuminate\Auth\Events\Failed;
 use Illuminate\Auth\Events\Login;
 use Illuminate\Auth\Events\Logout;
+use Illuminate\Auth\Events\Verified;
 use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Auth\Notifications\VerifyEmail;
 use Illuminate\Cache\RateLimiting\Limit;
@@ -59,6 +63,7 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(Department::class, DepartmentPolicy::class);
         Gate::policy(User::class, UserPolicy::class);
         Gate::policy(Customer::class, CustomerPolicy::class);
+        Gate::policy(CustomerAddress::class, CustomerAddressPolicy::class);
         Gate::policy(Product::class, ProductPolicy::class);
         Gate::policy(ProductCategory::class, ProductCategoryPolicy::class);
         Gate::policy(Activity::class, AuditLogPolicy::class);
@@ -75,6 +80,7 @@ class AppServiceProvider extends ServiceProvider
         Event::listen(Login::class, [LogAuthActivity::class, 'handleLogin']);
         Event::listen(Logout::class, [LogAuthActivity::class, 'handleLogout']);
         Event::listen(Failed::class, [LogAuthActivity::class, 'handleFailed']);
+        Event::listen(Verified::class, [SendWelcomeMail::class, 'handle']);
 
         User::observe(UserObserver::class);
 
@@ -83,8 +89,13 @@ class AppServiceProvider extends ServiceProvider
         Route::bind('trashedUser', fn ($id) => User::onlyTrashed()->findOrFail($id));
 
         // Superadmin bypass — any role with is_super=true skips all Gate/policy checks
+        // Customer model has no Spatie roles — skip entirely for portal users
         $superRoles = null;
         Gate::before(function ($user, $ability) use (&$superRoles) {
+            if (! $user instanceof User) {
+                return null;
+            }
+
             if ($superRoles === null) {
                 $superRoles = Cache::remember('roles.super', now()->addHours(6), function () {
                     return Role::where('is_super', true)->pluck('name')->toArray();
@@ -115,10 +126,8 @@ class AppServiceProvider extends ServiceProvider
 
         // ── Portal notification URLs ──────────────────────────────────────────
 
-        // Only redirect to portal routes for users with the customer role.
-        // Admin/staff password resets and email verifications use the default routes.
         ResetPassword::createUrlUsing(function ($notifiable, string $token) {
-            if ($notifiable->hasRole('customer')) {
+            if ($notifiable instanceof Customer) {
                 return route('portal.password.reset', [
                     'token' => $token,
                     'email' => $notifiable->getEmailForPasswordReset(),
@@ -132,7 +141,7 @@ class AppServiceProvider extends ServiceProvider
         });
 
         VerifyEmail::createUrlUsing(function ($notifiable) {
-            if ($notifiable->hasRole('customer')) {
+            if ($notifiable instanceof Customer) {
                 return URL::temporarySignedRoute(
                     'portal.verification.verify',
                     now()->addMinutes(config('auth.verification.expire', 60)),

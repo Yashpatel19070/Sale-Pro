@@ -14,6 +14,7 @@ Customers do NOT log in (no portal in this module).
 | 5 | Delete / Deactivate — soft delete only, no hard delete |
 | 6 | Status management — change status (Active / Inactive / Blocked) |
 | 7 | Role-based permissions — Super Admin and Admin full access, Staff view only |
+| 8 | Portal Account — admin can force-verify email + send password reset email to customer |
 
 ## File Map
 | File | Path |
@@ -57,6 +58,8 @@ Customers do NOT log in (no portal in this module).
 | Edit customer | ✅ | ✅ | ❌ |
 | Delete customer | ✅ | ✅ | ❌ |
 | Change status | ✅ | ✅ | ❌ |
+| Force-verify email | ✅ | ✅ | ❌ |
+| Send password reset | ✅ | ✅ | ❌ |
 
 ## Key Rules (NEVER break these)
 - `strict_types=1` on every PHP file
@@ -113,6 +116,8 @@ Complete every item in order. Do not skip ahead.
 
 ### Controller
 - [ ] All 8 actions present: index, create, store, show, edit, update, destroy, changeStatus
+- [ ] `verifyEmail(Customer)` — force-verify email, calls `service->verifyEmail()`
+- [ ] `sendPasswordReset(Customer)` — sends reset email via `Password::broker('customers')`, throttle:5,1
 - [ ] Every action calls `$this->authorize()`
 - [ ] `store` and `update` use typed FormRequest — NOT plain Request
 - [ ] All redirects use named routes
@@ -121,7 +126,9 @@ Complete every item in order. Do not skip ahead.
 ### Routes
 - [ ] All 8 routes added to `web.php` under `auth` + `verified` middleware
 - [ ] Route names: customers.index, customers.create, customers.store, customers.show, customers.edit, customers.update, customers.destroy, customers.changeStatus
-- [ ] Run `php artisan route:list | grep customers` to verify all 8 routes exist
+- [ ] `POST /{customer}/verify-email` → `customers.verifyEmail`
+- [ ] `POST /{customer}/send-password-reset` → `customers.sendPasswordReset` (throttle:5,1)
+- [ ] Run `php artisan route:list | grep customers` to verify all routes exist
 
 ### Views
 - [ ] `index.blade.php` — table with search/filter form, status badge, paginate, action buttons

@@ -18,10 +18,10 @@ class DatabaseSeeder extends Seeder
         $this->call([
             RoleSeeder::class,
             DepartmentSeeder::class,
-            CustomerRoleSeeder::class,
             CustomerPermissionSeeder::class,
             ProductCategoryPermissionSeeder::class,
             CustomerSeeder::class,
+            CustomerAddressSeeder::class,
             ProductCategorySeeder::class,
             ProductPermissionSeeder::class,
             ProductSeeder::class,
@@ -37,6 +37,7 @@ class DatabaseSeeder extends Seeder
             SupplierPermissionSeeder::class,
             SupplierSeeder::class,
             PurchaseOrderPermissionSeeder::class,
+            CustomerAddressPermissionSeeder::class,
         ]);
 
         $admin = User::firstOrCreate(

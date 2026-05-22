@@ -9,11 +9,6 @@
 | email | string(255) | No | — | Unique |
 | phone | string(20) | No | — | Required |
 | company_name | string(255) | Yes | null | Optional |
-| address | string(255) | No | — | Street address, required |
-| city | string(100) | No | — | Required |
-| state | string(100) | No | — | Required |
-| postal_code | string(20) | No | — | Required |
-| country | string(100) | No | — | Required |
 | status | string | No | 'active' | Enum: active / inactive / blocked |
 | created_at | timestamp | Yes | — | Auto by Laravel |
 | updated_at | timestamp | Yes | — | Auto by Laravel |
@@ -40,11 +35,6 @@ return new class extends Migration
             $table->string('email')->unique();
             $table->string('phone', 20);
             $table->string('company_name')->nullable();
-            $table->string('address');
-            $table->string('city', 100);
-            $table->string('state', 100);
-            $table->string('postal_code', 20);
-            $table->string('country', 100);
             $table->string('status')->default('active');
             $table->timestamps();
             $table->softDeletes();
@@ -69,3 +59,4 @@ php artisan migrate
 - `status` is stored as a plain string — cast to `CustomerStatus` enum in the Model
 - `deleted_at` enables soft delete — records are never permanently removed
 - No foreign keys in this table — customers are standalone records
+- Address data is managed via the `customer_addresses` table — see customer-address module plan.

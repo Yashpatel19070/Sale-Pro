@@ -16,6 +16,7 @@
             </a>
             <div class="flex items-center gap-6 text-sm text-gray-600">
                 <a href="{{ route('portal.dashboard') }}" class="hover:text-gray-900">Home</a>
+                <a href="{{ route('portal.addresses.index') }}" class="hover:text-gray-900">Addresses</a>
                 <a href="{{ route('portal.profile.show') }}" class="hover:text-gray-900">Profile</a>
                 <form method="POST" action="{{ route('portal.logout') }}">
                     @csrf

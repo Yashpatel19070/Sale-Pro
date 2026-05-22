@@ -12,7 +12,7 @@ class UpdateCustomerRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return true;
+        return $this->user()->can('update', $this->route('customer'));
     }
 
     public function rules(): array
@@ -23,15 +23,10 @@ class UpdateCustomerRequest extends FormRequest
                 'required',
                 'email',
                 'max:255',
-                Rule::unique('customers', 'email')->ignore($this->customer),
+                Rule::unique('customers', 'email')->ignore($this->route('customer')),
             ],
             'phone' => ['required', 'string', 'max:20'],
             'company_name' => ['nullable', 'string', 'max:255'],
-            'address' => ['required', 'string', 'max:255'],
-            'city' => ['required', 'string', 'max:100'],
-            'state' => ['required', 'string', 'max:100'],
-            'postal_code' => ['required', 'string', 'max:20'],
-            'country' => ['required', 'string', 'max:100'],
             'status' => ['required', 'string', Rule::enum(CustomerStatus::class)],
         ];
     }

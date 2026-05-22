@@ -5,17 +5,22 @@ declare(strict_types=1);
 namespace App\Models;
 
 use App\Enums\CustomerStatus;
+use App\Notifications\Customer\ResetPasswordNotification;
+use App\Notifications\Customer\VerifyEmailNotification;
+use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
-use Spatie\Activitylog\Support\LogOptions;
+use Illuminate\Foundation\Auth\User as Authenticatable;
+use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Facades\URL;
 use Spatie\Activitylog\Models\Concerns\LogsActivity;
+use Spatie\Activitylog\Support\LogOptions;
 
-class Customer extends Model
+class Customer extends Authenticatable implements MustVerifyEmail
 {
-    use HasFactory, LogsActivity, SoftDeletes;
+    use HasFactory, LogsActivity, Notifiable, SoftDeletes;
 
     public function getActivitylogOptions(): LogOptions
     {
@@ -23,27 +28,55 @@ class Customer extends Model
             ->logFillable()
             ->logOnlyDirty();
     }
+
     protected $fillable = [
-        'user_id',
         'name',
         'email',
+        'password',
         'phone',
         'company_name',
-        'address',
-        'city',
-        'state',
-        'postal_code',
-        'country',
         'status',
+        'email_verified_at',
     ];
 
-    protected $casts = [
-        'status' => CustomerStatus::class,
+    protected $hidden = [
+        'password',
+        'remember_token',
     ];
 
-    public function user(): BelongsTo
+    protected function casts(): array
     {
-        return $this->belongsTo(User::class);
+        return [
+            'status' => CustomerStatus::class,
+            'email_verified_at' => 'datetime',
+            'password' => 'hashed',
+        ];
+    }
+
+    public function sendEmailVerificationNotification(): void
+    {
+        $url = URL::temporarySignedRoute(
+            'portal.verification.verify',
+            now()->addMinutes(60),
+            ['id' => $this->getKey(), 'hash' => sha1($this->getEmailForVerification())],
+        );
+
+        $this->notify(new VerifyEmailNotification($url));
+    }
+
+    public function sendPasswordResetNotification($token): void
+    {
+        $url = route('portal.password.reset', [
+            'token' => $token,
+            'email' => $this->getEmailForPasswordReset(),
+        ]);
+
+        $this->notify(new ResetPasswordNotification($url));
+    }
+
+    public function addresses(): HasMany
+    {
+        return $this->hasMany(CustomerAddress::class);
     }
 
     public function scopeByStatus(Builder $query, CustomerStatus $status): Builder

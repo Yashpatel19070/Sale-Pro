@@ -49,24 +49,16 @@
                             <dd class="mt-1 text-sm text-gray-900">{{ $customer->company_name ?? '—' }}</dd>
                         </div>
                         <div>
-                            <dt class="text-sm font-medium text-gray-500">Address</dt>
-                            <dd class="mt-1 text-sm text-gray-900">{{ $customer->address }}</dd>
-                        </div>
-                        <div>
-                            <dt class="text-sm font-medium text-gray-500">City</dt>
-                            <dd class="mt-1 text-sm text-gray-900">{{ $customer->city }}</dd>
-                        </div>
-                        <div>
-                            <dt class="text-sm font-medium text-gray-500">State</dt>
-                            <dd class="mt-1 text-sm text-gray-900">{{ $customer->state }}</dd>
-                        </div>
-                        <div>
-                            <dt class="text-sm font-medium text-gray-500">Postal Code</dt>
-                            <dd class="mt-1 text-sm text-gray-900">{{ $customer->postal_code }}</dd>
-                        </div>
-                        <div>
-                            <dt class="text-sm font-medium text-gray-500">Country</dt>
-                            <dd class="mt-1 text-sm text-gray-900">{{ $customer->country }}</dd>
+                            <dt class="text-sm font-medium text-gray-500">Default Address</dt>
+                            <dd class="mt-1 text-sm text-gray-900">
+                                @if($defaultAddress)
+                                    {{ $defaultAddress->address_line1 }}@if($defaultAddress->address_line2), {{ $defaultAddress->address_line2 }}@endif<br>
+                                    {{ $defaultAddress->city }}, {{ $defaultAddress->state }} {{ $defaultAddress->postal_code }}<br>
+                                    {{ $defaultAddress->country }}
+                                @else
+                                    <span class="text-gray-400">No default address set.</span>
+                                @endif
+                            </dd>
                         </div>
                         <div>
                             <dt class="text-sm font-medium text-gray-500">Status</dt>
@@ -88,33 +80,56 @@
                 </div>
             </div>
 
-            {{-- Portal Account / Email Verification --}}
+            {{-- Portal Account --}}
             @can('update', $customer)
-                @if($customer->user)
-                    <div class="mt-6 rounded-lg bg-white p-6 shadow">
-                        <h3 class="mb-4 text-sm font-medium text-gray-700">Portal Account</h3>
+                <div class="mt-6 rounded-lg bg-white p-6 shadow">
+                    <h3 class="mb-4 text-sm font-medium text-gray-700">Portal Account</h3>
+                    <div class="space-y-4">
+
+                        {{-- Email verification --}}
                         <div class="flex items-center justify-between">
                             <div class="text-sm text-gray-600">
-                                Email verification:
-                                @if($customer->user->hasVerifiedEmail())
+                                Email:
+                                @if($customer->hasVerifiedEmail())
                                     <span class="font-medium text-green-700">Verified</span>
-                                    <span class="text-gray-400">({{ $customer->user->email_verified_at->format('M d, Y') }})</span>
+                                    <span class="text-gray-400">({{ $customer->email_verified_at->format('M d, Y') }})</span>
                                 @else
-                                    <span class="font-medium text-yellow-700">Pending</span>
+                                    <span class="font-medium text-yellow-700">Not verified</span>
                                 @endif
                             </div>
-                            @unless($customer->user->hasVerifiedEmail())
+                            @unless($customer->hasVerifiedEmail())
                                 <form method="POST" action="{{ route('customers.verifyEmail', $customer) }}">
                                     @csrf
                                     <button type="submit"
                                             class="rounded-md bg-green-600 px-4 py-2 text-sm text-white hover:bg-green-700">
-                                        Force Verify Email
+                                        Force Verify
                                     </button>
                                 </form>
                             @endunless
                         </div>
+
+                        {{-- Password reset --}}
+                        <div class="flex items-center justify-between">
+                            @if($customer->password)
+                                <div class="text-sm text-gray-600">
+                                    Password: <span class="font-medium text-gray-700">Set</span>
+                                </div>
+                                <form method="POST" action="{{ route('customers.sendPasswordReset', $customer) }}">
+                                    @csrf
+                                    <button type="submit"
+                                            class="rounded-md bg-indigo-600 px-4 py-2 text-sm text-white hover:bg-indigo-700">
+                                        Send Reset Email
+                                    </button>
+                                </form>
+                            @else
+                                <div class="text-sm text-gray-500">
+                                    Password: <span class="text-gray-400">Not set — customer has not registered via portal</span>
+                                </div>
+                            @endif
+                        </div>
+
                     </div>
-                @endif
+                </div>
             @endcan
 
             {{-- Change Status --}}
@@ -142,6 +157,15 @@
                     </form>
                 </div>
             @endcan
+
+            {{-- Addresses --}}
+            <div class="mt-6 rounded-lg bg-white p-6 shadow">
+                <div class="flex items-center justify-between">
+                    <h3 class="text-sm font-medium text-gray-700">Addresses</h3>
+                    <a href="{{ route('customer-addresses.index', $customer) }}"
+                       class="text-sm text-indigo-600 hover:text-indigo-900">Manage Addresses</a>
+                </div>
+            </div>
 
         </div>
     </div>

@@ -47,11 +47,6 @@ function customerPayload(array $overrides = []): array
         'email' => 'jane@example.com',
         'phone' => '555-123-4567',
         'company_name' => null,
-        'address' => '123 Main St',
-        'city' => 'Springfield',
-        'state' => 'IL',
-        'postal_code' => '62701',
-        'country' => 'USA',
         'status' => 'active',
     ], $overrides);
 }

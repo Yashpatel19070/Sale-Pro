@@ -18,15 +18,10 @@ class RegisterRequest extends FormRequest
     {
         return [
             'name' => ['required', 'string', 'max:255'],
-            'email' => ['required', 'email', 'max:255', 'unique:users,email', 'unique:customers,email'],
+            'email' => ['required', 'email', 'max:255', 'unique:customers,email'],
             'password' => ['required', 'confirmed', Password::defaults()],
             'phone' => ['required', 'string', 'max:20'],
             'company_name' => ['nullable', 'string', 'max:255'],
-            'address' => ['required', 'string', 'max:255'],
-            'city' => ['required', 'string', 'max:100'],
-            'state' => ['required', 'string', 'max:100'],
-            'postal_code' => ['required', 'string', 'max:20'],
-            'country' => ['required', 'string', 'max:100'],
         ];
     }
 }

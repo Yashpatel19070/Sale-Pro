@@ -9,6 +9,8 @@ All tests use Pest. Use `RefreshDatabase` trait.
 
 **File:** `database/factories/CustomerFactory.php`
 
+Customer IS the portal auth model — factory includes `password` and `email_verified_at`.
+
 ```php
 <?php
 
@@ -18,22 +20,20 @@ namespace Database\Factories;
 
 use App\Enums\CustomerStatus;
 use Illuminate\Database\Eloquent\Factories\Factory;
+use Illuminate\Support\Facades\Hash;
 
 class CustomerFactory extends Factory
 {
     public function definition(): array
     {
         return [
-            'name'         => fake()->name(),
-            'email'        => fake()->unique()->safeEmail(),
-            'phone'        => fake()->numerify('###-###-####'),
-            'company_name' => fake()->optional()->company(),
-            'address'      => fake()->streetAddress(),
-            'city'         => fake()->city(),
-            'state'        => fake()->state(),
-            'postal_code'  => fake()->postcode(),
-            'country'      => fake()->country(),
-            'status'       => CustomerStatus::Active->value,
+            'name'              => fake()->name(),
+            'email'             => fake()->unique()->safeEmail(),
+            'password'          => Hash::make('password'),
+            'phone'             => fake()->numerify('###-###-####'),
+            'company_name'      => fake()->optional()->company(),
+            'status'            => CustomerStatus::Active->value,
+            'email_verified_at' => now(),
         ];
     }
 
@@ -46,8 +46,24 @@ class CustomerFactory extends Factory
     {
         return $this->state(['status' => CustomerStatus::Blocked->value]);
     }
+
+    public function unverified(): static
+    {
+        return $this->state(['email_verified_at' => null]);
+    }
+
+    public function noPassword(): static
+    {
+        return $this->state(['password' => null]);
+    }
 }
 ```
+
+### Notes
+- Default password is `'password'` (hashed) — use in tests with `Hash::check('password', $customer->password)`
+- `email_verified_at` defaults to `now()` — most tests assume a verified account
+- `unverified()` state — for testing email verification flow
+- `noPassword()` state — customer exists but hasn't set portal password yet (admin-created account)
 
 ---
 
@@ -108,11 +124,6 @@ function customerPayload(array $overrides = []): array
         'email'        => 'jane@example.com',
         'phone'        => '555-123-4567',
         'company_name' => null,
-        'address'      => '123 Main St',
-        'city'         => 'Springfield',
-        'state'        => 'IL',
-        'postal_code'  => '62701',
-        'country'      => 'USA',
         'status'       => 'active',
     ], $overrides);
 }
@@ -249,6 +260,14 @@ it('store fails with invalid status', function () {
     $this->actingAs($admin)
         ->post(route('customers.store'), customerPayload(['status' => 'invalid']))
         ->assertSessionHasErrors('status');
+});
+
+it('store fails with invalid email format', function () {
+    $admin = adminUser();
+
+    $this->actingAs($admin)
+        ->post(route('customers.store'), customerPayload(['email' => 'not-an-email']))
+        ->assertSessionHasErrors('email');
 });
 
 it('staff cannot create a customer', function () {
@@ -440,11 +459,6 @@ it('store creates a customer', function () {
         'email'        => 'jane@example.com',
         'phone'        => '555-123-4567',
         'company_name' => null,
-        'address'      => '123 Main St',
-        'city'         => 'Springfield',
-        'state'        => 'IL',
-        'postal_code'  => '62701',
-        'country'      => 'USA',
         'status'       => 'active',
     ];
 
@@ -494,3 +508,8 @@ Or run all:
 ```bash
 php artisan test
 ```
+
+---
+
+## Notes
+- `authorize()` in FormRequests delegates to `CustomerPolicy` — controller also calls `$this->authorize()`. Both must pass.

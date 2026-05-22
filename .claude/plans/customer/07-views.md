@@ -84,7 +84,9 @@ No inline styles. No JavaScript frameworks — plain HTML + Tailwind.
 **Sections:**
 1. Page header — "Customer: {{ $customer->name }}" + Edit button (if can update) + Back to list link
 2. Customer detail card — all fields in a definition list or grid
-3. Status section — current status badge + change status form (if can changeStatus)
+3. Portal Account card — email verification status (if customer has linked user account)
+4. Change Status card — current status badge + change status form (if can changeStatus)
+5. Addresses card — "Manage Addresses" link → route('customer-addresses.index', $customer)
 
 **Fields to display:**
 | Label | Value |
@@ -93,13 +95,15 @@ No inline styles. No JavaScript frameworks — plain HTML + Tailwind.
 | Email | `{{ $customer->email }}` |
 | Phone | `{{ $customer->phone }}` |
 | Company | `{{ $customer->company_name ?? '—' }}` |
-| Address | `{{ $customer->address }}` |
-| City | `{{ $customer->city }}` |
-| State | `{{ $customer->state }}` |
-| Postal Code | `{{ $customer->postal_code }}` |
-| Country | `{{ $customer->country }}` |
 | Status | Badge (same color logic as index) |
 | Created | `{{ $customer->created_at->format('M d, Y') }}` |
+
+**Note:** Section 3 — Portal Account card: Customer IS their own auth record now (no linked User).
+Show email verification status (`$customer->hasVerifiedEmail()`), verify button, set-password form,
+and send-reset-email button. All three admin actions visible if `can('update', $customer)`.
+
+**Note:** Section 5 — Addresses card: shows `$defaultAddress` passed from controller.
+If null, shows 'No default address set' with a link to manage addresses.
 
 **Change Status Form (show only if `auth()->user()->can('customers.changeStatus', $customer)`):**
 ```html
@@ -134,7 +138,7 @@ No inline styles. No JavaScript frameworks — plain HTML + Tailwind.
 ```html
 <form method="POST" action="{{ route('customers.store') }}">
     @csrf
-    <!-- Fields: name, email, phone, company_name, address, city, state, postal_code, country, status -->
+    <!-- Fields: name, email, phone, company_name, status -->
     <!-- All required except company_name -->
     <!-- Show @error('field') validation messages below each input -->
 </form>
@@ -147,11 +151,6 @@ No inline styles. No JavaScript frameworks — plain HTML + Tailwind.
 | email | email | Yes | old('email') |
 | phone | text | Yes | old('phone') |
 | company_name | text | No | old('company_name') |
-| address | text | Yes | old('address') |
-| city | text | Yes | old('city') |
-| state | text | Yes | old('state') |
-| postal_code | text | Yes | old('postal_code') |
-| country | text | Yes | old('country') |
 | status | select | Yes | old('status', 'active') |
 
 **Status select options:**
@@ -182,7 +181,7 @@ No inline styles. No JavaScript frameworks — plain HTML + Tailwind.
 
 **Sections:**
 1. Page header — "Edit Customer: {{ $customer->name }}" + Back to show link
-2. Form — all fields pre-filled
+2. Form — fields pre-filled: name, email, phone, company_name, status (address fields removed; managed via customer-addresses module)
 3. Submit + Cancel buttons
 
 **Form:**
