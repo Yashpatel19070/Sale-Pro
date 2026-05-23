@@ -1,3 +1,5 @@
+> See [../global.md](../global.md) for agent rules, column conventions, and all status/enum references before reading this example.
+
 ## Example 5 — ORD-006 — Flow B: No Fault, Charged Replacement
 
 **Scenario:** Lisa Chen orders online. Pays via Stripe card. Widget Pro SN-050 reported as not turning on. Admin sends replacement immediately (Flow B). SN-051 delivered to Lisa. SN-050 arrives 8 days later — examined, no fault found. Lisa charged $80 for the replacement. SN-050 goes back to warehouse stock.

@@ -136,6 +136,20 @@ Do NOT batch multiple file changes into a single approval request — ask per fi
 Feature designs and architecture decisions are in `.claude/plans/`.
 Before implementing any feature, check if a plan exists there first.
 
+## Status Tracking (CRITICAL)
+
+After completing **any task** — feature, bug fix, plan update, or test — you MUST:
+1. Open `.claude/plans/STATUS.md`
+2. Find the affected module row(s)
+3. Update `%`, `Status`, and `Last Touched`
+4. Save the file
+
+**No exceptions.** A task is not complete until STATUS.md is updated.
+
+Status values: `not started` / `in progress` / `done` / `deferred`
+
+% guide: 20% schema/migration · 40% model+service · 60% controller+routes · 80% views · 90% tests written · 100% all passing
+
 <!-- code-review-graph MCP tools -->
 ## MCP Tools: code-review-graph
 

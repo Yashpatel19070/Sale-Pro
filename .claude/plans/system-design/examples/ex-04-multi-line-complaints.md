@@ -1,3 +1,5 @@
+> See [../global.md](../global.md) for agent rules, column conventions, and all status/enum references before reading this example.
+
 ## Example 4 — ORD-005 — Multi-Line, Concurrent Complaints
 
 **Scenario:** David Park walks in. Pays with Stripe Terminal (card-present). Buys 3 items. Asks for home delivery. Two items fail shortly after — both complaints run in parallel:

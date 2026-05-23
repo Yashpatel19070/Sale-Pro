@@ -1,3 +1,5 @@
+> See [../global.md](../global.md) for agent rules, column conventions, and all status/enum references before reading this example.
+
 ## Example 12 — ORD-014 — Phone Order + Cheque
 
 **Scenario:** Robert Kim calls in. Buys one Widget Basic ($150). Offers to pay by company cheque — gives cheque number and date by phone. CSR records order + cheque details (`status=pending`). Cheque arrives and clears next day. Admin marks payment received, ships via UPS. No issues.

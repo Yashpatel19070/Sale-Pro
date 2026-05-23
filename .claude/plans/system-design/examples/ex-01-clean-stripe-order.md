@@ -1,3 +1,5 @@
+> See [../global.md](../global.md) for agent rules, column conventions, and all status/enum references before reading this example.
+
 ## Example 1 — ORD-001 — Clean Stripe Card Order
 
 **Scenario:** Sarah Johnson buys one item online. Pays full via Stripe card. Delivered. No issues.

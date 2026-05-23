@@ -1,3 +1,5 @@
+> See [../global.md](../global.md) for agent rules, column conventions, and all status/enum references before reading this example.
+
 ## Example 7 — ORD-009 — Post-Delivery Return, Full Refund
 
 **Post-delivery return policy:**

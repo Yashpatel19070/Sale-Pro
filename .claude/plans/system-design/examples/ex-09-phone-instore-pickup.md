@@ -1,3 +1,5 @@
+> See [../global.md](../global.md) for agent rules, column conventions, and all status/enum references before reading this example.
+
 ## Example 9 — ORD-011 — Phone Order, In-Store Pickup, In-Person Complaint
 
 **Scenario:** Tom Wilson calls the store. Admin creates order on his behalf. Tom comes in next day, pays Stripe Terminal, picks up Widget Pro SN-100. Two days later returns — device not powering on. Hands unit at counter. Sam examines — internal fault. Free replacement SN-101 handed to Tom same day. No shipping at any point.

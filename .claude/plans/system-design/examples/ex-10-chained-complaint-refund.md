@@ -1,3 +1,5 @@
+> See [../global.md](../global.md) for agent rules, column conventions, and all status/enum references before reading this example.
+
 ## Example 10 — ORD-012 — Phone Order, In-Store Pickup, Chained Complaint, Full Refund
 
 **Scenario:** Jane Kim calls the store. Admin creates order. Jane comes in next day, pays cash, picks up Widget Pro SN-110. Three days later SN-110 fails — Jane returns to counter. Internal fault confirmed. Free replacement SN-111 handed at counter (REP-009). Three days later SN-111 also fails. Jane returns again. Internal fault again. Admin decides: two consecutive faults = refund, no second replacement. Full $220 cash refund.
@@ -221,5 +223,3 @@ revenue:  $0.00
 cost:     $0.00  (no shipments)
 margin:   $0.00
 ```
-
----

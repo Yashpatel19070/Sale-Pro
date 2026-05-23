@@ -4340,3 +4340,931 @@ payment_received  {"method":"stripe_terminal","amount":"150.00",                
 |-------|---------|-------------|----------------|
 | `refunded` | `RefundService::process()` | admin | `amount`, `refund_number` |
 | `note_added` | `NoteService::create()` — note attached to order | admin / CSR | `note_id`, `preview` |
+
+---
+
+## Core Returns
+
+Customers buy a product and pay a refundable core deposit. When they return the old core, tech inspects it. Accepted → refund + rebuild. Rejected → no refund. Customers have 30 days after acceptance to reclaim their core; after that, a scheduled job moves it to rebuild.
+
+### Schema Changes
+
+**New tables:**
+
+```
+order_core_charges
+  id, order_id, order_line_id, description,
+  amount, tax_rate, tax_amount, total,
+  status: outstanding | refunded | forfeited,
+  timestamps
+
+core_returns
+  id, number (CORE-RTN-2026-0001),
+  order_core_charge_id,
+  return_method: counter | mail,
+  status: pending | received | accepted | rejected | closed,
+  received_at, received_by (FK → users),
+  inspected_by (FK → users), inspected_at,
+  expires_at  (= inspected_at + 30 days — NULL until tech inspects),
+  inspection_result: NULL | accepted | rejected,
+  rejection_reason (text — NULL unless rejected),
+  core_outcome: NULL | rebuild | back_to_stock | returned_to_customer | disposed | scrapped,
+  refund_payment_id (FK → payments — NULL until refund fires),
+  notes, created_by (FK → users),
+  timestamps + soft delete
+```
+
+**Modified tables:**
+
+```
+products:  + has_core_charge  boolean  default false
+orders:    + core_charges     decimal(12,2)  default 0.00
+             grand_total = subtotal + fees + core_charges + shipping
+```
+
+**Enum additions:**
+
+```
+SerialStatus (app/Enums/SerialStatus.php — string(50) column, PHP is guard, no migration ALTER):
+  + core_received      Unit received at dock or counter, awaiting tech
+  + core_accepted      Tech accepted — core in CORE-HOLD, pending rebuild or reclaim
+  + core_rejected      Tech rejected — no refund
+  + core_in_rebuild    30-day window expired — moved to rebuild bench
+
+MovementType (app/Enums/MovementType.php — MySQL ENUM, ALTER TABLE migration required):
+  + core_receive       Customer core intake — NULL → TECH-BENCH
+```
+
+**New inventory locations (seeder — not migration):**
+
+```
+id  name           code         is_active
+10  Tech Bench     TECH-BENCH   true
+11  Core Hold      CORE-HOLD    true
+12  Rebuild Bench  REBUILD      true
+13  Scrap Hold     SCRAP-HOLD   true
+```
+
+> `core_receive` movement: `from_location_id = NULL` (not from our stock), `to_location_id = TECH-BENCH`.
+
+---
+
+### Column name convention additions (Core Returns)
+
+| Example shows | Actual DB column | Table |
+|---------------|-----------------|-------|
+| `occ_id` | `order_core_charge_id` (FK → `order_core_charges`) | `core_returns` |
+| `method` | `return_method` | `core_returns` |
+| `result` | `inspection_result` | `core_returns` |
+| `refund_pmt` | `refund_payment_id` (FK → `payments`) | `core_returns` |
+
+---
+
+### Core Returns — Status Reference
+
+**`order_core_charges.status`**
+
+| Value | Meaning | Terminal? |
+|-------|---------|-----------|
+| `outstanding` | Customer paid deposit — core not yet returned or accepted | no |
+| `refunded` | Core accepted by tech — deposit refunded | yes |
+| `forfeited` | Core rejected, fraud blocked, or 30-day expired without acceptance | yes |
+
+**`core_returns.status`**
+
+| Value | Meaning | Terminal? |
+|-------|---------|-----------|
+| `pending` | Return created — core not yet physically received | no |
+| `received` | Core physically arrived — awaiting tech inspection | no |
+| `accepted` | Tech accepted — core in CORE-HOLD, within 30-day reclaim window | no |
+| `rejected` | Tech rejected core | no |
+| `closed` | All done — outcome recorded, no further action | yes |
+
+**`core_returns.inspection_result`**
+
+| Value | Meaning |
+|-------|---------|
+| `accepted` | Core is rebuildable |
+| `rejected` | Core is not rebuildable |
+| `NULL` | Not yet inspected |
+
+**`core_returns.core_outcome`**
+
+| Value | Meaning |
+|-------|---------|
+| `rebuild` | Core moved to rebuild bench — scheduled job or admin |
+| `back_to_stock` | Core in good condition — returned to warehouse as sellable unit |
+| `returned_to_customer` | Core given or shipped back to customer |
+| `disposed` | Formal disposal — environmental waste or recycling |
+| `scrapped` | Destroyed — sent to metal recycler |
+| `NULL` | Not yet determined |
+
+---
+
+### Fraud Check Rule
+
+> **Before any `core_receive` movement:**
+> 1. Look up the physical unit's serial in `inventory_serials`.
+> 2. If found AND serial pattern matches a **product serial** (e.g. `SN-xxx`) → **FRAUD**. Block. Create `core_returns` row with `status=closed`, `inspection_result=rejected`, `rejection_reason='fraud — serial matches our inventory'`. No `core_receive` movement. `order_core_charges.status → forfeited`.
+> 3. If found AND serial pattern matches a **`CORE-xxx` tracking serial** (our prior intake label): check `core_returns` for same customer/order. If matched → **ALLOWED**. Assign a **new** `CORE-xxx` serial. Never reuse the prior serial.
+> 4. If not found in `inventory_serials` → proceed normally.
+
+---
+
+### Refund and Re-charge Rules
+
+| Event | Action |
+|-------|--------|
+| Tech accepts core | `payments` INSERT: `payable_type=core_return`, `payable_id=core_return.id`, `amount=order_core_charge.total`, `status=refunded`. Auto — no CSR step. |
+| Customer reclaims accepted core within 30 days | `payments` INSERT: same `payable_type`/`payable_id`, positive `amount`, `status=paid`. Then move core out. |
+| Tech rejects core | No payment. `order_core_charges.status → forfeited`. |
+| 30-day window expires | Scheduled job. Core moves CORE-HOLD → REBUILD. `order_core_charges` stays `refunded` (refund already issued on accept). No new financial action. |
+
+---
+
+### Core Returns — Global Reference Customers
+
+```
+customers:
+id  name         email              phone         status
+5   Robert King  robert@example.com 555-100-0005  active
+
+customer_addresses:
+id  customer_id  label  first_name  last_name  address_line1  city    state  postal_code  country  is_default
+5   5            Home   Robert      King       789 Pine Rd    Dallas  TX     75201        US       true
+```
+
+---
+
+### Base Order — ORD-2026-030 (used across CR-1 through CR-10)
+
+Robert buys a starter motor. Product has `has_core_charge=true`. Admin enters $50 core charge.
+
+```
+orders:
+id  number        customer_id  source   status      payment_status  subtotal  fees   core_charges  shipping  grand_total
+30  ORD-2026-030  5            walk_in  processing  paid            250.00    25.00  50.00         15.00     340.00
+
+order_lines:
+id  order  sku      product_name   serial        unit_price  line_total
+30  30     STRT-01  Starter Motor  SN-2026-030   250.00      250.00
+
+order_core_charges (initial):
+id  order  order_line  description           amount  tax_rate  tax_amount  total   status
+1   30     30          Core — Starter Motor  50.00   0.0000    0.00        50.00   outstanding
+
+order_fees:
+id  order  name          amount
+30  30     Service Fee   25.00
+
+payments (original purchase):
+id  order  payable_type  payable_id  method  amount  status
+30  30     order         30          cash    340.00  paid
+```
+
+Grand total: $250 + $25 + $50 + $15 = **$340** ✓
+
+---
+
+## CR-1 — Counter → Accepted → Rebuild
+
+**Scenario:** Robert brings his old core to the counter. Tech accepts it. Refund fires automatically. Robert never comes back in 30 days. Scheduled job moves core to rebuild.
+
+### Data Flow
+
+```
+[Robert hands core across counter]
+        │
+        └──→ core_returns INSERT (method=counter, status=pending)
+             core_returns.status → received
+             inventory_serials INSERT (CORE-2026-0001, status=core_received)
+             inventory_movements INSERT (core_receive, NULL → TECH-BENCH, ref=CORE-RTN-2026-001)
+
+[Tech examines — accepts]
+        │
+        └──→ core_returns.inspection_result → accepted
+             core_returns.inspected_at = 2026-06-01 11:00
+             core_returns.expires_at   = 2026-07-01 11:00
+             core_returns.status → accepted
+             inventory_serials UPDATE (core_received → core_accepted)
+             inventory_movements INSERT (transfer, TECH-BENCH → CORE-HOLD, ref=CORE-RTN-2026-001)
+             order_core_charges.status → refunded
+             payments INSERT (payable_type=core_return, cash_back, $50.00, refunded)
+             core_returns.refund_payment_id set
+
+[30 days — scheduled job]
+        │
+        └──→ inventory_movements INSERT (transfer, CORE-HOLD → REBUILD, ref=CORE-RTN-2026-001)
+             inventory_serials UPDATE (core_accepted → core_in_rebuild)
+             core_returns.core_outcome → rebuild
+             core_returns.status → closed
+```
+
+### Schema Data
+
+**`core_returns`**
+```
+id  number              occ_id  method   status  received_at       inspected_at      expires_at        result    core_outcome  refund_pmt
+1   CORE-RTN-2026-001   1       counter  closed  2026-06-01 10:00  2026-06-01 11:00  2026-07-01 11:00  accepted  rebuild       31
+```
+
+**`order_core_charges`**
+```
+id  status
+1   refunded
+```
+
+**`inventory_serials`**
+```
+serial          status          location  note
+CORE-2026-0001  core_in_rebuild REBUILD   Robert King — ORD-2026-030
+```
+
+**`inventory_movements`**
+```
+id   serial          type          from        to          reference          notes
+100  CORE-2026-0001  core_receive  NULL        TECH-BENCH  CORE-RTN-2026-001  received at counter
+101  CORE-2026-0001  transfer      TECH-BENCH  CORE-HOLD   CORE-RTN-2026-001  tech accepted
+102  CORE-2026-0001  transfer      CORE-HOLD   REBUILD     CORE-RTN-2026-001  30-day expired — auto job
+```
+
+**`payments`**
+```
+id  order  payable_type  payable_id  method     amount  status
+30  30     order         30          cash       340.00  paid
+31  30     core_return   1           cash_back   50.00  refunded
+```
+
+### Financial Summary
+```
+original:  $340.00
+refunded:   $50.00
+net:       $290.00  (Robert has new part; core goes to rebuild)
+```
+
+---
+
+## CR-2 — Counter → Accepted → Customer Reclaims
+
+**Scenario:** Same as CR-1 through acceptance and refund. Day 15 Robert returns: "I want my old core back." Admin re-charges $50. Core handed over.
+
+### Data Flow (from reclaim step)
+
+```
+[Day 15 — Robert comes back for core]
+        │
+        └──→ payments INSERT (payable_type=core_return, cash, $50.00, paid)  ← re-charge
+             inventory_movements INSERT (transfer, CORE-HOLD → NULL, ref=CORE-RTN-2026-002)
+             inventory_serials UPDATE (core_accepted → sold)
+             core_returns.core_outcome → returned_to_customer
+             core_returns.status → closed
+```
+
+### Schema Data
+
+**`core_returns`**
+```
+id  number              occ_id  method   status  result    core_outcome         refund_pmt
+2   CORE-RTN-2026-002   1       counter  closed  accepted  returned_to_customer 31
+```
+
+**`inventory_serials`**
+```
+serial          status  location  note
+CORE-2026-0002  sold    NULL      reclaimed by Robert — day 15
+```
+
+**`inventory_movements`**
+```
+id   serial          type          from        to          reference          notes
+100  CORE-2026-0002  core_receive  NULL        TECH-BENCH  CORE-RTN-2026-002  received at counter
+101  CORE-2026-0002  transfer      TECH-BENCH  CORE-HOLD   CORE-RTN-2026-002  tech accepted
+102  CORE-2026-0002  transfer      CORE-HOLD   NULL        CORE-RTN-2026-002  Robert reclaimed at counter
+```
+
+**`payments`**
+```
+id  order  payable_type  payable_id  method     amount  status
+30  30     order         30          cash       340.00  paid
+31  30     core_return   2           cash_back   50.00  refunded  ← auto on accept
+32  30     core_return   2           cash        50.00  paid      ← re-charge on reclaim
+```
+
+### Financial Summary
+```
+original:    $340.00
+refunded:     $50.00
+re-charged:   $50.00
+net:         $340.00  (Robert has new part + old core; round-trip deposit)
+```
+
+---
+
+## CR-3 — Counter → Rejected → Customer Takes Core
+
+**Scenario:** Tech rejects core (severe corrosion). Robert takes it back at the counter.
+
+### Data Flow
+
+```
+[Robert hands core across counter]
+        │
+        └──→ core_returns INSERT (counter, pending → received)
+             inventory_serials INSERT (CORE-2026-0003, core_received)
+             inventory_movements INSERT (core_receive, NULL → TECH-BENCH)
+
+[Tech examines — rejects]
+        │
+        └──→ core_returns.inspection_result → rejected
+             core_returns.rejection_reason  → severe corrosion
+             core_returns.status → rejected
+             inventory_serials UPDATE (core_received → core_rejected)
+             order_core_charges.status → forfeited
+
+[Robert takes core on the spot]
+        │
+        └──→ inventory_movements INSERT (transfer, TECH-BENCH → NULL, ref=CORE-RTN-2026-003)
+             inventory_serials UPDATE (core_rejected → sold)
+             core_returns.core_outcome → returned_to_customer
+             core_returns.status → closed
+```
+
+### Schema Data
+
+**`core_returns`**
+```
+id  number              occ_id  method   status  result    rejection_reason  core_outcome         refund_pmt
+3   CORE-RTN-2026-003   1       counter  closed  rejected  severe corrosion  returned_to_customer NULL
+```
+
+**`order_core_charges`**
+```
+id  status
+1   forfeited
+```
+
+**`inventory_serials`**
+```
+serial          status  location  note
+CORE-2026-0003  sold    NULL      rejected — returned to Robert at counter
+```
+
+**`inventory_movements`**
+```
+id   serial          type          from        to          reference          notes
+100  CORE-2026-0003  core_receive  NULL        TECH-BENCH  CORE-RTN-2026-003
+101  CORE-2026-0003  transfer      TECH-BENCH  NULL        CORE-RTN-2026-003  returned to customer at counter
+```
+
+### Financial Summary
+```
+net: $340.00  (Robert loses $50 deposit)
+```
+
+---
+
+## CR-4 — Counter → Rejected → Scrapped
+
+**Scenario:** Tech rejects core (cracked housing). Robert does not want it back. Scrapped.
+
+### Data Flow
+
+```
+[Same counter intake as CR-3]
+[Tech rejects — Robert declines return]
+        │
+        └──→ order_core_charges.status → forfeited
+             inventory_movements INSERT (adjustment, TECH-BENCH → SCRAP-HOLD, ref=CORE-RTN-2026-004)
+             inventory_serials UPDATE (core_rejected → scrapped)
+             core_returns.core_outcome → scrapped
+             core_returns.status → closed
+```
+
+### Schema Data
+
+**`core_returns`**
+```
+id  number              occ_id  method   status  result    rejection_reason  core_outcome  refund_pmt
+4   CORE-RTN-2026-004   1       counter  closed  rejected  cracked housing   scrapped      NULL
+```
+
+**`order_core_charges`**
+```
+id  status
+1   forfeited
+```
+
+**`inventory_serials`**
+```
+serial          status    location    note
+CORE-2026-0004  scrapped  SCRAP-HOLD  scrapped — cracked housing, Robert declined return
+```
+
+**`inventory_movements`**
+```
+id   serial          type          from        to          reference          notes
+100  CORE-2026-0004  core_receive  NULL        TECH-BENCH  CORE-RTN-2026-004
+101  CORE-2026-0004  adjustment    TECH-BENCH  SCRAP-HOLD  CORE-RTN-2026-004  scrapped — Robert declined
+```
+
+### Financial Summary
+```
+net: $340.00  (Robert loses $50 deposit)
+```
+
+---
+
+## CR-5 — Counter → Rejected → Disposed
+
+**Scenario:** Tech rejects (oil-contaminated, hazmat). Robert does not want it back. Formal disposal.
+
+Identical to CR-4. Only `core_outcome` differs. Both land in SCRAP-HOLD; `core_outcome` distinguishes them for reporting.
+
+```
+core_returns.core_outcome:  disposed
+inventory_serials.status:   scrapped
+movement:  adjustment  TECH-BENCH → SCRAP-HOLD  (notes: disposed — hazmat)
+```
+
+---
+
+## CR-6 — Mail → Accepted → Rebuild
+
+**Scenario:** Robert lives far. Admin generates an inbound label and emails it. Robert ships core. Tech accepts. 30-day auto rebuild.
+
+### Data Flow
+
+```
+[Admin creates return + inbound label]
+        │
+        └──→ core_returns INSERT (mail, status=pending)
+             shipments INSERT (shippable_type=core_return, shippable_id=6, direction=inbound, status=label_created)
+
+[Robert drops package at carrier]
+        │
+        └──→ shipments.status → in_transit
+
+[Package arrives at dock]
+        │
+        └──→ shipments.status → delivered
+             inventory_serials INSERT (CORE-2026-0006, core_received)
+             inventory_movements INSERT (core_receive, NULL → TECH-BENCH, ref=CORE-RTN-2026-006)
+             core_returns.received_at set
+             core_returns.status → received
+
+[Tech accepts]
+        │
+        └──→ core_returns.status → accepted
+             core_returns.inspected_at set, expires_at = inspected_at + 30 days
+             inventory_serials UPDATE (core_received → core_accepted)
+             inventory_movements INSERT (transfer, TECH-BENCH → CORE-HOLD, ref=CORE-RTN-2026-006)
+             order_core_charges.status → refunded
+             payments INSERT (payable_type=core_return, cash_back, $50, refunded)
+
+[30 days — scheduled job]
+        │
+        └──→ inventory_movements INSERT (transfer, CORE-HOLD → REBUILD, ref=CORE-RTN-2026-006)
+             inventory_serials UPDATE (core_accepted → core_in_rebuild)
+             core_returns.core_outcome → rebuild
+             core_returns.status → closed
+```
+
+### Schema Data
+
+**`core_returns`**
+```
+id  number              occ_id  method  status  received_at       inspected_at      expires_at        result    core_outcome  refund_pmt
+6   CORE-RTN-2026-006   1       mail    closed  2026-06-03 09:00  2026-06-03 14:00  2026-07-03 14:00  accepted  rebuild       31
+```
+
+**`shipments`**
+```
+id  shippable_type  shippable_id  direction  carrier  tracking  status     received_at
+20  core_return     6             inbound    FedEx    FX-30006  delivered  2026-06-03 09:00
+```
+
+> `customer_address_id = NULL` on inbound return shipments — no delivery address needed.
+
+**`inventory_serials`**
+```
+serial          status          location  note
+CORE-2026-0006  core_in_rebuild REBUILD   Robert mail return — ORD-2026-030
+```
+
+**`inventory_movements`**
+```
+id   serial          type          from        to          reference          notes
+100  CORE-2026-0006  core_receive  NULL        TECH-BENCH  CORE-RTN-2026-006  received at dock
+101  CORE-2026-0006  transfer      TECH-BENCH  CORE-HOLD   CORE-RTN-2026-006  tech accepted
+102  CORE-2026-0006  transfer      CORE-HOLD   REBUILD     CORE-RTN-2026-006  30-day expired — auto job
+```
+
+**`payments`**
+```
+id  order  payable_type  payable_id  method     amount  status
+30  30     order         30          cash       340.00  paid
+31  30     core_return   6           cash_back   50.00  refunded
+```
+
+### Financial Summary
+```
+net: $290.00
+```
+
+---
+
+## CR-7 — Mail → Accepted → Customer Reclaims → We Ship Back
+
+**Scenario:** Same as CR-6 up to accepted and refund. Day 12 Robert calls: "Mail my old core back." Admin re-charges $50 and ships outbound.
+
+### Data Flow (from reclaim step)
+
+```
+[Day 12 — Robert calls]
+        │
+        └──→ payments INSERT (payable_type=core_return, cash, $50, paid)  ← re-charge
+             shipments INSERT (shippable_type=core_return, shippable_id=7, direction=outbound)
+             inventory_movements INSERT (transfer, CORE-HOLD → NULL, ref=CORE-RTN-2026-007)
+             inventory_serials UPDATE (core_accepted → sold)
+             core_returns.core_outcome → returned_to_customer
+             core_returns.status → closed
+```
+
+### Schema Data
+
+**`shipments`**
+```
+id  shippable_type  shippable_id  direction  carrier  tracking  status
+20  core_return     7             inbound    FedEx    FX-30007  delivered  ← Robert ships to us
+21  core_return     7             outbound   FedEx    FX-40007  delivered  ← we ship back to Robert
+```
+
+**`inventory_serials`**
+```
+serial          status  location  note
+CORE-2026-0007  sold    NULL      reclaimed by Robert — shipped back day 12
+```
+
+**`inventory_movements`**
+```
+id   serial          type          from        to          reference          notes
+100  CORE-2026-0007  core_receive  NULL        TECH-BENCH  CORE-RTN-2026-007  received at dock
+101  CORE-2026-0007  transfer      TECH-BENCH  CORE-HOLD   CORE-RTN-2026-007  accepted
+102  CORE-2026-0007  transfer      CORE-HOLD   NULL        CORE-RTN-2026-007  shipped back to Robert
+```
+
+**`payments`**
+```
+id  order  payable_type  payable_id  method     amount  status
+31  30     core_return   7           cash_back   50.00  refunded  ← auto on accept
+32  30     core_return   7           cash        50.00  paid      ← re-charge on reclaim
+```
+
+### Financial Summary
+```
+net: $340.00  (Robert has new part + old core; outbound label cost absorbed by us)
+```
+
+---
+
+## CR-8 — Mail → Rejected → We Ship Back
+
+**Scenario:** Robert mails core. Tech rejects (wrong part number). We ship the rejected core back to Robert. We pay the return label.
+
+### Data Flow
+
+```
+[Admin creates return + inbound label]
+        │
+        └──→ core_returns INSERT (mail, status=pending)
+             shipments INSERT (shippable_type=core_return, shippable_id=8, direction=inbound, status=label_created)
+
+[Robert drops package at carrier]
+        │
+        └──→ shipments.status → in_transit
+
+[Package arrives at dock]
+        │
+        └──→ shipments.status → delivered
+             inventory_serials INSERT (CORE-2026-0008, core_received)
+             inventory_movements INSERT (core_receive, NULL → TECH-BENCH, ref=CORE-RTN-2026-008)
+             core_returns.received_at set
+             core_returns.status → received
+
+[Tech examines — rejects]
+        │
+        └──→ core_returns.inspection_result → rejected
+             core_returns.rejection_reason  → wrong part number
+             core_returns.status → rejected
+             inventory_serials UPDATE (core_received → core_rejected)
+             order_core_charges.status → forfeited
+
+[Admin ships rejected core back to Robert]
+        │
+        └──→ shipments INSERT (outbound, shippable_type=core_return, shippable_id=8)
+             inventory_movements INSERT (transfer, TECH-BENCH → NULL, ref=CORE-RTN-2026-008)
+             inventory_serials UPDATE (core_rejected → sold)
+             core_returns.core_outcome → returned_to_customer
+             core_returns.status → closed
+```
+
+### Schema Data
+
+**`core_returns`**
+```
+id  number              occ_id  method  status  result    rejection_reason   core_outcome         refund_pmt
+8   CORE-RTN-2026-008   1       mail    closed  rejected  wrong part number  returned_to_customer NULL
+```
+
+**`order_core_charges`**
+```
+id  status
+1   forfeited
+```
+
+**`shipments`**
+```
+id  shippable_type  shippable_id  direction  carrier  tracking  status
+20  core_return     8             inbound    FedEx    FX-30008  delivered  ← Robert ships to us
+21  core_return     8             outbound   FedEx    FX-40008  delivered  ← we ship back (we pay)
+```
+
+**`inventory_serials`**
+```
+serial          status  location  note
+CORE-2026-0008  sold    NULL      rejected — shipped back to Robert
+```
+
+**`inventory_movements`**
+```
+id   serial          type          from        to          reference          notes
+100  CORE-2026-0008  core_receive  NULL        TECH-BENCH  CORE-RTN-2026-008  received at dock
+101  CORE-2026-0008  transfer      TECH-BENCH  NULL        CORE-RTN-2026-008  shipped back to customer
+```
+
+### Financial Summary
+```
+net: $340.00  (Robert loses $50 deposit; gets old core back; outbound label absorbed by us)
+```
+
+---
+
+## CR-9 — Mail → Rejected → Disposed
+
+**Scenario:** Tech rejects core (stripped threads). Robert says "just dispose it." No outbound shipment.
+
+### Data Flow
+
+```
+[Same mail intake as CR-8 up to rejection]
+[Robert agrees to disposal]
+        │
+        └──→ inventory_movements INSERT (adjustment, TECH-BENCH → SCRAP-HOLD, ref=CORE-RTN-2026-009)
+             inventory_serials UPDATE (core_rejected → scrapped)
+             core_returns.core_outcome → disposed
+             core_returns.status → closed
+```
+
+### Schema Data
+
+**`core_returns`**
+```
+id  number              occ_id  method  status  result    rejection_reason  core_outcome  refund_pmt
+9   CORE-RTN-2026-009   1       mail    closed  rejected  stripped threads  disposed      NULL
+```
+
+**`shipments`**
+```
+id  shippable_type  shippable_id  direction  carrier  tracking  status
+20  core_return     9             inbound    FedEx    FX-30009  delivered  ← no outbound row
+```
+
+**`inventory_serials`**
+```
+serial          status    location    note
+CORE-2026-0009  scrapped  SCRAP-HOLD  disposed — Robert agreed, stripped threads
+```
+
+**`inventory_movements`**
+```
+id   serial          type          from        to          reference          notes
+100  CORE-2026-0009  core_receive  NULL        TECH-BENCH  CORE-RTN-2026-009  received at dock
+101  CORE-2026-0009  adjustment    TECH-BENCH  SCRAP-HOLD  CORE-RTN-2026-009  disposed — Robert agreed
+```
+
+### Financial Summary
+```
+net: $340.00  (Robert loses $50 deposit; inbound label absorbed by us)
+```
+
+---
+
+## CR-10 — Fraud Blocked
+
+**Scenario:** Robert brings a "core" to the counter. Physical serial on the unit is SN-2026-999 — one of our own starter motors, `status=sold`. Fraud detected. Return blocked.
+
+### Fraud Check Flow
+
+```
+[Admin checks serial on the physical unit]
+        │
+        └──→ inventory_serials WHERE serial_number = 'SN-2026-999'
+             Found: status=sold, pattern=SN-xxx (product serial — not CORE-xxx)
+             → FRAUD DETECTED — block
+
+[No core_receive movement — no CORE-xxx serial assigned]
+        │
+        └──→ core_returns INSERT (status=closed, inspection_result=rejected,
+                rejection_reason='fraud — serial SN-2026-999 matches our inventory')
+             order_core_charges.status → forfeited
+```
+
+### Schema Data
+
+**`core_returns`**
+```
+id  number               occ_id  method   status    result    rejection_reason                              core_outcome  refund_pmt
+10  CORE-RTN-2026-010    1       counter  closed    rejected  fraud — serial SN-2026-999 matches our inventory NULL        NULL
+```
+
+**`order_core_charges`**
+```
+id  status
+1   forfeited
+```
+
+> No `inventory_serials` INSERT. No `inventory_movements` INSERT. Never assign a CORE-xxx serial to a unit blocked for fraud.
+
+### Financial Summary
+```
+net: $340.00  (Robert loses $50 deposit)
+```
+
+---
+
+## CR-11 — Full Chain
+
+**Scenario:** Robert has two orders (ORD-2026-030 and ORD-2026-045, both with core charge). He:
+1. Tries fraud on ORD-030 → blocked
+2. Mails his real core on ORD-030 → accepted → refund
+3. Reclaims within 30 days → re-charged → takes core back (`CORE-2026-0011`, status=sold)
+4. Buys again (ORD-045) — same core charge
+5. Mails the same physical core back for ORD-045
+6. Fraud check finds `CORE-2026-0011` (CORE-xxx pattern, not product serial) → checks prior `core_returns` → ALLOWED → new serial `CORE-2026-0012` assigned
+7. Accepted → 30-day expires → rebuild
+
+---
+
+### ORD-2026-045 — Second order
+
+```
+orders:
+id  number        customer_id  source   status      payment_status  subtotal  fees   core_charges  shipping  grand_total
+45  ORD-2026-045  5            walk_in  processing  paid            250.00    25.00  50.00         15.00     340.00
+
+order_core_charges:
+id  order  order_line  description           amount  total   status
+10  45     45          Core — Starter Motor  50.00   50.00   outstanding
+
+payments:
+id  order  payable_type  payable_id  method  amount  status
+40  45     order         45          cash    340.00  paid
+```
+
+---
+
+### Step A — Fraud attempt on ORD-030 (CR-10)
+
+```
+CORE-RTN-2026-010: rejected/fraud
+order_core_charges id=1: forfeited
+Admin manually resets order_core_charge id=1 → outstanding (Robert has a real core to return)
+```
+
+---
+
+### Step B — Real mail return on ORD-030
+
+```
+core_returns: CORE-RTN-2026-011, method=mail, occ_id=1
+
+[Robert mails real core — inbound shipment FX-30011]
+        │
+        └──→ inventory_serials INSERT (CORE-2026-0011, core_received)
+             inventory_movements INSERT (core_receive, NULL → TECH-BENCH, ref=CORE-RTN-2026-011)
+             core_returns CORE-RTN-2026-011: status=received
+
+[Tech accepts]
+        │
+        └──→ core_returns: status=accepted, expires_at set
+             inventory_serials CORE-2026-0011 → core_accepted
+             inventory_movements INSERT (transfer, TECH-BENCH → CORE-HOLD, ref=CORE-RTN-2026-011)
+             order_core_charges id=1 → refunded
+             payments id=31: payable_type=core_return, payable_id=11, cash_back, $50, refunded
+```
+
+---
+
+### Step C — Robert reclaims (day 10)
+
+```
+[Robert calls — wants core mailed back]
+        │
+        └──→ payments id=32: payable_type=core_return, payable_id=11, cash, $50, paid  ← re-charge
+             shipments INSERT (outbound, shippable_type=core_return, shippable_id=11, tracking=FX-40011)
+             inventory_movements INSERT (transfer, CORE-HOLD → NULL, ref=CORE-RTN-2026-011)
+             inventory_serials CORE-2026-0011 → sold
+             core_returns CORE-RTN-2026-011: core_outcome=returned_to_customer, status=closed
+```
+
+```
+shipments (ORD-030 core):
+id  shippable_type  shippable_id  direction  tracking  status
+20  core_return     11            inbound    FX-30011  delivered  ← Robert ships to us
+21  core_return     11            outbound   FX-40011  delivered  ← we ship back to Robert
+```
+
+---
+
+### Step D — Robert mails same physical core for ORD-045
+
+Three months pass. Robert mails the same core (CORE-2026-0011 label still on it) for ORD-2026-045.
+
+```
+[Admin creates CORE-RTN-2026-020 on ORD-045]
+[Package arrives — admin scans CORE-2026-0011]
+        │
+        └──→ inventory_serials WHERE serial_number = 'CORE-2026-0011'
+             Found: status=sold, pattern=CORE-xxx (not a product serial)
+             → Check prior core_returns: CORE-RTN-2026-011, customer=Robert, outcome=returned_to_customer ✓
+             → ALLOWED — it is Robert's own reclaimed core
+
+             inventory_serials INSERT (CORE-2026-0012, core_received)  ← NEW serial, never reuse 0011
+             inventory_movements INSERT (core_receive, NULL → TECH-BENCH, ref=CORE-RTN-2026-020)
+             core_returns CORE-RTN-2026-020: status=received
+
+[Tech accepts]
+        │
+        └──→ core_returns CORE-RTN-2026-020: status=accepted, expires_at set
+             inventory_serials CORE-2026-0012 → core_accepted
+             inventory_movements INSERT (transfer, TECH-BENCH → CORE-HOLD, ref=CORE-RTN-2026-020)
+             order_core_charges id=10 → refunded
+             payments id=41: payable_type=core_return, payable_id=20, cash_back, $50, refunded
+
+[30 days — scheduled job]
+        │
+        └──→ inventory_movements INSERT (transfer, CORE-HOLD → REBUILD, ref=CORE-RTN-2026-020)
+             inventory_serials CORE-2026-0012 → core_in_rebuild
+             core_returns CORE-RTN-2026-020: core_outcome=rebuild, status=closed
+```
+
+---
+
+### Full Chain — Combined Data
+
+**`core_returns`**
+```
+id  number               occ_id   method   status    result    core_outcome         refund_pmt  notes
+10  CORE-RTN-2026-010    1(030)   counter  closed    rejected  NULL                 NULL        fraud — SN-2026-999
+11  CORE-RTN-2026-011    1(030)   mail     closed    accepted  returned_to_customer 31          real return, reclaimed day 10
+20  CORE-RTN-2026-020    10(045)  mail     closed    accepted  rebuild              41          same physical core, new serial CORE-0012
+```
+
+**`inventory_serials`**
+```
+serial          status          location  note
+CORE-2026-0011  sold            NULL      reclaimed by Robert — CORE-RTN-2026-011 — DO NOT REUSE
+CORE-2026-0012  core_in_rebuild REBUILD   ORD-2026-045 — CORE-RTN-2026-020
+```
+
+**`inventory_movements`**
+```
+-- CORE-RTN-2026-011 (ORD-030 real return):
+100  CORE-2026-0011  core_receive  NULL        TECH-BENCH  CORE-RTN-2026-011  received at dock
+101  CORE-2026-0011  transfer      TECH-BENCH  CORE-HOLD   CORE-RTN-2026-011  accepted
+102  CORE-2026-0011  transfer      CORE-HOLD   NULL        CORE-RTN-2026-011  shipped back — Robert reclaimed day 10
+
+-- CORE-RTN-2026-020 (ORD-045 — same physical core, new serial):
+200  CORE-2026-0012  core_receive  NULL        TECH-BENCH  CORE-RTN-2026-020  new serial — prior CORE-0011 found, allowed
+201  CORE-2026-0012  transfer      TECH-BENCH  CORE-HOLD   CORE-RTN-2026-020  accepted
+202  CORE-2026-0012  transfer      CORE-HOLD   REBUILD     CORE-RTN-2026-020  30-day expired — auto job
+```
+
+**`payments`**
+```
+-- ORD-030:
+30  (030)  order        30   cash       340.00  paid      ← original purchase
+31  (030)  core_return  11   cash_back   50.00  refunded  ← accept CORE-RTN-011
+32  (030)  core_return  11   cash        50.00  paid      ← re-charge on reclaim
+
+-- ORD-045:
+40  (045)  order        45   cash       340.00  paid      ← original purchase
+41  (045)  core_return  20   cash_back   50.00  refunded  ← accept CORE-RTN-020
+```
+
+### Financial Summary
+```
+ORD-030: paid $340 + $50 re-charge, refunded $50   → net $340
+ORD-045: paid $340, refunded $50                    → net $290
+Total:   $630  (Robert has two new parts + old core back; one core goes to rebuild)
+```

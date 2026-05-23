@@ -1,3 +1,5 @@
+> See [../global.md](../global.md) for agent rules, column conventions, and all status/enum references before reading this example.
+
 ## Example 11 — ORD-013 — Walk-in + Stripe Checkout
 
 **Scenario:** Diana Walsh walks into the store. Buys one Widget Pro. Doesn't have cash, doesn't have a physical card — CSR generates a Stripe checkout QR link. Diana scans it on her phone and pays online. Admin ships via FedEx to Diana's home address. No issues.

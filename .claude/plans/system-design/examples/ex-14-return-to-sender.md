@@ -1,3 +1,5 @@
+> See [../global.md](../global.md) for agent rules, column conventions, and all status/enum references before reading this example.
+
 ## Example 14 — ORD-016 — Return to Sender, Re-shipped
 
 **Scenario:** Marcus Rivera orders one item online, Stripe card, home delivery. Admin ships via FedEx (FX-10016). FedEx attempts delivery twice — apartment complex, no building access, no safe drop. Package returned to warehouse. `orders.status → rts`. Admin contacts Marcus — Marcus gives work address. Admin adds work address to `customer_addresses`, updates shipping snapshot, re-ships via FedEx (FX-10017). Delivered successfully. Re-ship label cost absorbed internally.
@@ -145,19 +147,3 @@ id  serial   type  from         to    reference      notes
 > One movement only. No second movement for re-ship — unit was already recorded as sold when first shipped. Physical transit back and forth is a carrier event, not an inventory event.
 
 ---
-
-### Financial Summary
-```
-charged:   $240.00
-collected: $240.00
-refunded:  $0.00
-net:       $240.00 ✓
-```
-
-### Shipping Margin
-```
-revenue:            $20.00   (orders.shipping_amount)
-first label cost:   -$8.50   (shipments #38 — returned, cost not recoverable)
-re-ship label cost: -$8.50   (shipments #39 — absorbed, customer not recharged)
-margin:             +$3.00
-```

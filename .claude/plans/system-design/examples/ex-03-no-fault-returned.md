@@ -1,3 +1,5 @@
+> See [../global.md](../global.md) for agent rules, column conventions, and all status/enum references before reading this example.
+
 ## Example 3 — ORD-004 — Flow A: No Fault, Unit Returned
 
 **Scenario:** Karen White walks into the store. Pays cash at counter. Asks for delivery to her home — admin fills shipping address and ships. Delivered. Karen complains screen is flickering. Ships unit back. Tech examines — no defect found. Unit returned to Karen. No replacement, no refund.

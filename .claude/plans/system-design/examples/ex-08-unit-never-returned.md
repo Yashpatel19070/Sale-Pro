@@ -1,3 +1,5 @@
+> See [../global.md](../global.md) for agent rules, column conventions, and all status/enum references before reading this example.
+
 ## Example 8 — ORD-010 — Flow B: Unit Never Returned, Open Case
 
 **Scenario:** Chris Martinez walks in. Pays cash. Admin ships SN-090 to his home via FedEx. Item delivered May 1 — Chris calls same day, reports device malfunctioning after delivery. Admin sends replacement (SN-091) — Flow B, trust customer. Chris ships SN-090 back May 5 (his own label) but package never arrived — tracking shows in transit, delivered_at NULL. 35 days later: open case, no examination, no closure.

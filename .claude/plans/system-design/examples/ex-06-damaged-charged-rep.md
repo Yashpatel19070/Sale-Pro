@@ -1,3 +1,5 @@
+> See [../global.md](../global.md) for agent rules, column conventions, and all status/enum references before reading this example.
+
 ## Example 6 — ORD-007 — Flow A: Damaged by Customer, Charged Replacement
 
 **What's new vs all previous examples:**

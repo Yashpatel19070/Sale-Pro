@@ -1,3 +1,5 @@
+> See [../global.md](../global.md) for agent rules, column conventions, and all status/enum references before reading this example.
+
 ## Example 2 — ORD-002 — Clean Cash Order
 
 **Scenario:** Mike Torres walks in. Buys two items. Pays full cash at counter. Wants home delivery — provides address at counter. Admin records address, payment, ships via FedEx. No issues.

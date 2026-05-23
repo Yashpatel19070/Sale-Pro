@@ -1,3 +1,5 @@
+> See [../global.md](../global.md) for agent rules, column conventions, and all status/enum references before reading this example.
+
 ## Example 13 — ORD-015 — Withdrawn Complaint
 
 **Scenario:** Linda Green buys one item online. Pays via Stripe card. Delivered. Same day calls in — device won't turn on. CSR opens complaint CMP-2026-013, serial → `expected_return`. CSR generates prepaid UPS return label ($7.00 paid upfront). Next morning Linda calls back — device started working after full charge overnight, wants to withdraw. CSR records withdrawal. Complaint closes as `withdrawn`. Label voided — cost already paid, no refund from carrier. Serial reverts `expected_return → sold`.
