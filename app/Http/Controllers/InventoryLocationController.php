@@ -7,7 +7,9 @@ namespace App\Http\Controllers;
 use App\Http\Requests\Inventory\StoreInventoryLocationRequest;
 use App\Http\Requests\Inventory\UpdateInventoryLocationRequest;
 use App\Models\InventoryLocation;
+use App\Models\InventorySerial;
 use App\Services\InventoryLocationService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
@@ -107,5 +109,27 @@ class InventoryLocationController extends Controller
         return redirect()
             ->route('inventory-locations.show', $inventoryLocation)
             ->with('success', "Location \"{$inventoryLocation->code}\" restored.");
+    }
+
+    public function search(Request $request): JsonResponse
+    {
+        $this->authorize('viewAny', InventoryLocation::class);
+
+        $productId = $request->integer('product_id');
+        if (! $productId) {
+            return response()->json([]);
+        }
+
+        $locationIds = InventorySerial::inStock()
+            ->where('product_id', $productId)
+            ->distinct()
+            ->pluck('inventory_location_id');
+
+        $locations = InventoryLocation::whereIn('id', $locationIds)
+            ->active()
+            ->orderBy('name')
+            ->get(['id', 'name']);
+
+        return response()->json($locations);
     }
 }

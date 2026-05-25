@@ -1,3 +1,61 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* ── Tom Select — Tailwind form style alignment ───────────────────────── */
+
+.ts-wrapper {
+    @apply block w-full;
+}
+
+.ts-control {
+    @apply min-h-[2.25rem] rounded-md border border-gray-300 bg-white px-3 py-1.5
+           text-sm shadow-sm transition-colors;
+}
+
+.ts-wrapper.focus .ts-control {
+    @apply border-indigo-500 outline-none ring-1 ring-indigo-500;
+}
+
+.ts-wrapper.disabled .ts-control {
+    @apply bg-gray-100 text-gray-400 cursor-not-allowed;
+}
+
+.ts-control input {
+    @apply text-sm text-gray-900 placeholder-gray-400;
+    min-width: 0;
+}
+
+.ts-control .item {
+    @apply text-sm text-gray-900;
+}
+
+.ts-dropdown {
+    @apply z-50 mt-1 overflow-hidden rounded-md border border-gray-200 bg-white
+           text-sm shadow-lg;
+}
+
+.ts-dropdown .option {
+    @apply px-3 py-2 text-gray-700 cursor-pointer;
+}
+
+.ts-dropdown .option:hover,
+.ts-dropdown .option.active {
+    @apply bg-indigo-50 text-indigo-700;
+}
+
+.ts-dropdown .option.selected {
+    @apply font-medium;
+}
+
+.ts-dropdown .no-results {
+    @apply px-3 py-2 text-sm text-gray-400;
+}
+
+.ts-dropdown-content {
+    @apply max-h-60 overflow-y-auto;
+}
+
+.ts-wrapper .clear-button {
+    @apply text-gray-400 hover:text-gray-600;
+}

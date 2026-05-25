@@ -12,6 +12,7 @@ use App\Models\Product;
 use App\Services\InventoryLocationService;
 use App\Services\InventoryMovementService;
 use App\Services\InventorySerialService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -104,5 +105,25 @@ class InventorySerialController extends Controller
         return redirect()
             ->route('inventory-serials.show', $inventorySerial)
             ->with('success', 'Serial updated.');
+    }
+
+    public function search(Request $request): JsonResponse
+    {
+        $this->authorize('viewAny', InventorySerial::class);
+
+        $productId = $request->integer('product_id');
+        $locationId = $request->integer('location_id');
+
+        if (! $productId || ! $locationId) {
+            return response()->json([]);
+        }
+
+        $serials = InventorySerial::inStock()
+            ->where('product_id', $productId)
+            ->where('inventory_location_id', $locationId)
+            ->orderBy('serial_number')
+            ->get(['id', 'serial_number']);
+
+        return response()->json($serials);
     }
 }

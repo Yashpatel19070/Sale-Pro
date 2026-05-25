@@ -16,6 +16,10 @@ enum SerialStatus: string
     case ExpectedReturn = 'expected_return';
     case UnderExamination = 'under_examination';
     case Scrapped = 'scrapped';
+    case CoreReceived = 'core_received';
+    case CoreAccepted = 'core_accepted';
+    case CoreRejected = 'core_rejected';
+    case CoreInRebuild = 'core_in_rebuild';
 
     public function label(): string
     {
@@ -28,6 +32,10 @@ enum SerialStatus: string
             self::ExpectedReturn => 'Expected Return',
             self::UnderExamination => 'Under Examination',
             self::Scrapped => 'Scrapped',
+            self::CoreReceived => 'Core Received',
+            self::CoreAccepted => 'Core Accepted',
+            self::CoreRejected => 'Core Rejected',
+            self::CoreInRebuild => 'Core In Rebuild',
         };
     }
 
@@ -42,6 +50,10 @@ enum SerialStatus: string
             self::ExpectedReturn => 'orange',
             self::UnderExamination => 'purple',
             self::Scrapped => 'red',
+            self::CoreReceived => 'cyan',
+            self::CoreAccepted => 'teal',
+            self::CoreRejected => 'rose',
+            self::CoreInRebuild => 'amber',
         };
     }
 
@@ -56,6 +68,10 @@ enum SerialStatus: string
             self::ExpectedReturn => 'bg-orange-100 text-orange-800',
             self::UnderExamination => 'bg-purple-100 text-purple-800',
             self::Scrapped => 'bg-red-100 text-red-800',
+            self::CoreReceived => 'bg-cyan-100 text-cyan-800',
+            self::CoreAccepted => 'bg-teal-100 text-teal-800',
+            self::CoreRejected => 'bg-rose-100 text-rose-800',
+            self::CoreInRebuild => 'bg-amber-100 text-amber-800',
         };
     }
 

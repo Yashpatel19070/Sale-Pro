@@ -10,6 +10,7 @@ use App\Http\Requests\ProductListing\UpdateProductListingRequest;
 use App\Models\ProductListing;
 use App\Services\ProductListingService;
 use App\Services\ProductService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -123,5 +124,30 @@ class ProductListingController extends Controller
         return redirect()
             ->route('product-listings.show', $listing)
             ->with('success', 'Listing restored.');
+    }
+
+    public function search(Request $request): JsonResponse
+    {
+        $this->authorize('viewAny', ProductListing::class);
+
+        $q = (string) $request->string('q');
+        if ($q === '') {
+            return response()->json([]);
+        }
+
+        $listings = ProductListing::active()
+            ->search($q)
+            ->with('product:id,sku,regular_price,sale_price')
+            ->limit(30)
+            ->get(['id', 'title', 'product_id']);
+
+        return response()->json($listings->map(fn ($l) => [
+            'id' => $l->id,
+            'title' => $l->title,
+            'sku' => $l->product?->sku ?? '',
+            'product_id' => $l->product_id,
+            'price' => (string) ($l->product?->sale_price ?? $l->product?->regular_price ?? '0.00'),
+            'label' => ($l->product?->sku ? $l->product->sku.' — ' : '').$l->title,
+        ]));
     }
 }

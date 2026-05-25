@@ -6,7 +6,6 @@ namespace Database\Factories;
 
 use App\Enums\CustomerStatus;
 use Illuminate\Database\Eloquent\Factories\Factory;
-use Illuminate\Support\Facades\Hash;
 
 class CustomerFactory extends Factory
 {
@@ -15,7 +14,6 @@ class CustomerFactory extends Factory
         return [
             'name' => fake()->name(),
             'email' => fake()->unique()->safeEmail(),
-            'password' => Hash::make('password'),
             'phone' => fake()->numerify('###-###-####'),
             'company_name' => fake()->optional()->company(),
             'status' => CustomerStatus::Active->value,

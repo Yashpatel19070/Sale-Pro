@@ -16,6 +16,8 @@ class CustomerAddress extends Model
     use SoftDeletes;
 
     protected $fillable = [
+        'customer_id',
+        'is_default',
         'label',
         'first_name',
         'last_name',

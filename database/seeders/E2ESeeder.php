@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Database\Seeders;
 
+use App\Enums\CustomerStatus;
+use App\Models\Customer;
 use App\Models\InventoryLocation;
 use App\Models\InventorySerial;
 use App\Models\Product;
@@ -51,6 +53,7 @@ class E2ESeeder extends Seeder
             InventoryPermissionSeeder::class,
             SupplierPermissionSeeder::class,
             PurchaseOrderPermissionSeeder::class,
+            OrderPermissionSeeder::class,
         ]);
 
         // ── Suppliers ─────────────────────────────────────────────────────────
@@ -123,5 +126,20 @@ class E2ESeeder extends Seeder
 
         InventorySerial::factory()->inStock()->forProduct($widget2)->atLocation($l1)->receivedBy($admin)
             ->create(['serial_number' => 'SN-E2E-004']);
+
+        // ── Customers (for Orders) ────────────────────────────────────────────
+        Customer::create([
+            'name' => 'E2E Customer One',
+            'email' => 'customer1@e2e.test',
+            'phone' => '555-100-0001',
+            'status' => CustomerStatus::Active->value,
+        ]);
+
+        Customer::create([
+            'name' => 'E2E Customer Two',
+            'email' => 'customer2@e2e.test',
+            'phone' => '555-100-0002',
+            'status' => CustomerStatus::Active->value,
+        ]);
     }
 }

@@ -12,6 +12,7 @@ use App\Http\Controllers\InventoryMovementController;
 use App\Http\Controllers\InventorySerialController;
 use App\Http\Controllers\InvoiceController;
 use App\Http\Controllers\MailTestController;
+use App\Http\Controllers\OrderController;
 use App\Http\Controllers\Portal\Auth\AuthenticatedSessionController as PortalSessionController;
 use App\Http\Controllers\Portal\Auth\EmailVerificationController;
 use App\Http\Controllers\Portal\Auth\NewPasswordController as PortalNewPasswordController;
@@ -115,6 +116,7 @@ Route::prefix('admin')->group(function () {
             ->withTrashed();
 
         // Product Listings
+        Route::get('product-listings/search', [ProductListingController::class, 'search'])->name('product-listings.search');
         Route::resource('product-listings', ProductListingController::class);
         Route::post('product-listings/{productListing}/toggle-visibility', [ProductListingController::class, 'toggleVisibility'])
             ->name('product-listings.toggle-visibility');
@@ -127,6 +129,7 @@ Route::prefix('admin')->group(function () {
             Route::get('/', [InventoryLocationController::class, 'index'])->name('index');
             Route::get('/create', [InventoryLocationController::class, 'create'])->name('create');
             Route::post('/', [InventoryLocationController::class, 'store'])->name('store');
+            Route::get('/search', [InventoryLocationController::class, 'search'])->name('search');
             Route::get('/{inventoryLocation}', [InventoryLocationController::class, 'show'])->name('show');
             Route::get('/{inventoryLocation}/edit', [InventoryLocationController::class, 'edit'])->name('edit');
             Route::put('/{inventoryLocation}', [InventoryLocationController::class, 'update'])->name('update');
@@ -139,6 +142,7 @@ Route::prefix('admin')->group(function () {
             Route::get('/', [InventorySerialController::class, 'index'])->name('index');
             Route::get('/create', [InventorySerialController::class, 'create'])->name('create');
             Route::post('/', [InventorySerialController::class, 'store'])->name('store');
+            Route::get('/search', [InventorySerialController::class, 'search'])->name('search');
             Route::get('/{inventorySerial}', [InventorySerialController::class, 'show'])->name('show');
             Route::get('/{inventorySerial}/edit', [InventorySerialController::class, 'edit'])->name('edit');
             Route::put('/{inventorySerial}', [InventorySerialController::class, 'update'])->name('update');
@@ -216,6 +220,22 @@ Route::prefix('admin')->group(function () {
                 Route::post('/{invoice}/mark-paid', [InvoiceController::class, 'markPaid'])->name('markPaid');
                 Route::delete('/{invoice}', [InvoiceController::class, 'destroy'])->name('destroy');
             });
+        });
+
+        // Orders
+        Route::prefix('orders')->name('orders.')->group(function () {
+            Route::get('/', [OrderController::class, 'index'])->name('index');
+            Route::get('/create', [OrderController::class, 'create'])->name('create');
+            Route::post('/', [OrderController::class, 'store'])->name('store');
+            Route::post('/tax-preview', [OrderController::class, 'taxPreview'])->name('tax-preview');
+            Route::get('/{order}', [OrderController::class, 'show'])->name('show');
+            Route::post('/{order}/pay', [OrderController::class, 'pay'])->name('pay');
+            Route::post('/{order}/ship', [OrderController::class, 'ship'])->name('ship');
+            Route::post('/{order}/deliver', [OrderController::class, 'deliver'])->name('deliver');
+            Route::get('/{order}/edit', [OrderController::class, 'edit'])->name('edit');
+            Route::put('/{order}', [OrderController::class, 'update'])->name('update');
+            Route::delete('/{order}', [OrderController::class, 'destroy'])->name('destroy');
+            Route::post('/{order}/cancel', [OrderController::class, 'cancel'])->name('cancel');
         });
 
         // Roles (admin + permission-gated)

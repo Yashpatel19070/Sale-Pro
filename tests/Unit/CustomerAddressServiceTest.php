@@ -44,7 +44,7 @@ it('store creates an address for a customer', function () {
     expect($address)->toBeInstanceOf(CustomerAddress::class);
     expect($address->customer_id)->toBe($this->customer->id);
     expect($address->label)->toBe('Home');
-    $this->assertDatabaseHas('customer_addresses', ['id' => $address->id, 'is_default' => false]);
+    $this->assertDatabaseHas('customer_addresses', ['id' => $address->id, 'is_default' => true]);
 });
 
 it('update modifies address fields', function () {

@@ -37,6 +37,7 @@ class DatabaseSeeder extends Seeder
             SupplierPermissionSeeder::class,
             SupplierSeeder::class,
             PurchaseOrderPermissionSeeder::class,
+            OrderPermissionSeeder::class,
             CustomerAddressPermissionSeeder::class,
         ]);
 
@@ -75,5 +76,7 @@ class DatabaseSeeder extends Seeder
             ]
         );
         $sales->syncRoles('sales');
+
+        $this->call([OrderSeeder::class]);
     }
 }

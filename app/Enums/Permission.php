@@ -218,4 +218,17 @@ class Permission
     const INVOICES_MARK_PAID = 'invoices.markPaid';
 
     const INVOICES_DELETE = 'invoices.delete';
+
+    // Orders
+    const ORDERS_VIEW_ANY = 'orders.viewAny';
+
+    const ORDERS_VIEW = 'orders.view';
+
+    const ORDERS_CREATE = 'orders.create';
+
+    const ORDERS_PAY = 'orders.pay';
+
+    const ORDERS_SHIP = 'orders.ship';
+
+    const ORDERS_DELIVER = 'orders.deliver';
 }

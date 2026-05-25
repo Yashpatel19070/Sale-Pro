@@ -35,4 +35,20 @@ return [
         ],
     ],
 
+    'avatax' => [
+        'account_number' => env('AVATAX_ACCOUNT_NUMBER'),
+        'license_key' => env('AVATAX_LICENSE_KEY'),
+        'company_code' => env('AVATAX_COMPANY_CODE', 'DEFAULT'),
+        'environment' => env('AVATAX_ENVIRONMENT', 'sandbox'),
+        'enabled' => env('AVATAX_ENABLED', false),
+        'tax_code' => env('AVATAX_TAX_CODE', 'P0000000'),
+        'ship_from' => [
+            'street' => env('AVATAX_SHIP_FROM_STREET', ''),
+            'city' => env('AVATAX_SHIP_FROM_CITY', ''),
+            'state' => env('AVATAX_SHIP_FROM_STATE', ''),
+            'zip' => env('AVATAX_SHIP_FROM_ZIP', ''),
+            'country' => env('AVATAX_SHIP_FROM_COUNTRY', 'US'),
+        ],
+    ],
+
 ];

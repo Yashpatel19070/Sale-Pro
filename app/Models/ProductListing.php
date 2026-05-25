@@ -84,7 +84,10 @@ class ProductListing extends Model
 
     public function scopeSearch(Builder $query, string $term): Builder
     {
-        return $query->where('title', 'like', "%{$term}%");
+        return $query->where(function (Builder $q) use ($term) {
+            $q->where('title', 'like', "%{$term}%")
+                ->orWhereHas('product', fn (Builder $p) => $p->where('sku', 'like', "%{$term}%"));
+        });
     }
 
     // ── Helpers ────────────────────────────────────────────────────────────
