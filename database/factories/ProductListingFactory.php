@@ -32,6 +32,11 @@ class ProductListingFactory extends Factory
         ]);
     }
 
+    public function active(): static
+    {
+        return $this->state(['is_active' => true]);
+    }
+
     public function public(): static
     {
         return $this->state([
