@@ -206,6 +206,13 @@ class Permission
 
     const GOODS_RECEIPTS_DELETE = 'goods_receipts.delete';
 
+    // Orders
+    const ORDERS_VIEW = 'view-orders';
+
+    const ORDERS_CREATE = 'create-orders';
+
+    const ORDERS_MANAGE = 'manage-orders';
+
     // Invoices
     const INVOICES_VIEW_ANY = 'invoices.viewAny';
 

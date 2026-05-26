@@ -47,7 +47,7 @@ class InventorySerialController extends Controller
         ]);
 
         $movements = $inventorySerial->movements()
-            ->select(['id', 'inventory_serial_id', 'from_location_id', 'to_location_id', 'type', 'notes', 'user_id', 'goods_receipt_id', 'created_at'])
+            ->select(['id', 'inventory_serial_id', 'from_location_id', 'to_location_id', 'type', 'reference', 'notes', 'user_id', 'goods_receipt_id', 'created_at'])
             ->with([
                 'fromLocation:id,code,name',
                 'toLocation:id,code,name',

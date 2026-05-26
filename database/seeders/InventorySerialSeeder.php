@@ -7,6 +7,7 @@ namespace Database\Seeders;
 use App\Models\InventoryLocation;
 use App\Models\InventorySerial;
 use App\Models\Product;
+use App\Models\ProductListing;
 use App\Models\User;
 use Illuminate\Database\Seeder;
 
@@ -14,7 +15,13 @@ class InventorySerialSeeder extends Seeder
 {
     public function run(): void
     {
-        $products = Product::active()->inRandomOrder()->limit(5)->get();
+        // Prefer products that have active listings so the order form shows real stock.
+        $listedProductIds = ProductListing::active()->pluck('product_id');
+        $products = Product::active()
+            ->when($listedProductIds->isNotEmpty(), fn ($q) => $q->whereIn('id', $listedProductIds))
+            ->inRandomOrder()
+            ->limit(5)
+            ->get();
         $locations = InventoryLocation::where('is_active', true)->get();
         $admin = User::whereHas('roles', fn ($q) => $q->where('name', 'admin'))->first()
             ?? User::factory()->create()->assignRole('admin');

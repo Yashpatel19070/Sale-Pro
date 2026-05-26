@@ -4,10 +4,13 @@ declare(strict_types=1);
 
 namespace Database\Seeders;
 
+use App\Models\Customer;
+use App\Models\CustomerAddress;
 use App\Models\InventoryLocation;
 use App\Models\InventorySerial;
 use App\Models\Product;
 use App\Models\ProductCategory;
+use App\Models\ProductListing;
 use App\Models\Supplier;
 use App\Models\User;
 use Illuminate\Database\Seeder;
@@ -51,6 +54,7 @@ class E2ESeeder extends Seeder
             InventoryPermissionSeeder::class,
             SupplierPermissionSeeder::class,
             PurchaseOrderPermissionSeeder::class,
+            OrderPermissionSeeder::class,
         ]);
 
         // ── Suppliers ─────────────────────────────────────────────────────────
@@ -99,6 +103,8 @@ class E2ESeeder extends Seeder
             'name' => 'Widget Alpha',
             'category_id' => $category->id,
             'is_active' => true,
+            'regular_price' => '100.00',
+            'sale_price' => null,
         ]);
 
         $widget2 = Product::factory()->create([
@@ -106,6 +112,8 @@ class E2ESeeder extends Seeder
             'name' => 'Widget Beta',
             'category_id' => $category->id,
             'is_active' => true,
+            'regular_price' => '200.00',
+            'sale_price' => null,
         ]);
 
         // ── Serials ───────────────────────────────────────────────────────────
@@ -123,5 +131,33 @@ class E2ESeeder extends Seeder
 
         InventorySerial::factory()->inStock()->forProduct($widget2)->atLocation($l1)->receivedBy($admin)
             ->create(['serial_number' => 'SN-E2E-004']);
+
+        // ── Customers ─────────────────────────────────────────────────────────
+        $customer = Customer::factory()->create([
+            'name' => 'E2E Test Customer',
+            'email' => 'customer@test.local',
+        ]);
+
+        CustomerAddress::factory()->create([
+            'customer_id' => $customer->id,
+            'label' => 'E2E Billing Address',
+            'first_name' => 'Test',
+            'last_name' => 'Customer',
+            'address_line1' => '123 Test Street',
+            'city' => 'Test City',
+            'state' => 'TS',
+            'postal_code' => '12345',
+            'country' => 'US',
+            'is_default' => true,
+        ]);
+
+        // ── Product Listings ──────────────────────────────────────────────────
+        ProductListing::factory()->public()->forProduct($widget1)->create([
+            'title' => 'Widget Alpha Listing',
+        ]);
+
+        ProductListing::factory()->public()->forProduct($widget2)->create([
+            'title' => 'Widget Beta Listing',
+        ]);
     }
 }

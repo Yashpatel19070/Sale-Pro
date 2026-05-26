@@ -12,6 +12,7 @@ use App\Http\Controllers\InventoryMovementController;
 use App\Http\Controllers\InventorySerialController;
 use App\Http\Controllers\InvoiceController;
 use App\Http\Controllers\MailTestController;
+use App\Http\Controllers\OrderController;
 use App\Http\Controllers\Portal\Auth\AuthenticatedSessionController as PortalSessionController;
 use App\Http\Controllers\Portal\Auth\EmailVerificationController;
 use App\Http\Controllers\Portal\Auth\NewPasswordController as PortalNewPasswordController;
@@ -217,6 +218,16 @@ Route::prefix('admin')->group(function () {
                 Route::delete('/{invoice}', [InvoiceController::class, 'destroy'])->name('destroy');
             });
         });
+
+        // Orders
+        Route::get('orders/customer-addresses/{customer}', [OrderController::class, 'customerAddresses'])->name('orders.customer-addresses');
+        Route::get('orders/listing-stock/{listing}', [OrderController::class, 'listingStock'])->name('orders.listing-stock');
+        Route::post('orders/calculate-tax', [OrderController::class, 'calculateTax'])->name('orders.calculate-tax');
+        Route::resource('orders', OrderController::class);
+        Route::post('orders/{order}/cash-payment', [OrderController::class, 'recordCashPayment'])
+            ->name('orders.cash-payment');
+        Route::post('orders/{order}/complete', [OrderController::class, 'complete'])
+            ->name('orders.complete');
 
         // Roles (admin + permission-gated)
         Route::middleware(['admin', 'permission:'.Permission::ROLES_VIEW])->group(function () {

@@ -11,6 +11,7 @@ use App\Models\GoodsReceipt;
 use App\Models\InventoryLocation;
 use App\Models\InventoryMovement;
 use App\Models\InventorySerial;
+use App\Models\Order;
 use App\Models\User;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Collection;
@@ -145,6 +146,42 @@ class InventoryMovementService
         });
 
         return $movement->load(['serial.product', 'fromLocation', 'toLocation', 'user']);
+    }
+
+    /**
+     * Record a sale movement initiated by an order — serial leaves the warehouse.
+     * Locks the serial row before status check to prevent race conditions.
+     *
+     * @throws \DomainException
+     */
+    public function recordSale(int $serialId, Order $order, User $by, ?string $notes = null): InventoryMovement
+    {
+        return DB::transaction(function () use ($serialId, $order, $by, $notes): InventoryMovement {
+            $serial = InventorySerial::lockForUpdate()->findOrFail($serialId);
+
+            if ($serial->status !== SerialStatus::InStock) {
+                throw new \DomainException(
+                    "Serial '{$serial->serial_number}' is not in stock (current status: {$serial->status->value})."
+                );
+            }
+
+            $movement = InventoryMovement::create([
+                'inventory_serial_id' => $serial->id,
+                'type' => MovementType::Sale,
+                'from_location_id' => $serial->inventory_location_id,
+                'to_location_id' => null,
+                'reference' => $order->number,
+                'notes' => $notes,
+                'user_id' => $by->id,
+            ]);
+
+            $serial->update([
+                'inventory_location_id' => null,
+                'status' => SerialStatus::Sold,
+            ]);
+
+            return $movement;
+        });
     }
 
     /**

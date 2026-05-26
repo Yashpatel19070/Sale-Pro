@@ -160,6 +160,8 @@
                                                 </a>
                                                 — {{ $movement->goodsReceipt->purchaseOrder->supplier->name }}
                                             </div>
+                                        @elseif($movement->reference)
+                                            <span class="font-mono text-xs text-gray-700">{{ $movement->reference }}</span>
                                         @else
                                             <span class="text-gray-400">—</span>
                                         @endif
