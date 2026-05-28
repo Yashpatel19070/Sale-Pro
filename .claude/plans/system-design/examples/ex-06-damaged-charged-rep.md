@@ -24,7 +24,7 @@
         │
         ├──→ orders (customer_id=6, billing NULL (terminal), shipping snapshot filled)
         ├──→ order_lines (1 line: SN-060)
-        └──→ order_fees (service fee $20)
+        └──→ order_line_fees INSERT (Programming Fee $12 · Gas Tuning Fee $8)
 
 [Emma taps card on Stripe Terminal — instant]
         │
@@ -104,8 +104,8 @@ id  customer_id  label  first_name  last_name  email             phone         a
 
 **`orders`**
 ```
-id  number        customer_id  source   status   payment_status  subtotal  fees   shipping  grand_total  shipped_at            shipped_by  delivered_at          delivered_by
-7   ORD-2026-007  6            walk_in  shipped  paid            200.00    20.00  20.00     240.00       2026-04-26 10:00      2           2026-04-28 11:00      1
+id  number        customer_id  source   status   payment_status  shipping  grand_total  shipped_at            shipped_by  delivered_at          delivered_by  created_by
+7   ORD-2026-007  6            walk_in  shipped  paid            20.00     240.00       2026-04-26 10:00      2           2026-04-28 11:00      1             1
 
 -- billing snapshot (NULL — stripe_terminal, card-present, no manual billing entry)
 billing_first_name  billing_last_name  billing_email  billing_phone  billing_address_line1  billing_city  billing_state  billing_postal_code  billing_country
@@ -118,19 +118,20 @@ Emma                 Davis               emma@example.com  555-100-0006    567 P
 
 **`order_lines`**
 ```
-id  order  sku     product_name  serial  unit_price  tax_rate  tax_amount  line_total
-10  7      PROD-A  Widget Pro    SN-060  200.00      0.0000    0.00        200.00
+id  order  product_listing_id  sku     product_name  inventory_serial_id  unit_price  tax_amount  line_total
+10  7      1                   PROD-A  Widget Pro    SN-060               200.00      0.00        200.00
 ```
 
-**`order_fees`**
+**`order_line_fees`**
 ```
-id  order  name          amount
-7   7      Service Fee   20.00
+id  order_line_id  name              amount  tax_amount  fee_total  created_by  created_at
+13  10             Programming Fee   12.00   0.00        12.00      1           2026-04-28 10:00:00
+14  10             Gas Tuning Fee     8.00   0.00         8.00      1           2026-04-28 10:00:00
 ```
 
 **Grand total**
 ```
-subtotal $200 + fees $20 + shipping $20 + tax $0 = $240 ✓
+lines $200 + fees $20 + shipping $20 + tax $0 = $240 ✓
 ```
 
 **`payments`**

@@ -37,7 +37,17 @@ class Customer extends Authenticatable implements MustVerifyEmail
         'company_name',
         'status',
         'email_verified_at',
+        'tax_exempt',
+        'tax_identification_number',
+        'exemption_certificate_number',
+        'entity_use_code',
+        'exemption_signed_date',
+        'exemption_expires_at',
+        'exemption_exposure_zone',
     ];
+
+    // avatax_customer_id, avatax_certificate_id, avatax_synced_at are server-set
+    // only (forceFill in SyncCustomerToAvaTaxJob) — never mass-assignable.
 
     protected $hidden = [
         'password',
@@ -50,6 +60,10 @@ class Customer extends Authenticatable implements MustVerifyEmail
             'status' => CustomerStatus::class,
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'tax_exempt' => 'boolean',
+            'avatax_synced_at' => 'datetime',
+            'exemption_signed_date' => 'date',
+            'exemption_expires_at' => 'date',
         ];
     }
 

@@ -15,7 +15,7 @@ Example tables use **simplified display names** for readability. Actual DB colum
 | `serial` | `inventory_serial_id` (FK → `inventory_serials`) | `inventory_movements` |
 | `from` | `from_location_id` (FK → `inventory_locations`) | `inventory_movements` |
 | `to` | `to_location_id` (FK → `inventory_locations`) | `inventory_movements` |
-| `order` | `order_id` (FK → `orders`) | `order_lines`, `order_fees`, `payments`, etc. |
+| `order` | `order_id` (FK → `orders`) | `order_lines`, `payments`, etc. |
 | `parent` | `parent_id` (FK → `replacements`) | `replacements` |
 | `line` | `order_line_id` (FK → `order_lines`) | `complaints` |
 | `complaint` | `complaint_id` (FK → `complaints`) | `replacements` |
@@ -726,9 +726,9 @@ order_core_charges (initial):
 id  order  order_line  description           amount  tax_rate  tax_amount  total   status
 1   30     30          Core — Starter Motor  50.00   0.0000    0.00        50.00   outstanding
 
-order_fees:
-id  order  name          amount
-30  30     Service Fee   25.00
+order_line_fees:
+id  order_line_id  name              amount  tax_amount  fee_total  created_by  created_at
+30  30             Service Fee       25.00   0.00        25.00      1           2026-05-01 10:00:00
 
 payments (original purchase):
 id  order  payable_type  payable_id  method  amount  status

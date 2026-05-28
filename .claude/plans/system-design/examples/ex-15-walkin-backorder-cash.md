@@ -14,7 +14,7 @@
         ├──→ orders INSERT (customer_id=15, source=walk_in, status=back_ordered, payment_status=unpaid,
         │                   billing=NULL — cash, shipping snapshot filled from address)
         ├──→ order_lines INSERT (inventory_serial_id=NULL, sku=PROD-B, unit_price=200.00)
-        └──→ order_fees INSERT (Service Fee $20)
+        └──→ order_line_fees INSERT (Programming Fee $12 · Gas Tuning Fee $8)
 
 [James pays cash upfront — same visit]
         │
@@ -65,8 +65,8 @@ id  customer_id  label  first_name  last_name  email              phone         
 
 **`orders`**
 ```
-id  number        customer_id  source   status   payment_status  subtotal  fees   shipping  grand_total  shipped_at            shipped_by  delivered_at          delivered_by
-17  ORD-2026-017  15           walk_in  shipped  paid            200.00    20.00  25.00     245.00       2026-05-20 09:00      2           2026-05-22 14:00      1
+id  number        customer_id  source   status   payment_status  shipping  grand_total  shipped_at            shipped_by  delivered_at          delivered_by  created_by
+17  ORD-2026-017  15           walk_in  shipped  paid            25.00     245.00       2026-05-20 09:00      2           2026-05-22 14:00      1             1
 
 -- billing snapshot
 NULL — cash payment, no billing snapshot required
@@ -80,21 +80,22 @@ One row in DB — split for readability.
 
 **`order_lines`**
 ```
-id  order  sku     product_name  serial   unit_price  tax_rate  tax_amount  line_total
-44  17     PROD-B  Widget Max    SN-151   200.00      0.0000    0.00        200.00
+id  order  product_listing_id  sku     product_name  inventory_serial_id  unit_price  tax_amount  line_total
+44  17     2                   PROD-B  Widget Max    SN-151               200.00      0.00        200.00
 ```
 
 > `serial` (inventory_serial_id) was NULL from 2026-05-14 (order creation) until 2026-05-19 (serial assigned after stock arrived). Shown here as final assigned state.
 
-**`order_fees`**
+**`order_line_fees`**
 ```
-id  order  name          amount
-24  17     Service Fee   20.00
+id  order_line_id  name              amount  tax_amount  fee_total  created_by  created_at
+31  44             Programming Fee   12.00   0.00        12.00      1           2026-05-14 11:00:00
+32  44             Gas Tuning Fee     8.00   0.00         8.00      1           2026-05-14 11:00:00
 ```
 
 **Grand total**
 ```
-subtotal $200 + fees $20 + shipping $25 + tax $0 = $245 ✓
+lines $200 + fees $20 + shipping $25 + tax $0 = $245 ✓
 ```
 
 **`payments`**

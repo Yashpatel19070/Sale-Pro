@@ -84,3 +84,40 @@ it('delete soft deletes a customer', function () {
 
     $this->assertSoftDeleted('customers', ['id' => $customer->id]);
 });
+
+it('dispatches SyncCustomerToAvaTaxJob on store', function () {
+    Illuminate\Support\Facades\Queue::fake();
+
+    $this->service->store([
+        'name' => 'Acme Inc',
+        'email' => 'acme@example.com',
+        'password' => 'password',
+        'phone' => '555-1212',
+        'status' => CustomerStatus::Active,
+    ]);
+
+    Illuminate\Support\Facades\Queue::assertPushed(App\Jobs\SyncCustomerToAvaTaxJob::class, 1);
+});
+
+it('dispatches SyncCustomerToAvaTaxJob on update', function () {
+    Illuminate\Support\Facades\Queue::fake();
+    $customer = Customer::factory()->create();
+
+    $this->service->update($customer, ['name' => 'Renamed']);
+
+    Illuminate\Support\Facades\Queue::assertPushed(App\Jobs\SyncCustomerToAvaTaxJob::class, 1);
+});
+
+it('does not allow mass-assigning server-set avatax fields', function () {
+    $customer = Customer::factory()->create();
+
+    $customer->fill([
+        'avatax_customer_id' => 'HACKED',
+        'avatax_certificate_id' => 999,
+        'avatax_synced_at' => now(),
+    ]);
+
+    expect($customer->avatax_customer_id)->toBeNull();
+    expect($customer->avatax_certificate_id)->toBeNull();
+    expect($customer->avatax_synced_at)->toBeNull();
+});

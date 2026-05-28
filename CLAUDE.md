@@ -84,7 +84,7 @@ Middleware stack: `auth`, `verified:portal.verification.notice`, `role:customer`
 - Never ask "are you sure?" — if asked to do something, do it
 
 ## Stack
-- PHP 8.2+, Laravel 12, MySQL/MariaDB
+- PHP 8.5, Laravel 13.4 , MySQL/MariaDB
 - Auth: Laravel Breeze (Blade)
 - Permissions: Spatie Laravel Permission
 - Frontend: Blade + Tailwind CSS v3
@@ -102,6 +102,7 @@ Reference files are at:
 ## Rules
 
 ### Review Mode (CRITICAL)
+Before editing any file, read it first. Before modifying a function, grep for all callers. Research before you edit.
 When the user asks you to **check**, **review**, **audit**, **inspect**, or **report** on code,
 tests, or any files — you MUST:
 1. Read and analyse the relevant files
@@ -150,42 +151,44 @@ Status values: `not started` / `in progress` / `done` / `deferred`
 
 % guide: 20% schema/migration · 40% model+service · 60% controller+routes · 80% views · 90% tests written · 100% all passing
 
-<!-- code-review-graph MCP tools -->
-## MCP Tools: code-review-graph
+<!-- codegraph MCP tools -->
+## MCP Tools: codegraph
 
-**IMPORTANT: This project has a knowledge graph. ALWAYS use the
-code-review-graph MCP tools BEFORE using Grep/Glob/Read to explore
-the codebase.** The graph is faster, cheaper (fewer tokens), and gives
-you structural context (callers, dependents, test coverage) that file
-scanning cannot.
+**IMPORTANT: This project has a knowledge graph (`codegraph`). ALWAYS use the
+codegraph MCP tools BEFORE using Grep/Glob/Read to explore the codebase.**
+The graph is faster, cheaper (fewer tokens), and gives structural context
+(callers, callees, impact radius) that file scanning cannot.
 
 ### Always use graph tools — no exceptions
 
-- **Exploring code**: `semantic_search_nodes` or `query_graph`
-- **Understanding impact**: `get_impact_radius`
-- **Code review**: `detect_changes` + `get_review_context`
-- **Finding relationships**: `query_graph` with callers_of/callees_of/imports_of/tests_for
-- **Architecture questions**: `get_architecture_overview` + `list_communities`
+- **"What's the deal with feature/area X?"** → `codegraph_context` (PRIMARY — composes search + node + callers + callees in one call)
+- **Find a symbol by name** → `codegraph_search`
+- **Trace a flow X→Y** → `codegraph_trace`
+- **What calls this / what does this call** → `codegraph_callers` / `codegraph_callees`
+- **Blast radius of a change** → `codegraph_impact`
+- **Show one symbol's source** → `codegraph_node`; **survey several** → `codegraph_explore`
+- **What's in a directory** → `codegraph_files`
+- **Is the index ready** → `codegraph_status`
 
 ### Key Tools
 
 | Tool | Use when |
 |------|----------|
-| `detect_changes` | Reviewing code changes — gives risk-scored analysis |
-| `get_review_context` | Need source snippets for review — token-efficient |
-| `get_impact_radius` | Understanding blast radius of a change |
-| `get_affected_flows` | Finding which execution paths are impacted |
-| `query_graph` | Tracing callers, callees, imports, tests, dependencies |
-| `semantic_search_nodes` | Finding functions/classes by name or keyword |
-| `get_architecture_overview` | Understanding high-level codebase structure |
-| `refactor_tool` | Planning renames, finding dead code |
+| `codegraph_context` | Understanding a task/feature/area — primary composite call |
+| `codegraph_trace` | Tracing the path from X to Y |
+| `codegraph_callers` / `codegraph_callees` | Finding what calls / is called |
+| `codegraph_impact` | Understanding blast radius of a change |
+| `codegraph_search` | Finding a function/class by name |
+| `codegraph_node` / `codegraph_explore` | Reading symbol source (one / many) |
+| `codegraph_files` | Listing a directory's contents |
+| `codegraph_status` | Checking index readiness/size |
 
 ### Workflow
 
-1. The graph auto-updates on file changes (via hooks).
-2. Use `detect_changes` for code review.
-3. Use `get_affected_flows` to understand impact.
-4. Use `query_graph` pattern="tests_for" to check coverage.
+1. The graph auto-updates on file changes (via the PostToolUse hook).
+2. Start with `codegraph_context` for any area question.
+3. Use `codegraph_trace` to follow execution paths.
+4. Use `codegraph_impact` before refactoring.
 
 ## Hooks (Auto-Enforced — No Manual Action Needed)
 
@@ -193,7 +196,44 @@ scanning cannot.
 |-------|---------|--------------|
 | PreToolUse | Edit or Write any `.php` file | Outputs targeted pattern reminder for that file type (Controller/Service/Model/etc.) |
 | PostToolUse | Edit or Write any `.php` file | Auto-runs Pint to format the file |
-| PostToolUse | Edit, Write, or Bash | Updates the code-review knowledge graph |
-| Stop | End of session | Runs `detect-changes --brief` summary |
+| PostToolUse | Edit, Write, or Bash | Updates the codegraph knowledge graph |
+| Stop | End of session | Runs an end-of-session change summary |
 
 Pint runs automatically — never run it manually after edits.
+
+## Coding Behavior — Karpathy Guidelines (ALWAYS FOLLOW — CRITICAL)
+
+These behavioral guidelines apply **by default to every coding task** in this
+project — no need to invoke the `andrej-karpathy-skills:karpathy-guidelines`
+skill, treat the rules below as mandatory. (Bias toward caution over speed;
+for trivial tasks, use judgment.)
+
+### 1. Think Before Coding
+Don't assume. Don't hide confusion. Surface tradeoffs.
+- State assumptions explicitly; if uncertain, ask.
+- If multiple interpretations exist, present them — don't pick silently.
+- If a simpler approach exists, say so. Push back when warranted.
+- If something is unclear, stop, name what's confusing, and ask.
+
+### 2. Simplicity First
+Minimum code that solves the problem. Nothing speculative.
+- No features beyond what was asked.
+- No abstractions for single-use code.
+- No "flexibility"/"configurability" that wasn't requested.
+- No error handling for impossible scenarios.
+- If 200 lines could be 50, rewrite it. Ask: "Would a senior engineer call this overcomplicated?"
+
+### 3. Surgical Changes
+Touch only what you must. Clean up only your own mess.
+- Don't "improve" adjacent code, comments, or formatting.
+- Don't refactor things that aren't broken; match existing style.
+- Note unrelated dead code — don't delete it unless asked.
+- Remove only the imports/vars/functions YOUR changes orphaned.
+- Test: every changed line traces directly to the user's request.
+
+### 4. Goal-Driven Execution
+Define success criteria. Loop until verified.
+- "Add validation" → write tests for invalid inputs, then make them pass.
+- "Fix the bug" → write a test that reproduces it, then make it pass.
+- "Refactor X" → ensure tests pass before and after.
+- For multi-step tasks, state a brief plan with a verify check per step.

@@ -26,7 +26,7 @@ Admin enters any amount based on reason, condition, and judgment.
         │
         ├──→ orders (customer_id=7, billing + shipping snapshot filled)
         ├──→ order_lines (2 lines: SN-080, SN-081)
-        └──→ order_fees (service fee $30)
+        └──→ order_line_fees INSERT (Programming Fee $18 · Gas Tuning Fee $12)
 
 [Amanda pays via Stripe card — sync]
         │
@@ -86,8 +86,8 @@ id  customer_id  label  first_name  last_name  email               phone        
 
 **`orders`**
 ```
-id  number        customer_id  source  status     payment_status  subtotal  fees   shipping  grand_total  shipped_at            shipped_by  delivered_at          delivered_by  cancelled_at         cancelled_by
-9   ORD-2026-009  7            online  refunded   paid            300.00    30.00  0.00      330.00       2026-04-28 10:00      2           2026-04-30 12:00      1             2026-05-04 12:00     1
+id  number        customer_id  source  status     payment_status  shipping  grand_total  shipped_at            shipped_by  delivered_at          delivered_by  created_by
+9   ORD-2026-009  7            online  refunded   paid            0.00      330.00       2026-04-28 10:00      2           2026-04-30 12:00      1             1
 
 -- billing snapshot (stripe_card, card-not-present → billing filled)
 billing_first_name  billing_last_name  billing_email       billing_phone  billing_address_line1  billing_city  billing_state  billing_postal_code  billing_country
@@ -104,20 +104,22 @@ Amanda               Taylor              amanda@example.com  555-100-0007    890
 
 **`order_lines`**
 ```
-id  order  sku     product_name  serial  unit_price  tax_rate  tax_amount  line_total
-13  9      PROD-A  Widget Pro    SN-080  200.00      0.0000    0.00        200.00
-14  9      PROD-B  Widget Basic  SN-081  100.00      0.0000    0.00        100.00
+id  order  product_listing_id  sku     product_name  inventory_serial_id  unit_price  tax_amount  line_total
+13  9      1                   PROD-A  Widget Pro    SN-080               200.00      0.00        200.00
+14  9      2                   PROD-B  Widget Basic  SN-081               100.00      0.00        100.00
 ```
 
-**`order_fees`**
+**`order_line_fees`**
 ```
-id  order  name          amount
-9   9      Service Fee   30.00
+id  order_line_id  name              amount  tax_amount  fee_total  created_by  created_at
+15  13             Programming Fee   18.00   0.00        18.00      1           2026-04-30 10:00:00
+16  13             Gas Tuning Fee    12.00   0.00        12.00      1           2026-04-30 10:00:00
 ```
+> Fees attached to order line 13 (PROD-A Widget Pro — the primary unit).
 
 **Grand total**
 ```
-subtotal $300 (200+100) + fees $30 + shipping $0 + tax $0 = $330 ✓
+lines $300 (200+100) + fees $30 + shipping $0 + tax $0 = $330 ✓
 ```
 
 **`payments`**

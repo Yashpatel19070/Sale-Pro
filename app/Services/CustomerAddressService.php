@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Jobs\SyncCustomerToAvaTaxJob;
 use App\Models\Customer;
 use App\Models\CustomerAddress;
 use Illuminate\Database\Eloquent\Collection;
@@ -27,6 +28,8 @@ class CustomerAddressService
             $address->forceFill(['is_default' => true])->save();
         }
 
+        SyncCustomerToAvaTaxJob::dispatch($customer);
+
         return $address;
     }
 
@@ -34,12 +37,14 @@ class CustomerAddressService
     {
         $address->update($data);
 
+        SyncCustomerToAvaTaxJob::dispatch($address->customer);
+
         return $address->fresh();
     }
 
     public function setDefault(CustomerAddress $address): CustomerAddress
     {
-        return DB::transaction(function () use ($address) {
+        DB::transaction(function () use ($address) {
             CustomerAddress::where('customer_id', $address->customer_id)
                 ->lockForUpdate()
                 ->pluck('id');
@@ -49,9 +54,12 @@ class CustomerAddressService
                 ->update(['is_default' => false]);
 
             $address->forceFill(['is_default' => true])->save();
-
-            return $address;
         });
+
+        // Dispatch AFTER the transaction commits — never inside (service.md).
+        SyncCustomerToAvaTaxJob::dispatch($address->customer);
+
+        return $address;
     }
 
     public function delete(CustomerAddress $address): void
@@ -60,6 +68,9 @@ class CustomerAddressService
             throw new \RuntimeException('Cannot delete the default address.');
         }
 
+        $customer = $address->customer;
         $address->delete();
+
+        SyncCustomerToAvaTaxJob::dispatch($customer);
     }
 }

@@ -20,8 +20,6 @@ source:               phone
 status:               back_ordered          ← set at creation (serial=NULL)
 payment_status:       unpaid                ← no payment at creation
 created_by:           3
-subtotal:             162.38                ← sum of order_lines.line_total
-fees:                 10.00
 shipping:             15.00
 grand_total:          187.38
 currency:             USD
@@ -39,8 +37,6 @@ shipped_at:           NULL → 2026-05-21
 shipped_by:           NULL → 5
 delivered_at:         NULL → 2026-05-23
 delivered_by:         NULL → 3
-cancelled_at:         NULL
-cancelled_by:         NULL
 created_at:           2026-05-17 14:00:00
 ```
 
@@ -52,11 +48,11 @@ created_at:           2026-05-17 14:00:00
 ```
 id:                   47
 order_id:             20
+product_listing_id:   4
 sku:                  USB-C-HUB-7
 product_name:         7-Port USB-C Hub
 inventory_serial_id:  NULL              ← back-ordered — no serial yet
 unit_price:           150.00
-tax_rate:             0.0825
 tax_amount:           12.38             ← 150.00 × 0.0825 = 12.375 → rounded
 line_total:           162.38
 ```
@@ -65,12 +61,11 @@ line_total:           162.38
 
 ---
 
-### Data: `order_fees` row
+### Data: `order_line_fees`
 ```
-id:        26
-order_id:  20
-name:      Service Fee
-amount:    10.00
+id  order_line_id  name              amount  tax_amount  fee_total  created_by  created_at
+35  47             Programming Fee    6.00   0.00         6.00      1           2026-05-21 09:00:00
+36  47             Gas Tuning Fee     4.00   0.00         4.00      1           2026-05-21 09:00:00
 ```
 
 ---

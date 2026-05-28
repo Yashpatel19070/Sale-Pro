@@ -80,6 +80,57 @@
                 </div>
             </div>
 
+            {{-- Tax & Exemption (Phase 5) --}}
+            <div class="mt-6 rounded-lg bg-white p-6 shadow">
+                <h3 class="mb-4 text-sm font-medium text-gray-700">Tax & Exemption</h3>
+                <dl class="grid grid-cols-2 gap-4">
+                    <div>
+                        <dt class="text-sm font-medium text-gray-500">Federal Tax ID</dt>
+                        <dd class="mt-1 text-sm text-gray-900">{{ $customer->tax_identification_number ?: '—' }}</dd>
+                    </div>
+                    <div>
+                        <dt class="text-sm font-medium text-gray-500">Tax-Exempt</dt>
+                        <dd class="mt-1 text-sm">
+                            @if($customer->tax_exempt)
+                                <span class="inline-flex rounded-full bg-amber-100 px-2 py-1 text-xs font-semibold text-amber-800">YES</span>
+                            @else
+                                <span class="text-gray-500">No</span>
+                            @endif
+                        </dd>
+                    </div>
+                    @if($customer->tax_exempt)
+                        <div>
+                            <dt class="text-sm font-medium text-gray-500">Exemption Reason</dt>
+                            <dd class="mt-1 text-sm text-gray-900">{{ $customer->entity_use_code ?: '—' }}</dd>
+                        </div>
+                        <div>
+                            <dt class="text-sm font-medium text-gray-500">Certificate #</dt>
+                            <dd class="mt-1 text-sm text-gray-900">{{ $customer->exemption_certificate_number ?: '—' }}</dd>
+                        </div>
+                        <div>
+                            <dt class="text-sm font-medium text-gray-500">Exposure Zone</dt>
+                            <dd class="mt-1 text-sm text-gray-900">{{ $customer->exemption_exposure_zone ?: '—' }}</dd>
+                        </div>
+                        <div>
+                            <dt class="text-sm font-medium text-gray-500">Signed / Expires</dt>
+                            <dd class="mt-1 text-sm text-gray-900">
+                                {{ optional($customer->exemption_signed_date)->format('Y-m-d') ?: '—' }}
+                                →
+                                {{ optional($customer->exemption_expires_at)->format('Y-m-d') ?: '—' }}
+                            </dd>
+                        </div>
+                    @endif
+                    <div>
+                        <dt class="text-sm font-medium text-gray-500">AvaTax Customer ID</dt>
+                        <dd class="mt-1 text-sm text-gray-900">{{ $customer->avatax_customer_id ?: '—' }}</dd>
+                    </div>
+                    <div>
+                        <dt class="text-sm font-medium text-gray-500">Last Synced</dt>
+                        <dd class="mt-1 text-sm text-gray-900">{{ optional($customer->avatax_synced_at)->format('Y-m-d H:i') ?: 'Never' }}</dd>
+                    </div>
+                </dl>
+            </div>
+
             {{-- Portal Account --}}
             @can('update', $customer)
                 <div class="mt-6 rounded-lg bg-white p-6 shadow">

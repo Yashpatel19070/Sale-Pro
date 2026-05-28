@@ -4,17 +4,16 @@ declare(strict_types=1);
 
 namespace App\Models;
 
-use Database\Factories\OrderEventFactory;
+use App\Enums\OrderEvent as OrderEventEnum;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class OrderEvent extends Model
 {
-    /** @use HasFactory<OrderEventFactory> */
     use HasFactory;
 
-    public const UPDATED_AT = null;
+    const UPDATED_AT = null;
 
     protected $fillable = [
         'order_id',
@@ -26,12 +25,10 @@ class OrderEvent extends Model
     protected function casts(): array
     {
         return [
+            'event' => OrderEventEnum::class,
             'metadata' => 'array',
-            'created_at' => 'datetime',
         ];
     }
-
-    // ── Relationships ──────────────────────────────────────────────────────────
 
     public function order(): BelongsTo
     {

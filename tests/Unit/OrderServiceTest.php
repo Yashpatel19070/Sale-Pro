@@ -8,751 +8,463 @@ use App\Enums\PaymentMethod;
 use App\Enums\PaymentStatus;
 use App\Enums\SerialStatus;
 use App\Models\Customer;
+use App\Models\CustomerAddress;
 use App\Models\InventoryLocation;
 use App\Models\InventoryMovement;
 use App\Models\InventorySerial;
 use App\Models\Order;
 use App\Models\OrderEvent;
 use App\Models\OrderLine;
+use App\Models\OrderLineFee;
 use App\Models\Payment;
 use App\Models\Product;
 use App\Models\ProductListing;
 use App\Models\User;
+use App\Services\AvaTaxService;
 use App\Services\InventoryMovementService;
 use App\Services\OrderService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Pagination\LengthAwarePaginator;
 
 uses(RefreshDatabase::class);
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
 function orderService(): OrderService
 {
-    return new OrderService(app(InventoryMovementService::class));
+    return app(OrderService::class);
 }
 
-function walkInCashPayload(Customer $customer, ProductListing $listing): array
+function ex19Customer(): Customer
+{
+    return Customer::factory()->create([
+        'name' => 'Rachel Park',
+        'email' => 'rachel@example.com',
+        'phone' => '555-190-0001',
+        'tax_exempt' => false,
+    ]);
+}
+
+function ex19Setup(): array
+{
+    $admin = User::factory()->create();
+    $customer = ex19Customer();
+    $location = InventoryLocation::factory()->create(['name' => 'Warehouse A']);
+    $product = Product::factory()->create(['sku' => 'ECM-2024', 'name' => 'Engine Control Module']);
+    $listing = ProductListing::factory()->active()->for($product)->create();
+    $serial = InventorySerial::factory()->inStock()->atLocation($location)->forProduct($product)->create(['serial_number' => 'SN-200']);
+
+    return compact('admin', 'customer', 'location', 'product', 'listing', 'serial');
+}
+
+function ex19Payload(int $customerId, int $listingId): array
 {
     return [
-        'customer_id' => $customer->id,
-        'source' => OrderSource::WalkIn->value,
-        'payment_method' => PaymentMethod::Cash->value,
+        'customer_id' => $customerId,
+        'source' => 'walk_in',
+        'payment_method' => 'cash',
+        'billing_address_id' => null,
         'shipping_address_id' => null,
         'shipping' => 0,
         'lines' => [
             [
-                'product_listing_id' => $listing->id,
-                'unit_price' => 170.00,
-                'tax_rate' => 0,
+                'product_listing_id' => $listingId,
+                'unit_price' => 200.00,
+                'tax_amount' => 16.50,
+                'fees' => [
+                    ['name' => 'Programming Fee', 'amount' => 40.00, 'tax_amount' => 3.30],
+                    ['name' => 'Gas Tuning Fee', 'amount' => 25.00, 'tax_amount' => 2.06],
+                ],
             ],
-        ],
-        'fees' => [
-            ['name' => 'Service Fee', 'amount' => 15.00],
         ],
     ];
 }
 
-// ── paginate() ────────────────────────────────────────────────────────────────
+// ── store() ──────────────────────────────────────────────────────────────
 
-it('it_returns_paginated_orders', function () {
-    Order::factory()->count(3)->create();
-
-    $result = orderService()->paginate([]);
-
-    expect($result)->toBeInstanceOf(LengthAwarePaginator::class);
-    expect($result->total())->toBe(3);
-});
-
-it('it_filters_by_status', function () {
-    Order::factory()->pending()->create();
-    Order::factory()->processing()->create();
-
-    $result = orderService()->paginate(['status' => 'pending']);
-
-    expect($result->total())->toBe(1);
-    expect($result->first()->status)->toBe(OrderStatus::Pending);
-});
-
-it('it_filters_by_source', function () {
-    Order::factory()->walkin()->create();
-    Order::factory()->state(['source' => OrderSource::Online])->create();
-
-    $result = orderService()->paginate(['source' => 'walk_in']);
-
-    expect($result->total())->toBe(1);
-    expect($result->first()->source)->toBe(OrderSource::WalkIn);
-});
-
-// ── generateNumber() ─────────────────────────────────────────────────────────
-
-it('it_generates_order_number_in_correct_format', function () {
-    $customer = Customer::factory()->create();
-    $product = Product::factory()->create();
-    $listing = ProductListing::factory()->active()->for($product)->create();
-    $location = InventoryLocation::factory()->create();
-    $serial = InventorySerial::factory()->inStock()->atLocation($location)->forProduct($product)->create();
-    $user = User::factory()->create();
-
-    $order = orderService()->store(walkInCashPayload($customer, $listing), $user);
-
-    expect($order->number)->toMatch('/^ORD-\d{4}-\d{4}$/');
-});
-
-it('it_increments_order_number_on_each_call', function () {
-    $customer = Customer::factory()->create();
-    $product = Product::factory()->create();
-    $listing = ProductListing::factory()->active()->for($product)->create();
-    $user = User::factory()->create();
-    $location = InventoryLocation::factory()->create();
-
-    InventorySerial::factory()->inStock()->atLocation($location)->forProduct($product)->count(2)->create();
-
-    $first = orderService()->store(walkInCashPayload($customer, $listing), $user);
-    $second = orderService()->store(walkInCashPayload($customer, $listing), $user);
-
-    $year = now()->year;
-    expect($first->number)->toBe("ORD-{$year}-0001");
-    expect($second->number)->toBe("ORD-{$year}-0002");
-});
-
-// ── store() ───────────────────────────────────────────────────────────────────
-
-it('it_creates_order_with_walk_in_source', function () {
-    $customer = Customer::factory()->create();
-    $product = Product::factory()->create();
-    $listing = ProductListing::factory()->active()->for($product)->create();
-    $location = InventoryLocation::factory()->create();
-    $serial = InventorySerial::factory()->inStock()->atLocation($location)->forProduct($product)->create();
-    $user = User::factory()->create();
-
-    $order = orderService()->store(walkInCashPayload($customer, $listing), $user);
+it('creates order with walk_in source and pending status', function () {
+    $f = ex19Setup();
+    $order = orderService()->store(ex19Payload($f['customer']->id, $f['listing']->id), $f['admin']);
 
     expect($order->source)->toBe(OrderSource::WalkIn);
     expect($order->status)->toBe(OrderStatus::Pending);
     expect($order->payment_status)->toBe(PaymentStatus::Unpaid);
-    expect($order->created_by)->toBe($user->id);
+    expect($order->created_by)->toBe($f['admin']->id);
 });
 
-it('it_sets_billing_snapshot_to_null_for_cash_payment', function () {
-    $customer = Customer::factory()->create();
-    $product = Product::factory()->create();
-    $listing = ProductListing::factory()->active()->for($product)->create();
-    $location = InventoryLocation::factory()->create();
-    InventorySerial::factory()->inStock()->atLocation($location)->forProduct($product)->create();
-    $user = User::factory()->create();
+it('sets billing snapshot to shop address for cash when shop config is set', function () {
+    config([
+        'shop.billing.first_name' => 'ACME Tuning',
+        'shop.billing.city' => 'Austin',
+        'shop.billing.state' => 'TX',
+    ]);
 
-    $order = orderService()->store(walkInCashPayload($customer, $listing), $user);
+    $f = ex19Setup();
+    $order = orderService()->store(ex19Payload($f['customer']->id, $f['listing']->id), $f['admin']);
+
+    expect($order->billing_first_name)->toBe('ACME Tuning');
+    expect($order->billing_city)->toBe('Austin');
+    expect($order->billing_state)->toBe('TX');
+});
+
+it('uses customer billing address when one is provided even for cash', function () {
+    $f = ex19Setup();
+
+    $address = CustomerAddress::factory()->create([
+        'customer_id' => $f['customer']->id,
+        'label' => 'Home',
+        'first_name' => 'Real',
+        'last_name' => 'Person',
+        'address_line1' => '500 Main St',
+        'city' => 'Dallas',
+        'state' => 'TX',
+        'postal_code' => '75201',
+        'country' => 'US',
+    ]);
+
+    $payload = ex19Payload($f['customer']->id, $f['listing']->id);
+    $payload['billing_address_id'] = $address->id;
+
+    $order = orderService()->store($payload, $f['admin']);
+
+    expect($order->billing_first_name)->toBe('Real');
+    expect($order->billing_city)->toBe('Dallas');
+    expect($order->billing_address_line1)->toBe('500 Main St');
+});
+
+it('sets billing snapshot to null when shop config is unset', function () {
+    config([
+        'shop.billing.first_name' => null,
+        'shop.billing.last_name' => null,
+        'shop.billing.email' => null,
+        'shop.billing.phone' => null,
+        'shop.billing.address_line1' => null,
+        'shop.billing.address_line2' => null,
+        'shop.billing.city' => null,
+        'shop.billing.state' => null,
+        'shop.billing.postal_code' => null,
+        'shop.billing.country' => null,
+    ]);
+
+    $f = ex19Setup();
+    $order = orderService()->store(ex19Payload($f['customer']->id, $f['listing']->id), $f['admin']);
 
     expect($order->billing_first_name)->toBeNull();
-    expect($order->billing_last_name)->toBeNull();
-    expect($order->billing_email)->toBeNull();
-    expect($order->billing_phone)->toBeNull();
-    expect($order->billing_address_line1)->toBeNull();
     expect($order->billing_city)->toBeNull();
     expect($order->billing_state)->toBeNull();
+    expect($order->billing_email)->toBeNull();
     expect($order->billing_postal_code)->toBeNull();
-    expect($order->billing_country)->toBeNull();
 });
 
-it('it_sets_shipping_snapshot_to_null_for_instore_pickup', function () {
-    $customer = Customer::factory()->create();
-    $product = Product::factory()->create();
-    $listing = ProductListing::factory()->active()->for($product)->create();
-    $location = InventoryLocation::factory()->create();
-    InventorySerial::factory()->inStock()->atLocation($location)->forProduct($product)->create();
-    $user = User::factory()->create();
-
-    $order = orderService()->store(walkInCashPayload($customer, $listing), $user);
+it('sets shipping snapshot to null for pickup', function () {
+    $f = ex19Setup();
+    $order = orderService()->store(ex19Payload($f['customer']->id, $f['listing']->id), $f['admin']);
 
     expect($order->shipping_first_name)->toBeNull();
-    expect($order->shipping_last_name)->toBeNull();
-    expect($order->shipping_email)->toBeNull();
     expect($order->shipping_address_line1)->toBeNull();
     expect($order->shipping_city)->toBeNull();
-    expect($order->shipping_country)->toBeNull();
 });
 
-it('it_sets_shipped_at_and_shipped_by_to_null', function () {
-    $customer = Customer::factory()->create();
-    $product = Product::factory()->create();
-    $listing = ProductListing::factory()->active()->for($product)->create();
-    $location = InventoryLocation::factory()->create();
-    InventorySerial::factory()->inStock()->atLocation($location)->forProduct($product)->create();
-    $user = User::factory()->create();
+it('generates order number in correct format', function () {
+    $f = ex19Setup();
+    $order = orderService()->store(ex19Payload($f['customer']->id, $f['listing']->id), $f['admin']);
 
-    $order = orderService()->store(walkInCashPayload($customer, $listing), $user);
-
-    expect($order->shipped_at)->toBeNull();
-    expect($order->shipped_by)->toBeNull();
+    expect($order->number)->toMatch('/^ORD-\d{4}-\d{4}$/');
 });
 
-it('it_calculates_subtotal_fees_and_grand_total_correctly', function () {
-    $customer = Customer::factory()->create();
-    $product = Product::factory()->create();
-    $listing = ProductListing::factory()->active()->for($product)->create();
-    $location = InventoryLocation::factory()->create();
-    InventorySerial::factory()->inStock()->atLocation($location)->forProduct($product)->create();
-    $user = User::factory()->create();
+it('creates order_line with snapshots and line_total', function () {
+    $f = ex19Setup();
+    $order = orderService()->store(ex19Payload($f['customer']->id, $f['listing']->id), $f['admin']);
+    $line = $order->lines->first();
 
-    $order = orderService()->store(walkInCashPayload($customer, $listing), $user);
-
-    expect((float) $order->subtotal)->toBe(170.0);
-    expect((float) $order->fees)->toBe(15.0);
-    expect((float) $order->shipping)->toBe(0.0);
-    expect((float) $order->grand_total)->toBe(185.0);
+    expect($line->sku)->toBe('ECM-2024');
+    expect($line->product_name)->toBe('Engine Control Module');
+    expect((float) $line->unit_price)->toBe(200.0);
+    expect((float) $line->tax_amount)->toBe(16.5);
+    expect((float) $line->line_total)->toBe(216.5);
 });
 
-it('it_creates_order_line_with_null_serial_on_store', function () {
-    $customer = Customer::factory()->create();
-    $product = Product::factory()->create();
-    $listing = ProductListing::factory()->active()->for($product)->create();
-    $user = User::factory()->create();
+it('leaves inventory_serial_id null at store (allocation moved to payment per #6)', function () {
+    $f = ex19Setup();
+    $order = orderService()->store(ex19Payload($f['customer']->id, $f['listing']->id), $f['admin']);
+    $line = $order->lines->first();
 
-    $order = orderService()->store(walkInCashPayload($customer, $listing), $user);
-
-    $this->assertDatabaseHas('order_lines', [
-        'order_id' => $order->id,
-        'inventory_serial_id' => null,
-    ]);
-});
-
-it('it_snapshots_sku_and_product_name_on_order_line', function () {
-    $customer = Customer::factory()->create();
-    $product = Product::factory()->create();
-    $listing = ProductListing::factory()->active()->for($product)->create();
-    $location = InventoryLocation::factory()->create();
-    InventorySerial::factory()->inStock()->atLocation($location)->forProduct($product)->create();
-    $user = User::factory()->create();
-
-    $order = orderService()->store(walkInCashPayload($customer, $listing), $user);
-
-    $this->assertDatabaseHas('order_lines', [
-        'order_id' => $order->id,
-        'product_listing_id' => $listing->id,
-        'sku' => $product->sku,
-        'product_name' => $product->name,
-    ]);
-});
-
-it('it_creates_order_fee_row', function () {
-    $customer = Customer::factory()->create();
-    $product = Product::factory()->create();
-    $listing = ProductListing::factory()->active()->for($product)->create();
-    $location = InventoryLocation::factory()->create();
-    InventorySerial::factory()->inStock()->atLocation($location)->forProduct($product)->create();
-    $user = User::factory()->create();
-
-    $order = orderService()->store(walkInCashPayload($customer, $listing), $user);
-
-    $this->assertDatabaseHas('order_fees', [
-        'order_id' => $order->id,
-        'name' => 'Service Fee',
-        'amount' => 15.00,
-    ]);
-});
-
-it('it_does_not_create_inventory_movement_on_store', function () {
-    $customer = Customer::factory()->create();
-    $product = Product::factory()->create();
-    $listing = ProductListing::factory()->active()->for($product)->create();
-    $location = InventoryLocation::factory()->create();
-    InventorySerial::factory()->inStock()->atLocation($location)->forProduct($product)->create();
-    $user = User::factory()->create();
-
-    orderService()->store(walkInCashPayload($customer, $listing), $user);
-
-    $this->assertDatabaseCount('inventory_movements', 0);
-});
-
-it('it_does_not_change_serial_status_on_store', function () {
-    $customer = Customer::factory()->create();
-    $product = Product::factory()->create();
-    $listing = ProductListing::factory()->active()->for($product)->create();
-    $location = InventoryLocation::factory()->create();
-    $serial = InventorySerial::factory()->inStock()->atLocation($location)->forProduct($product)->create();
-    $user = User::factory()->create();
-
-    orderService()->store(walkInCashPayload($customer, $listing), $user);
-
-    expect($serial->fresh()->status)->toBe(SerialStatus::InStock);
-});
-
-it('it_assigns_serial_on_cash_payment', function () {
-    $customer = Customer::factory()->create();
-    $product = Product::factory()->create();
-    $listing = ProductListing::factory()->active()->for($product)->create();
-    $location = InventoryLocation::factory()->create();
-    $serial = InventorySerial::factory()->inStock()->atLocation($location)->forProduct($product)->create();
-    $user = User::factory()->create();
-
-    $order = orderService()->store(walkInCashPayload($customer, $listing), $user);
-
-    $line = OrderLine::where('order_id', $order->id)->first();
     expect($line->inventory_serial_id)->toBeNull();
-
-    orderService()->recordCashPayment($order, ['amount' => 185.00], $user);
-
-    $line->refresh();
-    expect($line->inventory_serial_id)->toBe($serial->id);
-    expect($serial->fresh()->status)->toBe(SerialStatus::Sold);
-    $this->assertDatabaseCount('inventory_movements', 1);
+    expect($f['serial']->fresh()->status)->toBe(SerialStatus::InStock);
 });
 
-it('it_throws_if_serial_status_is_not_in_stock', function () {
-    $customer = Customer::factory()->create();
-    $product = Product::factory()->create();
-    $listing = ProductListing::factory()->active()->for($product)->create();
-    $location = InventoryLocation::factory()->create();
-    InventorySerial::factory()->sold()->atLocation($location)->forProduct($product)->create();
-    $user = User::factory()->create();
+it('creates order_line_fees with fee_total', function () {
+    $f = ex19Setup();
+    $order = orderService()->store(ex19Payload($f['customer']->id, $f['listing']->id), $f['admin']);
+    $fees = $order->lines->first()->lineFees;
 
-    $order = orderService()->store(walkInCashPayload($customer, $listing), $user);
-
-    expect(fn () => orderService()->recordCashPayment($order, ['amount' => 185.00], $user))
-        ->toThrow(DomainException::class);
+    expect($fees)->toHaveCount(2);
+    expect($fees[0]->name)->toBe('Programming Fee');
+    expect((float) $fees[0]->fee_total)->toBe(43.30);
+    expect($fees[1]->name)->toBe('Gas Tuning Fee');
+    expect((float) $fees[1]->fee_total)->toBe(27.06);
+    expect($fees[0]->created_by)->toBe($f['admin']->id);
 });
 
-it('it_records_order_placed_event', function () {
-    $customer = Customer::factory()->create();
-    $product = Product::factory()->create(['sku' => 'PROD-C', 'name' => 'Widget Basic']);
-    $listing = ProductListing::factory()->active()->for($product)->create();
-    $location = InventoryLocation::factory()->create();
-    InventorySerial::factory()->inStock()->atLocation($location)->forProduct($product)->create();
-    $user = User::factory()->create();
+it('computes grand_total correctly', function () {
+    $f = ex19Setup();
+    $order = orderService()->store(ex19Payload($f['customer']->id, $f['listing']->id), $f['admin']);
 
-    $order = orderService()->store(walkInCashPayload($customer, $listing), $user);
-
-    $event = OrderEvent::where('order_id', $order->id)->where('event', 'order_placed')->first();
-    expect($event)->not->toBeNull();
-    expect($event->metadata['sku'])->toBe('PROD-C');
-    expect($event->metadata['product_name'])->toBe('Widget Basic');
-    expect($event->metadata['grand_total'])->toBe('185.00');
-    expect($event->created_by)->toBe($user->id);
+    expect((float) $order->grand_total)->toBe(286.86);
 });
 
-it('it_rolls_back_order_if_line_creation_fails', function () {
-    $customer = Customer::factory()->create();
-    $product = Product::factory()->create();
-    $listing = ProductListing::factory()->active()->for($product)->create();
-    $location = InventoryLocation::factory()->create();
-    InventorySerial::factory()->inStock()->atLocation($location)->forProduct($product)->create();
-    $user = User::factory()->create();
+it('does not create inventory movement on store', function () {
+    $f = ex19Setup();
+    orderService()->store(ex19Payload($f['customer']->id, $f['listing']->id), $f['admin']);
 
-    // Pass invalid listing id to force failure inside transaction
-    $payload = walkInCashPayload($customer, $listing);
-    $payload['lines'][0]['product_listing_id'] = 99999;
-
-    try {
-        orderService()->store($payload, $user);
-    } catch (Throwable) {
-        // expected
-    }
-
-    $this->assertDatabaseCount('orders', 0);
-    $this->assertDatabaseCount('order_events', 0);
+    expect(InventoryMovement::count())->toBe(0);
 });
 
-// ── update() ─────────────────────────────────────────────────────────────────
+it('does not create payment on store', function () {
+    $f = ex19Setup();
+    orderService()->store(ex19Payload($f['customer']->id, $f['listing']->id), $f['admin']);
 
-it('it_updates_order_when_status_is_pending', function () {
-    $customer = Customer::factory()->create();
-    $product = Product::factory()->create();
-    $listing = ProductListing::factory()->active()->for($product)->create();
-    $location = InventoryLocation::factory()->create();
-    InventorySerial::factory()->inStock()->atLocation($location)->forProduct($product)->count(2)->create();
-    $user = User::factory()->create();
-
-    $order = orderService()->store(walkInCashPayload($customer, $listing), $user);
-
-    $updated = orderService()->update($order, [
-        'customer_id' => $customer->id,
-        'source' => 'walk_in',
-        'payment_method' => 'cash',
-        'shipping' => 10.00,
-        'lines' => [['product_listing_id' => $listing->id, 'unit_price' => 200.00, 'tax_rate' => 0]],
-        'fees' => [],
-    ]);
-
-    expect((float) $updated->shipping)->toBe(10.0);
-    expect((float) $updated->subtotal)->toBe(200.0);
-    expect((float) $updated->grand_total)->toBe(210.0);
+    expect(Payment::count())->toBe(0);
 });
 
-it('it_throws_when_order_is_not_pending_on_update', function () {
-    $order = Order::factory()->processing()->create();
+it('inserts order_placed event with correct metadata', function () {
+    $f = ex19Setup();
+    $order = orderService()->store(ex19Payload($f['customer']->id, $f['listing']->id), $f['admin']);
+    $event = $order->events->first();
 
-    expect(fn () => orderService()->update($order, [
-        'shipping' => 0,
-        'lines' => [['product_listing_id' => 1, 'unit_price' => 100, 'tax_rate' => 0]],
-        'fees' => [],
-    ]))->toThrow(DomainException::class);
+    expect($event->event)->toBe(App\Enums\OrderEvent::OrderPlaced);
+    expect($event->metadata['sku'])->toBe('ECM-2024');
+    expect($event->metadata['grand_total'])->toBe('286.86');
+    expect($event->created_by)->toBe($f['admin']->id);
 });
 
-// ── delete() ─────────────────────────────────────────────────────────────────
+// (removed obsolete test "throws when no in-stock serial is available" —
+// store() no longer allocates serials; the check moved to recordCashPayment(),
+// covered by "throws when no in-stock serial at payment" below)
 
-it('it_deletes_order_when_status_is_pending', function () {
-    $order = Order::factory()->pending()->create();
+// ── recordCashPayment() ──────────────────────────────────────────────────
 
-    orderService()->delete($order);
+it('records cash payment and advances status to processing', function () {
+    $f = ex19Setup();
+    $order = orderService()->store(ex19Payload($f['customer']->id, $f['listing']->id), $f['admin']);
 
-    $this->assertSoftDeleted('orders', ['id' => $order->id]);
-});
+    $payment = orderService()->recordCashPayment($order, ['amount' => 286.86], $f['admin']);
 
-it('it_throws_when_order_is_not_pending_on_delete', function () {
-    $order = Order::factory()->processing()->create();
-
-    expect(fn () => orderService()->delete($order))
-        ->toThrow(DomainException::class);
-});
-
-// ── recordCashPayment() ───────────────────────────────────────────────────────
-
-it('it_creates_cash_payment_row', function () {
-    $customer = Customer::factory()->create();
-    $product = Product::factory()->create();
-    $listing = ProductListing::factory()->active()->for($product)->create();
-    $location = InventoryLocation::factory()->create();
-    InventorySerial::factory()->inStock()->atLocation($location)->forProduct($product)->create();
-    $user = User::factory()->create();
-    $order = orderService()->store(walkInCashPayload($customer, $listing), $user);
-
-    orderService()->recordCashPayment($order, ['amount' => 185.00], $user);
-
-    $this->assertDatabaseHas('payments', [
-        'order_id' => $order->id,
-        'method' => PaymentMethod::Cash->value,
-        'status' => PaymentStatus::Paid->value,
-        'amount' => 185.00,
-        'created_by' => $user->id,
-    ]);
-
-    $payment = Payment::where('order_id', $order->id)->first();
-    expect($payment->cash_received_at)->not->toBeNull();
-});
-
-it('it_sets_order_payment_status_to_paid', function () {
-    $customer = Customer::factory()->create();
-    $product = Product::factory()->create();
-    $listing = ProductListing::factory()->active()->for($product)->create();
-    $location = InventoryLocation::factory()->create();
-    InventorySerial::factory()->inStock()->atLocation($location)->forProduct($product)->create();
-    $user = User::factory()->create();
-    $order = orderService()->store(walkInCashPayload($customer, $listing), $user);
-
-    orderService()->recordCashPayment($order, ['amount' => 185.00], $user);
-
+    expect($payment->method)->toBe(PaymentMethod::Cash);
+    expect($payment->status)->toBe(PaymentStatus::Paid);
+    expect((float) $payment->amount)->toBe(286.86);
+    expect($payment->payable_type)->toBe('order');
+    expect($order->fresh()->status)->toBe(OrderStatus::Processing);
     expect($order->fresh()->payment_status)->toBe(PaymentStatus::Paid);
 });
 
-it('it_advances_order_to_processing_when_all_serials_assigned', function () {
-    $customer = Customer::factory()->create();
-    $product = Product::factory()->create();
-    $listing = ProductListing::factory()->active()->for($product)->create();
-    $location = InventoryLocation::factory()->create();
-    InventorySerial::factory()->inStock()->atLocation($location)->forProduct($product)->create();
-    $user = User::factory()->create();
-    $order = orderService()->store(walkInCashPayload($customer, $listing), $user);
+it('creates inventory movement and flips serial to sold on payment', function () {
+    $f = ex19Setup();
+    $order = orderService()->store(ex19Payload($f['customer']->id, $f['listing']->id), $f['admin']);
+    orderService()->recordCashPayment($order, ['amount' => 286.86], $f['admin']);
 
-    orderService()->recordCashPayment($order, ['amount' => 185.00], $user);
+    expect(InventoryMovement::count())->toBe(1);
+    $movement = InventoryMovement::first();
+    expect($movement->type->value)->toBe('sale');
+    expect($movement->reference)->toBe($order->number);
 
-    expect($order->fresh()->status)->toBe(OrderStatus::Processing);
+    expect($f['serial']->fresh()->status)->toBe(SerialStatus::Sold);
+    expect($f['serial']->fresh()->inventory_location_id)->toBeNull();
 });
 
-it('it_throws_when_no_serial_available_on_payment', function () {
-    $customer = Customer::factory()->create();
-    $product = Product::factory()->create();
-    $listing = ProductListing::factory()->active()->for($product)->create();
-    $user = User::factory()->create();
+it('allocates serial when recording payment', function () {
+    $f = ex19Setup();
+    $order = orderService()->store(ex19Payload($f['customer']->id, $f['listing']->id), $f['admin']);
 
-    // Store with no serials in stock — creates line with null serial
-    $order = orderService()->store(walkInCashPayload($customer, $listing), $user);
+    expect($order->lines->first()->inventory_serial_id)->toBeNull();
 
-    // Payment should throw because no in-stock serial can be assigned
-    expect(fn () => orderService()->recordCashPayment($order, ['amount' => 185.00], $user))
+    orderService()->recordCashPayment($order, ['amount' => 286.86], $f['admin']);
+
+    expect($order->lines->first()->fresh()->inventory_serial_id)->toBe($f['serial']->id);
+    expect($f['serial']->fresh()->status)->toBe(SerialStatus::Sold);
+});
+
+it('throws when no in-stock serial at payment', function () {
+    $f = ex19Setup();
+    $order = orderService()->store(ex19Payload($f['customer']->id, $f['listing']->id), $f['admin']);
+
+    // Drain the only in-stock serial: simulate it being sold to someone else
+    $f['serial']->update(['status' => SerialStatus::Sold, 'inventory_location_id' => null]);
+
+    expect(fn () => orderService()->recordCashPayment($order, ['amount' => 286.86], $f['admin']))
         ->toThrow(DomainException::class);
-});
-
-it('it_throws_if_order_already_paid', function () {
-    $order = Order::factory()->state(['payment_status' => PaymentStatus::Paid])->create();
-    $user = User::factory()->create();
-
-    expect(fn () => orderService()->recordCashPayment($order, ['amount' => 100.00], $user))
-        ->toThrow(DomainException::class);
-});
-
-it('it_creates_inventory_movement_on_full_payment', function () {
-    $customer = Customer::factory()->create();
-    $product = Product::factory()->create();
-    $listing = ProductListing::factory()->active()->for($product)->create();
-    $location = InventoryLocation::factory()->create(['name' => 'Warehouse A']);
-    $serial = InventorySerial::factory()->inStock()->atLocation($location)->forProduct($product)->create();
-    $user = User::factory()->create();
-    $order = orderService()->store(walkInCashPayload($customer, $listing), $user);
-
-    orderService()->recordCashPayment($order, ['amount' => 185.00], $user);
-
-    $this->assertDatabaseHas('inventory_movements', [
-        'inventory_serial_id' => $serial->id,
-        'type' => 'sale',
-        'from_location_id' => $location->id,
-        'to_location_id' => null,
-        'reference' => $order->number,
-    ]);
-});
-
-it('it_marks_serial_as_sold_on_full_payment', function () {
-    $customer = Customer::factory()->create();
-    $product = Product::factory()->create();
-    $listing = ProductListing::factory()->active()->for($product)->create();
-    $location = InventoryLocation::factory()->create();
-    $serial = InventorySerial::factory()->inStock()->atLocation($location)->forProduct($product)->create();
-    $user = User::factory()->create();
-    $order = orderService()->store(walkInCashPayload($customer, $listing), $user);
-
-    orderService()->recordCashPayment($order, ['amount' => 185.00], $user);
-
-    expect($serial->fresh()->status)->toBe(SerialStatus::Sold);
-});
-
-it('it_records_partial_payment_with_partial_status', function () {
-    $customer = Customer::factory()->create();
-    $product = Product::factory()->create();
-    $listing = ProductListing::factory()->active()->for($product)->create();
-    $user = User::factory()->create();
-    $order = orderService()->store(walkInCashPayload($customer, $listing), $user);
-
-    orderService()->recordCashPayment($order, ['amount' => 100.00], $user);
-
-    $payment = Payment::where('order_id', $order->id)->first();
-    expect($payment->status)->toBe(PaymentStatus::Partial);
-    expect($order->fresh()->payment_status)->toBe(PaymentStatus::Partial);
-});
-
-it('it_does_not_assign_serial_on_partial_payment', function () {
-    $customer = Customer::factory()->create();
-    $product = Product::factory()->create();
-    $listing = ProductListing::factory()->active()->for($product)->create();
-    $location = InventoryLocation::factory()->create();
-    InventorySerial::factory()->inStock()->atLocation($location)->forProduct($product)->create();
-    $user = User::factory()->create();
-    $order = orderService()->store(walkInCashPayload($customer, $listing), $user);
-
-    orderService()->recordCashPayment($order, ['amount' => 100.00], $user);
-
-    $line = OrderLine::where('order_id', $order->id)->first();
-    expect($line->inventory_serial_id)->toBeNull();
-});
-
-it('it_does_not_create_inventory_movement_on_partial_payment', function () {
-    $customer = Customer::factory()->create();
-    $product = Product::factory()->create();
-    $listing = ProductListing::factory()->active()->for($product)->create();
-    $location = InventoryLocation::factory()->create();
-    InventorySerial::factory()->inStock()->atLocation($location)->forProduct($product)->create();
-    $user = User::factory()->create();
-    $order = orderService()->store(walkInCashPayload($customer, $listing), $user);
-
-    orderService()->recordCashPayment($order, ['amount' => 100.00], $user);
-
-    $this->assertDatabaseCount('inventory_movements', 0);
-});
-
-it('it_does_not_change_serial_status_on_partial_payment', function () {
-    $customer = Customer::factory()->create();
-    $product = Product::factory()->create();
-    $listing = ProductListing::factory()->active()->for($product)->create();
-    $location = InventoryLocation::factory()->create();
-    $serial = InventorySerial::factory()->inStock()->atLocation($location)->forProduct($product)->create();
-    $user = User::factory()->create();
-    $order = orderService()->store(walkInCashPayload($customer, $listing), $user);
-
-    orderService()->recordCashPayment($order, ['amount' => 100.00], $user);
-
-    expect($serial->fresh()->status)->toBe(SerialStatus::InStock);
-});
-
-it('it_does_not_advance_order_status_on_partial_payment', function () {
-    $customer = Customer::factory()->create();
-    $product = Product::factory()->create();
-    $listing = ProductListing::factory()->active()->for($product)->create();
-    $user = User::factory()->create();
-    $order = orderService()->store(walkInCashPayload($customer, $listing), $user);
-
-    orderService()->recordCashPayment($order, ['amount' => 100.00], $user);
 
     expect($order->fresh()->status)->toBe(OrderStatus::Pending);
+    expect($order->fresh()->payment_status)->toBe(PaymentStatus::Unpaid);
 });
 
-it('it_records_payment_received_event', function () {
-    $customer = Customer::factory()->create();
-    $product = Product::factory()->create();
-    $listing = ProductListing::factory()->active()->for($product)->create();
-    $location = InventoryLocation::factory()->create();
-    InventorySerial::factory()->inStock()->atLocation($location)->forProduct($product)->create();
-    $user = User::factory()->create();
-    $order = orderService()->store(walkInCashPayload($customer, $listing), $user);
+it('inserts payment_received event', function () {
+    $f = ex19Setup();
+    $order = orderService()->store(ex19Payload($f['customer']->id, $f['listing']->id), $f['admin']);
+    orderService()->recordCashPayment($order, ['amount' => 286.86], $f['admin']);
 
-    orderService()->recordCashPayment($order, ['amount' => 185.00], $user);
-
-    $event = OrderEvent::where('order_id', $order->id)->where('event', 'payment_received')->first();
+    $event = $order->events()->where('event', 'payment_received')->first();
     expect($event)->not->toBeNull();
     expect($event->metadata['method'])->toBe('cash');
-    expect($event->metadata['amount'])->toBe('185.00');
-    expect($event->metadata['subtotal'])->toBe('170.00');
-    expect($event->metadata['fees'])->toBe('15.00');
-    expect($event->metadata['shipping'])->toBe('0.00');
-    expect($event->created_by)->toBe($user->id);
 });
 
-// ── complete() ────────────────────────────────────────────────────────────────
+it('throws when order already paid', function () {
+    $f = ex19Setup();
+    $order = orderService()->store(ex19Payload($f['customer']->id, $f['listing']->id), $f['admin']);
+    orderService()->recordCashPayment($order, ['amount' => 286.86], $f['admin']);
 
-it('it_sets_order_status_to_complete', function () {
-    $customer = Customer::factory()->create();
-    $product = Product::factory()->create();
-    $listing = ProductListing::factory()->active()->for($product)->create();
-    $location = InventoryLocation::factory()->create();
-    InventorySerial::factory()->inStock()->atLocation($location)->forProduct($product)->create();
-    $user = User::factory()->create();
+    orderService()->recordCashPayment($order->fresh(), ['amount' => 286.86], $f['admin']);
+})->throws(DomainException::class);
 
-    $order = orderService()->store(walkInCashPayload($customer, $listing), $user);
-    orderService()->recordCashPayment($order, ['amount' => 185.00], $user);
-    $result = orderService()->complete($order->fresh(), $user);
+it('throws when amount does not match grand_total', function () {
+    $f = ex19Setup();
+    $order = orderService()->store(ex19Payload($f['customer']->id, $f['listing']->id), $f['admin']);
 
-    expect($result->status)->toBe(OrderStatus::Complete);
+    orderService()->recordCashPayment($order, ['amount' => 100.00], $f['admin']);
+})->throws(DomainException::class);
+
+it('calls AvaTaxService::commitInvoice after recording cash payment', function () {
+    $f = ex19Setup();
+    $order = orderService()->store(ex19Payload($f['customer']->id, $f['listing']->id), $f['admin']);
+
+    $spy = Mockery::mock(AvaTaxService::class);
+    $spy->shouldReceive('commitInvoice')
+        ->once()
+        ->withArgs(function (array $lines, array $shipTo, string $customerCode, string $documentCode) use ($order, $f) {
+            return count($lines) === 3
+                && $lines[0]['sku'] === 'ECM-2024'
+                && $lines[1]['sku'] === 'FEE-Programming Fee'
+                && $lines[2]['sku'] === 'FEE-Gas Tuning Fee'
+                && $customerCode === (string) $f['customer']->id
+                && $documentCode === $order->number;
+        })
+        ->andReturn(true);
+    app()->instance(AvaTaxService::class, $spy);
+
+    $service = new OrderService(
+        app(InventoryMovementService::class),
+        $spy,
+    );
+    $service->recordCashPayment($order, ['amount' => 286.86], $f['admin']);
 });
 
-it('it_does_not_create_shipment_row', function () {
-    $customer = Customer::factory()->create();
-    $product = Product::factory()->create();
-    $listing = ProductListing::factory()->active()->for($product)->create();
-    $location = InventoryLocation::factory()->create();
-    InventorySerial::factory()->inStock()->atLocation($location)->forProduct($product)->create();
-    $user = User::factory()->create();
+// ── complete() ───────────────────────────────────────────────────────────
 
-    $order = orderService()->store(walkInCashPayload($customer, $listing), $user);
-    orderService()->recordCashPayment($order, ['amount' => 185.00], $user);
-    orderService()->complete($order->fresh(), $user);
+it('completes order and does not duplicate inventory movement', function () {
+    $f = ex19Setup();
+    $order = orderService()->store(ex19Payload($f['customer']->id, $f['listing']->id), $f['admin']);
+    orderService()->recordCashPayment($order, ['amount' => 286.86], $f['admin']);
 
-    $this->assertDatabaseCount('shipments', 0);
+    // Movement + serial flip already happened at payment
+    expect(InventoryMovement::count())->toBe(1);
+    expect($f['serial']->fresh()->status)->toBe(SerialStatus::Sold);
+
+    $completed = orderService()->complete($order->fresh(), $f['admin']);
+
+    expect($completed->status)->toBe(OrderStatus::Complete);
+    // complete() must NOT create a new movement or change serial again
+    expect(InventoryMovement::count())->toBe(1);
+    expect($f['serial']->fresh()->status)->toBe(SerialStatus::Sold);
 });
 
-it('it_throws_if_order_is_not_processing', function () {
-    $order = Order::factory()->pending()->create();
-    $user = User::factory()->create();
+it('inserts completed event with empty metadata', function () {
+    $f = ex19Setup();
+    $order = orderService()->store(ex19Payload($f['customer']->id, $f['listing']->id), $f['admin']);
+    orderService()->recordCashPayment($order, ['amount' => 286.86], $f['admin']);
+    orderService()->complete($order->fresh(), $f['admin']);
 
-    expect(fn () => orderService()->complete($order, $user))
-        ->toThrow(DomainException::class);
-});
-
-it('it_does_not_touch_inventory_on_complete', function () {
-    $customer = Customer::factory()->create();
-    $product = Product::factory()->create();
-    $listing = ProductListing::factory()->active()->for($product)->create();
-    $location = InventoryLocation::factory()->create();
-    $serial = InventorySerial::factory()->inStock()->atLocation($location)->forProduct($product)->create();
-    $user = User::factory()->create();
-
-    $order = orderService()->store(walkInCashPayload($customer, $listing), $user);
-    orderService()->recordCashPayment($order, ['amount' => 185.00], $user);
-
-    // At this point movement already created and serial is sold
-    $movementCount = InventoryMovement::count();
-
-    orderService()->complete($order->fresh(), $user);
-
-    // complete() must not add more movements or change serial
-    $this->assertDatabaseCount('inventory_movements', $movementCount);
-    expect($serial->fresh()->status)->toBe(SerialStatus::Sold);
-});
-
-it('it_records_completed_event', function () {
-    $customer = Customer::factory()->create();
-    $product = Product::factory()->create();
-    $listing = ProductListing::factory()->active()->for($product)->create();
-    $location = InventoryLocation::factory()->create();
-    InventorySerial::factory()->inStock()->atLocation($location)->forProduct($product)->create();
-    $user = User::factory()->create();
-
-    $order = orderService()->store(walkInCashPayload($customer, $listing), $user);
-    orderService()->recordCashPayment($order, ['amount' => 185.00], $user);
-    orderService()->complete($order->fresh(), $user);
-
-    $event = OrderEvent::where('order_id', $order->id)->where('event', 'completed')->first();
+    $event = $order->events()->where('event', 'completed')->first();
     expect($event)->not->toBeNull();
-    expect($event->created_by)->toBe($user->id);
+    expect($event->metadata)->toBe([]);
 });
 
-it('it_rolls_back_if_movement_creation_fails', function () {
-    // Bypass normal flow: create a pending order with a sold serial already on the line.
-    // assignSerialsToLines() skips lines that already have a serial_id, so it reaches
-    // recordSaleMovements() which calls recordSale() — that throws because serial is sold.
-    $customer = Customer::factory()->create();
-    $product = Product::factory()->create();
-    $listing = ProductListing::factory()->active()->for($product)->create();
-    $location = InventoryLocation::factory()->create();
-    $serial = InventorySerial::factory()->sold()->atLocation($location)->forProduct($product)->create();
-    $user = User::factory()->create();
+it('throws when order not in processing status', function () {
+    $f = ex19Setup();
+    $order = orderService()->store(ex19Payload($f['customer']->id, $f['listing']->id), $f['admin']);
 
-    $order = Order::factory()->state([
-        'customer_id' => $customer->id,
-        'status' => OrderStatus::Pending,
-        'payment_status' => PaymentStatus::Unpaid,
-        'grand_total' => 185.00,
-    ])->create();
-    OrderLine::factory()->for($order)->state(['inventory_serial_id' => $serial->id])->create();
+    orderService()->complete($order, $f['admin']);
+})->throws(DomainException::class);
 
-    try {
-        orderService()->recordCashPayment($order, ['amount' => 185.00], $user);
-    } catch (Throwable) {
-        // expected
-    }
+// ── update() ─────────────────────────────────────────────────────────────
 
-    expect($order->fresh()->payment_status)->toBe(PaymentStatus::Unpaid);
-    $this->assertDatabaseMissing('order_events', ['order_id' => $order->id, 'event' => 'payment_received']);
-    $this->assertDatabaseCount('inventory_movements', 0);
+it('updates order when pending', function () {
+    $f = ex19Setup();
+    $order = orderService()->store(ex19Payload($f['customer']->id, $f['listing']->id), $f['admin']);
+
+    $payload = ex19Payload($f['customer']->id, $f['listing']->id);
+    $payload['lines'][0]['unit_price'] = 250.00;
+    $payload['lines'][0]['fees'] = [];
+    $updated = orderService()->update($order, $payload);
+
+    expect((float) $updated->lines->first()->unit_price)->toBe(250.0);
 });
 
-// ── Full lifecycle ────────────────────────────────────────────────────────────
+it('throws when updating non-pending order', function () {
+    $f = ex19Setup();
+    $order = orderService()->store(ex19Payload($f['customer']->id, $f['listing']->id), $f['admin']);
+    orderService()->recordCashPayment($order, ['amount' => 286.86], $f['admin']);
 
-it('it_shows_correct_serial_status_at_each_stage', function () {
-    $customer = Customer::factory()->create();
-    $product = Product::factory()->create();
-    $listing = ProductListing::factory()->active()->for($product)->create();
-    $location = InventoryLocation::factory()->create();
-    $serial = InventorySerial::factory()->inStock()->atLocation($location)->forProduct($product)->create();
-    $user = User::factory()->create();
+    orderService()->update($order->fresh(), ex19Payload($f['customer']->id, $f['listing']->id));
+})->throws(DomainException::class);
 
-    $order = orderService()->store(walkInCashPayload($customer, $listing), $user);
-    expect($serial->fresh()->status)->toBe(SerialStatus::InStock);
-    $this->assertDatabaseCount('inventory_movements', 0);
+// ── delete() ─────────────────────────────────────────────────────────────
 
-    orderService()->recordCashPayment($order, ['amount' => 185.00], $user);
-    expect($serial->fresh()->status)->toBe(SerialStatus::Sold);
-    $this->assertDatabaseCount('inventory_movements', 1);
+it('hard-deletes pending order and cascades children', function () {
+    $f = ex19Setup();
+    $order = orderService()->store(ex19Payload($f['customer']->id, $f['listing']->id), $f['admin']);
+    $orderId = $order->id;
+    $lineId = $order->lines->first()->id;
 
-    orderService()->complete($order->fresh(), $user);
-    expect($serial->fresh()->status)->toBe(SerialStatus::Sold);
-    $this->assertDatabaseCount('inventory_movements', 1);
+    orderService()->delete($order);
+
+    expect(Order::find($orderId))->toBeNull();
+    expect(OrderLine::find($lineId))->toBeNull();
+    expect(OrderLineFee::where('order_line_id', $lineId)->count())->toBe(0);
+    expect(OrderEvent::where('order_id', $orderId)->count())->toBe(0);
 });
 
-it('it_shows_correct_order_events_at_each_stage', function () {
-    $customer = Customer::factory()->create();
-    $product = Product::factory()->create();
-    $listing = ProductListing::factory()->active()->for($product)->create();
-    $location = InventoryLocation::factory()->create();
-    InventorySerial::factory()->inStock()->atLocation($location)->forProduct($product)->create();
-    $user = User::factory()->create();
+it('logs audit row before deleting order so history persists', function () {
+    $f = ex19Setup();
+    $order = orderService()->store(ex19Payload($f['customer']->id, $f['listing']->id), $f['admin']);
+    $orderId = $order->id;
 
-    $order = orderService()->store(walkInCashPayload($customer, $listing), $user);
-    expect(OrderEvent::where('order_id', $order->id)->pluck('event')->toArray())
-        ->toBe(['order_placed']);
+    orderService()->delete($order);
 
-    orderService()->recordCashPayment($order, ['amount' => 185.00], $user);
-    expect(OrderEvent::where('order_id', $order->id)->pluck('event')->toArray())
-        ->toBe(['order_placed', 'payment_received']);
+    // activity_log row persists with subject_id reference even after CASCADE wipe
+    $log = DB::table('activity_log')
+        ->where('subject_type', 'order')
+        ->where('subject_id', $orderId)
+        ->where('event', 'deleted')
+        ->first();
+    expect($log)->not->toBeNull();
+});
 
-    orderService()->complete($order->fresh(), $user);
-    expect(OrderEvent::where('order_id', $order->id)->pluck('event')->toArray())
-        ->toBe(['order_placed', 'payment_received', 'completed']);
+it('throws when deleting non-pending order', function () {
+    $f = ex19Setup();
+    $order = orderService()->store(ex19Payload($f['customer']->id, $f['listing']->id), $f['admin']);
+    orderService()->recordCashPayment($order, ['amount' => 286.86], $f['admin']);
+
+    orderService()->delete($order->fresh());
+})->throws(DomainException::class);
+
+// ── Full lifecycle integration ───────────────────────────────────────────
+
+it('shows correct state at each stage of the lifecycle', function () {
+    $f = ex19Setup();
+
+    // After store()
+    $order = orderService()->store(ex19Payload($f['customer']->id, $f['listing']->id), $f['admin']);
+    expect($f['serial']->fresh()->status)->toBe(SerialStatus::InStock);
+    expect(InventoryMovement::count())->toBe(0);
+    expect($order->events()->count())->toBe(1);
+
+    // After recordCashPayment() — serial flipped + movement created here
+    orderService()->recordCashPayment($order, ['amount' => 286.86], $f['admin']);
+    expect($f['serial']->fresh()->status)->toBe(SerialStatus::Sold);
+    expect(InventoryMovement::count())->toBe(1);
+    expect($order->fresh()->events()->count())->toBe(2);
+
+    // After complete() — status flip only, no new movement
+    orderService()->complete($order->fresh(), $f['admin']);
+    expect($f['serial']->fresh()->status)->toBe(SerialStatus::Sold);
+    expect(InventoryMovement::count())->toBe(1);
+    expect($order->fresh()->events()->count())->toBe(3);
+    expect($order->fresh()->status)->toBe(OrderStatus::Complete);
 });

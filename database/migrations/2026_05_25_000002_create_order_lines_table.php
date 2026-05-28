@@ -12,13 +12,12 @@ return new class extends Migration
     {
         Schema::create('order_lines', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('order_id')->constrained('orders')->cascadeOnDelete();
-            $table->foreignId('product_listing_id')->constrained('product_listings');
+            $table->foreignId('order_id')->constrained()->cascadeOnDelete();
+            $table->foreignId('product_listing_id')->constrained()->restrictOnDelete();
             $table->string('sku', 100);
             $table->string('product_name', 255);
-            $table->foreignId('inventory_serial_id')->nullable()->unique()->constrained('inventory_serials');
+            $table->foreignId('inventory_serial_id')->nullable()->unique()->constrained()->restrictOnDelete();
             $table->decimal('unit_price', 10, 2);
-            $table->decimal('tax_rate', 6, 4)->default(0.0000);
             $table->decimal('tax_amount', 10, 2)->default(0.00);
             $table->decimal('line_total', 10, 2);
             $table->timestamps();

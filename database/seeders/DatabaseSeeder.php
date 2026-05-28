@@ -39,6 +39,8 @@ class DatabaseSeeder extends Seeder
             PurchaseOrderPermissionSeeder::class,
             OrderPermissionSeeder::class,
             CustomerAddressPermissionSeeder::class,
+            OrderSeeder::class,
+            AvaTaxTestSeeder::class,
         ]);
 
         $admin = User::firstOrCreate(

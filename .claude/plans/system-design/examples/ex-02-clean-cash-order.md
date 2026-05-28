@@ -14,7 +14,7 @@
         ├──→ customer_addresses INSERT (Mike gives home address for delivery)
         ├──→ orders (customer_id=2, billing snapshot NULL — cash, shipping snapshot copied from address, status=pending, payment_status=unpaid)
         ├──→ order_lines (2 line items)
-        └──→ order_fees (service fee)
+        └──→ order_line_fees INSERT (Programming Fee $18 · Gas Tuning Fee $12)
 
 [Customer pays cash in full at counter — admin records]
         │
@@ -54,8 +54,8 @@ id  customer_id  label  first_name  last_name  email             phone         a
 
 **`orders`**
 ```
-id  number        customer_id  source   status     payment_status  subtotal  fees   shipping  grand_total
-2   ORD-2026-002  2            walk_in  shipped    paid            350.00    30.00  15.00     395.00
+id  number        customer_id  source   status     payment_status  shipping  grand_total  created_by
+2   ORD-2026-002  2            walk_in  shipped    paid            15.00     395.00       1
 
 -- billing snapshot (NULL — cash payment, no billing address required)
 billing_first_name  billing_last_name  billing_email  billing_phone  billing_address_line1  billing_city  billing_state  billing_postal_code  billing_country
@@ -70,20 +70,22 @@ Billing NULL — cash payment, no billing address required. Shipping filled — 
 
 **`order_lines`**
 ```
-id  order  sku     product_name  serial  unit_price  tax_rate  tax_amount  line_total
-2   2      PROD-A  Widget Pro    SN-010  200.00      0.0000    0.00        200.00
-3   2      PROD-B  Widget Basic  SN-011  150.00      0.0000    0.00        150.00
+id  order  product_listing_id  sku     product_name  inventory_serial_id  unit_price  tax_amount  line_total
+2   2      1                   PROD-A  Widget Pro    SN-010               200.00      0.00        200.00
+3   2      2                   PROD-B  Widget Basic  SN-011               150.00      0.00        150.00
 ```
 
-**`order_fees`**
+**`order_line_fees`**
 ```
-id  order  name          amount
-2   2      Service Fee   30.00
+id  order_line_id  name              amount  tax_amount  fee_total  created_by  created_at
+7   2              Programming Fee   18.00   0.00        18.00      1           2026-04-21 10:00:00
+8   2              Gas Tuning Fee    12.00   0.00        12.00      1           2026-04-21 10:00:00
 ```
+> Fees attached to order line 2 (PROD-A Widget Pro — the primary unit). order_line_id=2 belongs to this order.
 
 **Grand total**
 ```
-subtotal $350 (200+150) + fees $30 + shipping $15 + tax $0 = $395 ✓
+lines $350 (200+150) + fees $30 + shipping $15 + tax $0 = $395 ✓
 ```
 
 **`payments`**

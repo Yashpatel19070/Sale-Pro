@@ -20,7 +20,7 @@
         │
         ├──→ orders (customer_id=10, source=phone, billing NULL (cash), shipping NULL (pickup), status=pending, payment_status=unpaid)
         ├──→ order_lines (1 line: SN-110)
-        └──→ order_fees (service fee $20)
+        └──→ order_line_fees INSERT (Programming Fee $12 · Gas Tuning Fee $8)
 
 [Jane arrives next day — pays cash at counter, picks up SN-110]
         │
@@ -96,8 +96,8 @@ id  name      email             phone         status
 
 **`orders`**
 ```
-id  number        customer_id  source  status    payment_status  subtotal  fees   shipping  grand_total  shipped_at  shipped_by  cancelled_at         cancelled_by
-12  ORD-2026-012  10           phone   refunded  paid            200.00    20.00  0.00      220.00       NULL        NULL        2026-05-16 15:00     1
+id  number        customer_id  source  status    payment_status  shipping  grand_total  shipped_at  shipped_by  created_by
+12  ORD-2026-012  10           phone   refunded  paid            0.00      220.00       NULL        NULL        1
 
 -- billing snapshot (NULL — cash payment)
 billing_first_name  billing_last_name  billing_email  billing_phone  billing_address_line1  billing_city  billing_state  billing_postal_code  billing_country
@@ -113,19 +113,20 @@ NULL                 NULL                NULL            NULL            NULL   
 
 **`order_lines`**
 ```
-id  order  sku     product_name  serial  unit_price  tax_rate  tax_amount  line_total
-17  12     PROD-A  Widget Pro    SN-110  200.00      0.0000    0.00        200.00
+id  order  product_listing_id  sku     product_name  inventory_serial_id  unit_price  tax_amount  line_total
+17  12     1                   PROD-A  Widget Pro    SN-110               200.00      0.00        200.00
 ```
 
-**`order_fees`**
+**`order_line_fees`**
 ```
-id  order  name          amount
-12  12     Service Fee   20.00
+id  order_line_id  name              amount  tax_amount  fee_total  created_by  created_at
+21  17             Programming Fee   12.00   0.00        12.00      1           2026-05-11 10:00:00
+22  17             Gas Tuning Fee     8.00   0.00         8.00      1           2026-05-11 10:00:00
 ```
 
 **Grand total**
 ```
-subtotal $200 + fees $20 + shipping $0 + tax $0 = $220 ✓
+lines $200 + fees $20 + shipping $0 + tax $0 = $220 ✓
 ```
 
 **`payments`**

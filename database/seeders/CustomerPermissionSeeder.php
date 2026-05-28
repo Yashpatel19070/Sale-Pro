@@ -22,6 +22,8 @@ class CustomerPermissionSeeder extends Seeder
             'customers.update',
             'customers.delete',
             'customers.changeStatus',
+            // Financially-sensitive: gates tax_exempt + exemption certificate fields.
+            'customers.manageTaxExemption',
         ];
 
         foreach ($permissions as $permission) {
@@ -35,6 +37,7 @@ class CustomerPermissionSeeder extends Seeder
         $admin = Role::firstOrCreate(['name' => 'admin',       'guard_name' => 'web']);
         $staff = Role::firstOrCreate(['name' => 'staff',       'guard_name' => 'web']);
 
+        // manageTaxExemption granted only to super_admin + admin (not staff).
         $superAdmin->givePermissionTo($permissions);
         $admin->givePermissionTo($permissions);
 

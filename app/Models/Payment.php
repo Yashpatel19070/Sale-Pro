@@ -6,7 +6,6 @@ namespace App\Models;
 
 use App\Enums\PaymentMethod;
 use App\Enums\PaymentStatus;
-use Database\Factories\PaymentFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -14,7 +13,6 @@ use Illuminate\Database\Eloquent\Relations\MorphTo;
 
 class Payment extends Model
 {
-    /** @use HasFactory<PaymentFactory> */
     use HasFactory;
 
     protected $fillable = [
@@ -24,17 +22,10 @@ class Payment extends Model
         'method',
         'amount',
         'status',
-        'cash_received_at',
-        'stripe_payment_intent_id',
-        'stripe_charge_id',
-        'stripe_terminal_reader_id',
-        'stripe_checkout_session_id',
-        'cheque_number',
-        'cheque_date',
-        'paid_at',
-        'paid_by',
-        'created_by',
     ];
+
+    // NOTE: cash_received_at and created_by are NOT fillable — forced server-side
+    // via forceFill() in OrderService to prevent cashier-spoofing.
 
     protected function casts(): array
     {
@@ -43,12 +34,8 @@ class Payment extends Model
             'status' => PaymentStatus::class,
             'amount' => 'decimal:2',
             'cash_received_at' => 'datetime',
-            'cheque_date' => 'date',
-            'paid_at' => 'datetime',
         ];
     }
-
-    // ── Relationships ──────────────────────────────────────────────────────────
 
     public function payable(): MorphTo
     {
@@ -63,10 +50,5 @@ class Payment extends Model
     public function createdBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
-    }
-
-    public function paidBy(): BelongsTo
-    {
-        return $this->belongsTo(User::class, 'paid_by');
     }
 }

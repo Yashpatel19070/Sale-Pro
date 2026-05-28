@@ -16,7 +16,7 @@
         ├──→ customer_addresses INSERT (Diana provides home address)
         ├──→ orders (customer_id=11, billing NULL — checkout, shipping snapshot filled, status=pending, payment_status=unpaid)
         ├──→ order_lines (1 line item)
-        └──→ order_fees (service fee)
+        └──→ order_line_fees INSERT (Programming Fee $12 · Gas Tuning Fee $8)
 
 [CSR generates Stripe checkout link — Diana scans QR on phone]
         │
@@ -61,8 +61,8 @@ id   customer_id  label  first_name  last_name  email               phone       
 
 **`orders`**
 ```
-id  number        customer_id  source   status   payment_status  subtotal  fees   shipping  grand_total  shipped_at            shipped_by  delivered_at          delivered_by
-13  ORD-2026-013  11           walk_in  shipped  paid            200.00    20.00  15.00     235.00       2026-05-19 11:00      2           2026-05-21 14:00      1
+id  number        customer_id  source   status   payment_status  shipping  grand_total  shipped_at            shipped_by  delivered_at          delivered_by  created_by
+13  ORD-2026-013  11           walk_in  shipped  paid            15.00     235.00       2026-05-19 11:00      2           2026-05-21 14:00      1             1
 
 -- billing snapshot (NULL — stripe_checkout, Stripe handles billing on their hosted page)
 billing_first_name  billing_last_name  billing_email  billing_phone  billing_address_line1  billing_city  billing_state  billing_postal_code  billing_country
@@ -75,19 +75,20 @@ Diana                Walsh               diana@example.com   555-100-0011    789
 
 **`order_lines`**
 ```
-id  order  sku     product_name  serial   unit_price  tax_rate  tax_amount  line_total
-40  13     PROD-A  Widget Pro    SN-120   200.00      0.0000    0.00        200.00
+id  order  product_listing_id  sku     product_name  inventory_serial_id  unit_price  tax_amount  line_total
+40  13     1                   PROD-A  Widget Pro    SN-120               200.00      0.00        200.00
 ```
 
-**`order_fees`**
+**`order_line_fees`**
 ```
-id  order  name          amount
-20  13     Service Fee   20.00
+id  order_line_id  name              amount  tax_amount  fee_total  created_by  created_at
+23  40             Programming Fee   12.00   0.00        12.00      1           2026-05-19 09:00:00
+24  40             Gas Tuning Fee     8.00   0.00         8.00      1           2026-05-19 09:00:00
 ```
 
 **Grand total**
 ```
-subtotal $200 + fees $20 + shipping $15 + tax $0 = $235 ✓
+lines $200 + fees $20 + shipping $15 + tax $0 = $235 ✓
 ```
 
 **`payments`**

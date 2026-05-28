@@ -7,78 +7,71 @@ namespace App\Models;
 use App\Enums\OrderSource;
 use App\Enums\OrderStatus;
 use App\Enums\PaymentStatus;
-use Database\Factories\OrderFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Database\Eloquent\SoftDeletes;
+use Spatie\Activitylog\Models\Concerns\LogsActivity;
+use Spatie\Activitylog\Support\LogOptions;
 
 class Order extends Model
 {
-    /** @use HasFactory<OrderFactory> */
-    use HasFactory, SoftDeletes;
+    use HasFactory, LogsActivity;
+
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()->logFillable()->logOnlyDirty();
+    }
 
     protected $fillable = [
         'number',
         'customer_id',
         'source',
-        'status',
-        'payment_status',
-        'created_by',
-        'subtotal',
-        'fees',
         'shipping',
-        'grand_total',
-        'billing_first_name',
-        'billing_last_name',
-        'billing_email',
-        'billing_phone',
-        'billing_address_line1',
-        'billing_address_line2',
-        'billing_city',
-        'billing_state',
-        'billing_postal_code',
-        'billing_country',
-        'shipping_first_name',
-        'shipping_last_name',
-        'shipping_email',
-        'shipping_phone',
-        'shipping_address_line1',
-        'shipping_address_line2',
-        'shipping_city',
-        'shipping_state',
-        'shipping_postal_code',
-        'shipping_country',
-        'shipped_at',
-        'shipped_by',
-        'delivered_at',
-        'delivered_by',
-        'cancelled_at',
-        'cancelled_by',
+        'billing_first_name', 'billing_last_name', 'billing_email', 'billing_phone',
+        'billing_address_line1', 'billing_address_line2',
+        'billing_city', 'billing_state', 'billing_postal_code', 'billing_country',
+        'shipping_first_name', 'shipping_last_name', 'shipping_email', 'shipping_phone',
+        'shipping_address_line1', 'shipping_address_line2',
+        'shipping_city', 'shipping_state', 'shipping_postal_code', 'shipping_country',
+        'shipped_at', 'shipped_by', 'delivered_at', 'delivered_by',
+        'created_by',
     ];
+
+    // NOTE: status, payment_status, grand_total are NOT fillable — only set via
+    // forceFill() in OrderService to prevent mass-assignment privilege escalation.
 
     protected function casts(): array
     {
         return [
-            'status' => OrderStatus::class,
             'source' => OrderSource::class,
+            'status' => OrderStatus::class,
             'payment_status' => PaymentStatus::class,
-            'subtotal' => 'decimal:2',
-            'fees' => 'decimal:2',
             'shipping' => 'decimal:2',
             'grand_total' => 'decimal:2',
             'shipped_at' => 'datetime',
             'delivered_at' => 'datetime',
-            'cancelled_at' => 'datetime',
         ];
     }
-
-    // ── Relationships ──────────────────────────────────────────────────────────
 
     public function customer(): BelongsTo
     {
         return $this->belongsTo(Customer::class);
+    }
+
+    public function lines(): HasMany
+    {
+        return $this->hasMany(OrderLine::class);
+    }
+
+    public function payments(): HasMany
+    {
+        return $this->hasMany(Payment::class);
+    }
+
+    public function events(): HasMany
+    {
+        return $this->hasMany(OrderEvent::class);
     }
 
     public function createdBy(): BelongsTo
@@ -91,28 +84,8 @@ class Order extends Model
         return $this->belongsTo(User::class, 'shipped_by');
     }
 
-    public function cancelledBy(): BelongsTo
+    public function deliveredBy(): BelongsTo
     {
-        return $this->belongsTo(User::class, 'cancelled_by');
-    }
-
-    public function lines(): HasMany
-    {
-        return $this->hasMany(OrderLine::class);
-    }
-
-    public function orderFees(): HasMany
-    {
-        return $this->hasMany(OrderFee::class);
-    }
-
-    public function payments(): HasMany
-    {
-        return $this->hasMany(Payment::class);
-    }
-
-    public function events(): HasMany
-    {
-        return $this->hasMany(OrderEvent::class)->orderBy('created_at');
+        return $this->belongsTo(User::class, 'delivered_by');
     }
 }

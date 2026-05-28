@@ -17,22 +17,30 @@ class PaymentFactory extends Factory
 
     public function definition(): array
     {
+        $order = Order::factory()->create();
+
         return [
-            'order_id' => Order::factory(),
+            'order_id' => $order->id,
             'payable_type' => 'order',
-            'payable_id' => 0,
+            'payable_id' => $order->id,
             'method' => PaymentMethod::Cash,
-            'amount' => 185.00,
+            'amount' => 286.86,
             'status' => PaymentStatus::Paid,
             'cash_received_at' => now(),
             'created_by' => User::factory(),
         ];
     }
 
-    public function configure(): static
+    public function cash(): static
     {
-        return $this->afterCreating(function (Payment $payment) {
-            $payment->update(['payable_id' => $payment->order_id]);
-        });
+        return $this->state([
+            'method' => PaymentMethod::Cash,
+            'cash_received_at' => now(),
+        ]);
+    }
+
+    public function paid(): static
+    {
+        return $this->state(['status' => PaymentStatus::Paid]);
     }
 }

@@ -25,6 +25,7 @@ use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ProductListingController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PurchaseOrderController;
+use App\Http\Controllers\ReceiptController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\UserController;
@@ -222,12 +223,15 @@ Route::prefix('admin')->group(function () {
         // Orders
         Route::get('orders/customer-addresses/{customer}', [OrderController::class, 'customerAddresses'])->name('orders.customer-addresses');
         Route::get('orders/listing-stock/{listing}', [OrderController::class, 'listingStock'])->name('orders.listing-stock');
-        Route::post('orders/calculate-tax', [OrderController::class, 'calculateTax'])->name('orders.calculate-tax');
+        Route::post('orders/calculate-tax', [OrderController::class, 'calculateTax'])->middleware('throttle:30,1')->name('orders.calculate-tax');
+        Route::post('orders/customer-addresses', [OrderController::class, 'storeCustomerAddress'])->name('orders.customer-addresses.store');
         Route::resource('orders', OrderController::class);
         Route::post('orders/{order}/cash-payment', [OrderController::class, 'recordCashPayment'])
             ->name('orders.cash-payment');
         Route::post('orders/{order}/complete', [OrderController::class, 'complete'])
             ->name('orders.complete');
+        Route::get('orders/{order}/receipt', [ReceiptController::class, 'show'])
+            ->name('orders.receipt');
 
         // Roles (admin + permission-gated)
         Route::middleware(['admin', 'permission:'.Permission::ROLES_VIEW])->group(function () {

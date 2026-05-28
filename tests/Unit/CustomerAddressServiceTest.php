@@ -89,3 +89,48 @@ it('delete throws when address is default', function () {
 
     $this->assertDatabaseHas('customer_addresses', ['id' => $address->id, 'deleted_at' => null]);
 });
+
+it('store dispatches SyncCustomerToAvaTaxJob', function () {
+    Illuminate\Support\Facades\Queue::fake();
+
+    $customer = Customer::factory()->create();
+    (new CustomerAddressService)->store($customer, [
+        'label' => 'Home',
+        'first_name' => 'A', 'last_name' => 'B',
+        'address_line1' => '1 Main', 'city' => 'X', 'state' => 'TX',
+        'postal_code' => '00000', 'country' => 'US',
+    ]);
+
+    Illuminate\Support\Facades\Queue::assertPushed(App\Jobs\SyncCustomerToAvaTaxJob::class, 1);
+});
+
+it('update dispatches SyncCustomerToAvaTaxJob', function () {
+    Illuminate\Support\Facades\Queue::fake();
+    $customer = Customer::factory()->create();
+    $addr = CustomerAddress::factory()->create(['customer_id' => $customer->id]);
+
+    (new CustomerAddressService)->update($addr, ['address_line1' => 'changed']);
+
+    Illuminate\Support\Facades\Queue::assertPushed(App\Jobs\SyncCustomerToAvaTaxJob::class, 1);
+});
+
+it('setDefault dispatches SyncCustomerToAvaTaxJob', function () {
+    Illuminate\Support\Facades\Queue::fake();
+    $customer = Customer::factory()->create();
+    $addr = CustomerAddress::factory()->create(['customer_id' => $customer->id, 'is_default' => false]);
+
+    (new CustomerAddressService)->setDefault($addr);
+
+    Illuminate\Support\Facades\Queue::assertPushed(App\Jobs\SyncCustomerToAvaTaxJob::class, 1);
+});
+
+it('delete dispatches SyncCustomerToAvaTaxJob', function () {
+    Illuminate\Support\Facades\Queue::fake();
+    $customer = Customer::factory()->create();
+    CustomerAddress::factory()->create(['customer_id' => $customer->id, 'is_default' => true]);
+    $extra = CustomerAddress::factory()->create(['customer_id' => $customer->id, 'is_default' => false]);
+
+    (new CustomerAddressService)->delete($extra);
+
+    Illuminate\Support\Facades\Queue::assertPushed(App\Jobs\SyncCustomerToAvaTaxJob::class, 1);
+});

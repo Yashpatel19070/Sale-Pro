@@ -10,15 +10,13 @@ class RecordCashPaymentRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        $order = $this->route('order');
-
-        return $this->user()->can('recordCashPayment', $order);
+        return $this->user()->can('recordCashPayment', $this->route('order'));
     }
 
     public function rules(): array
     {
         return [
-            'amount' => ['required', 'numeric', 'min:0.01'],
+            'amount' => ['required', 'numeric', 'min:0.01', 'max:99999999.99'],
         ];
     }
 }

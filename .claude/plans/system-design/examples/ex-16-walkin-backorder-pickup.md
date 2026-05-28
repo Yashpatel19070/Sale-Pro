@@ -14,7 +14,7 @@
         ├──→ orders INSERT (customer_id=16, source=walk_in, status=back_ordered, payment_status=unpaid,
         │                   billing=NULL, shipping=NULL — in-store pickup)
         ├──→ order_lines INSERT (inventory_serial_id=NULL, sku=PROD-A, unit_price=200.00)
-        └──→ order_fees INSERT (Service Fee $15)
+        └──→ order_line_fees INSERT (Programming Fee $9 · Gas Tuning Fee $6)
 
         (no payment taken — Emma will pay when she collects)
 
@@ -64,29 +64,30 @@ id  customer_id  label  first_name  last_name  email              phone         
 
 **`orders`**
 ```
-id  number        customer_id  source   status    payment_status  subtotal  fees   shipping  grand_total  created_by
-18  ORD-2026-018  16           walk_in  complete  paid            200.00    15.00  0.00      215.00       1
+id  number        customer_id  source   status    payment_status  shipping  grand_total  created_by
+18  ORD-2026-018  16           walk_in  complete  paid            0.00      215.00       1
 
 -- billing + shipping snapshot: both NULL (Stripe Terminal card-present, in-store pickup)
 ```
 
 **`order_lines`**
 ```
-id  order  sku     product_name  serial   unit_price  tax_rate  tax_amount  line_total
-45  18     PROD-A  Widget Pro    SN-152   200.00      0.0000    0.00        200.00
+id  order  product_listing_id  sku     product_name  inventory_serial_id  unit_price  tax_amount  line_total
+45  18     1                   PROD-A  Widget Pro    SN-152               200.00      0.00        200.00
 ```
 
 > `serial` (inventory_serial_id) was NULL from 2026-05-15 (order created) until 2026-05-19 (assigned after stock arrived). Shown as final state.
 
-**`order_fees`**
+**`order_line_fees`**
 ```
-id  order  name          amount
-25  18     Service Fee   15.00
+id  order_line_id  name              amount  tax_amount  fee_total  created_by  created_at
+33  45             Programming Fee    9.00   0.00         9.00      1           2026-05-20 10:00:00
+34  45             Gas Tuning Fee     6.00   0.00         6.00      1           2026-05-20 10:00:00
 ```
 
 **Grand total**
 ```
-subtotal $200 + fees $15 + shipping $0 + tax $0 = $215 ✓
+lines $200 + fees $15 + shipping $0 + tax $0 = $215 ✓
 ```
 
 **`payments`**

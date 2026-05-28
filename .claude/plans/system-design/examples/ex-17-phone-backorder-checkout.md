@@ -20,8 +20,6 @@ source:               phone
 status:               back_ordered          ← set at creation (serial=NULL)
 payment_status:       unpaid                ← set at creation
 created_by:           3                     ← CSR who took the call
-subtotal:             220.00                ← unit_price + tax_amount
-fees:                 0.00
 shipping:             20.00
 grand_total:          240.00
 currency:             USD
@@ -39,8 +37,6 @@ shipped_at:           NULL → 2026-05-20
 shipped_by:           NULL → 5
 delivered_at:         NULL → 2026-05-22
 delivered_by:         NULL → 3
-cancelled_at:         NULL
-cancelled_by:         NULL
 created_at:           2026-05-16 10:00:00
 ```
 
@@ -52,11 +48,11 @@ created_at:           2026-05-16 10:00:00
 ```
 id:                   46
 order_id:             19
+product_listing_id:   3
 sku:                  HDMI-4K-PRO
 product_name:         4K HDMI Cable Pro 6ft
 inventory_serial_id:  NULL              ← back-ordered — no serial yet
 unit_price:           200.00
-tax_rate:             0.0825
 tax_amount:           16.50
 line_total:           216.50
 ```
@@ -65,9 +61,9 @@ line_total:           216.50
 
 ---
 
-### Data: `order_fees` — none
+### Data: `order_line_fees` — none
 ```
-(no rows — order has no service fee)
+(no rows — no per-line fees for this order)
 ```
 
 ---

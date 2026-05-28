@@ -12,12 +12,15 @@ return new class extends Migration
     {
         Schema::create('order_events', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('order_id')->constrained('orders')->cascadeOnDelete();
+            $table->foreignId('order_id')->constrained()->cascadeOnDelete();
             $table->string('event', 50);
             $table->json('metadata')->nullable();
-            $table->foreignId('created_by')->constrained('users');
+            $table->foreignId('created_by')->constrained('users')->restrictOnDelete();
             $table->timestamp('created_at')->useCurrent();
-            // No updated_at — append-only audit log
+
+            $table->index(['order_id', 'created_at']);
+            $table->index('event');
+            $table->index('created_by');
         });
     }
 

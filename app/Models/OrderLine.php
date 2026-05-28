@@ -4,14 +4,13 @@ declare(strict_types=1);
 
 namespace App\Models;
 
-use Database\Factories\OrderLineFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class OrderLine extends Model
 {
-    /** @use HasFactory<OrderLineFactory> */
     use HasFactory;
 
     protected $fillable = [
@@ -21,7 +20,6 @@ class OrderLine extends Model
         'product_name',
         'inventory_serial_id',
         'unit_price',
-        'tax_rate',
         'tax_amount',
         'line_total',
     ];
@@ -30,13 +28,10 @@ class OrderLine extends Model
     {
         return [
             'unit_price' => 'decimal:2',
-            'tax_rate' => 'decimal:4',
             'tax_amount' => 'decimal:2',
             'line_total' => 'decimal:2',
         ];
     }
-
-    // ── Relationships ──────────────────────────────────────────────────────────
 
     public function order(): BelongsTo
     {
@@ -51,5 +46,10 @@ class OrderLine extends Model
     public function inventorySerial(): BelongsTo
     {
         return $this->belongsTo(InventorySerial::class);
+    }
+
+    public function lineFees(): HasMany
+    {
+        return $this->hasMany(OrderLineFee::class);
     }
 }

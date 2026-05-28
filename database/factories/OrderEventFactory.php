@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Database\Factories;
 
+use App\Enums\OrderEvent as OrderEventEnum;
 use App\Models\Order;
 use App\Models\OrderEvent;
 use App\Models\User;
@@ -17,9 +18,45 @@ class OrderEventFactory extends Factory
     {
         return [
             'order_id' => Order::factory(),
-            'event' => 'order_placed',
-            'metadata' => null,
+            'event' => OrderEventEnum::OrderPlaced,
+            'metadata' => [
+                'sku' => 'ECM-2024',
+                'product_name' => 'Engine Control Module',
+                'grand_total' => '286.86',
+            ],
             'created_by' => User::factory(),
         ];
+    }
+
+    public function orderPlaced(): static
+    {
+        return $this->state([
+            'event' => OrderEventEnum::OrderPlaced,
+            'metadata' => [
+                'sku' => 'ECM-2024',
+                'product_name' => 'Engine Control Module',
+                'grand_total' => '286.86',
+            ],
+        ]);
+    }
+
+    public function paymentReceived(): static
+    {
+        return $this->state([
+            'event' => OrderEventEnum::PaymentReceived,
+            'metadata' => [
+                'method' => 'cash',
+                'amount' => '286.86',
+                'shipping' => '0.00',
+            ],
+        ]);
+    }
+
+    public function completed(): static
+    {
+        return $this->state([
+            'event' => OrderEventEnum::Completed,
+            'metadata' => [],
+        ]);
     }
 }

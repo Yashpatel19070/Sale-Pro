@@ -207,11 +207,19 @@ class Permission
     const GOODS_RECEIPTS_DELETE = 'goods_receipts.delete';
 
     // Orders
-    const ORDERS_VIEW = 'view-orders';
+    const ORDERS_VIEW_ANY = 'orders.viewAny';
 
-    const ORDERS_CREATE = 'create-orders';
+    const ORDERS_VIEW = 'orders.view';
 
-    const ORDERS_MANAGE = 'manage-orders';
+    const ORDERS_CREATE = 'orders.create';
+
+    const ORDERS_UPDATE = 'orders.update';
+
+    const ORDERS_DELETE = 'orders.delete';
+
+    const ORDERS_RECORD_PAYMENT = 'orders.recordPayment';
+
+    const ORDERS_COMPLETE = 'orders.complete';
 
     // Invoices
     const INVOICES_VIEW_ANY = 'invoices.viewAny';

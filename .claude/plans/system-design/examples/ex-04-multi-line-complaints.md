@@ -16,7 +16,7 @@
         │
         ├──→ orders (customer_id=4, billing NULL (terminal, card-present), shipping snapshot filled)
         ├──→ order_lines (3 line items: SN-040, SN-041, SN-042)
-        └──→ order_fees (service fee $50)
+        └──→ order_line_fees (service fee $50 on line 6)
 
 [David taps card on Stripe Terminal — instant]
         │
@@ -121,10 +121,10 @@ id  order  sku     product_name   serial  unit_price  tax_rate  tax_amount  line
 
 AvaTax calculates `tax_rate` per line (product tax code + shipping destination). `tax_amount` = unit_price × tax_rate. Zero in fixture data — AvaTax not engaged.
 
-**`order_fees`**
+**`order_line_fees`**
 ```
-id  order  name          amount
-5   5      Service Fee   50.00
+id  order_line_id  name         amount  tax_amount  fee_total  created_by  created_at
+3   6              Service Fee  50.00   0.00        50.00      1           2026-04-24 11:00:00
 ```
 
 **Grand total**

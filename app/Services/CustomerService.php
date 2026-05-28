@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Enums\CustomerStatus;
+use App\Jobs\SyncCustomerToAvaTaxJob;
 use App\Models\Customer;
 use Illuminate\Auth\Events\Verified;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
@@ -38,7 +39,10 @@ class CustomerService
      */
     public function store(array $data): Customer
     {
-        return Customer::create($data);
+        $customer = Customer::create($data);
+        SyncCustomerToAvaTaxJob::dispatch($customer);
+
+        return $customer;
     }
 
     /**
@@ -47,6 +51,7 @@ class CustomerService
     public function update(Customer $customer, array $data): Customer
     {
         $customer->update($data);
+        SyncCustomerToAvaTaxJob::dispatch($customer);
 
         return $customer;
     }

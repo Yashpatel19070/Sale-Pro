@@ -24,6 +24,18 @@ function adminUser(): User
         'customers.update',
         'customers.delete',
         'customers.changeStatus',
+        'customers.manageTaxExemption',
+    ]);
+
+    return $user;
+}
+
+function customerEditorWithoutTaxPermission(): User
+{
+    $user = User::factory()->create();
+    $user->givePermissionTo([
+        'customers.create',
+        'customers.update',
     ]);
 
     return $user;
@@ -314,4 +326,132 @@ it('staff cannot change customer status', function () {
     $this->actingAs($staff)
         ->patch(route('customers.changeStatus', $customer), ['status' => 'inactive'])
         ->assertForbidden();
+});
+
+// ===========================================================
+// PHASE 5: EXEMPTION CERTIFICATE FIELDS
+// ===========================================================
+
+it('store accepts tax_exempt with full cert fields', function () {
+    $admin = adminUser();
+
+    $payload = customerPayload([
+        'email' => 'exempt-'.time().'@example.com',
+        'tax_exempt' => '1',
+        'tax_identification_number' => '218646848',
+        'entity_use_code' => 'G',
+        'exemption_certificate_number' => '218646848-RESALE',
+        'exemption_signed_date' => '2026-01-15',
+        'exemption_expires_at' => '2027-01-15',
+        'exemption_exposure_zone' => 'California',
+    ]);
+
+    $this->actingAs($admin)
+        ->post(route('customers.store'), $payload)
+        ->assertRedirect(route('customers.index'));
+
+    $c = Customer::where('email', $payload['email'])->first();
+    expect($c->tax_exempt)->toBeTrue();
+    expect($c->entity_use_code)->toBe('G');
+    expect($c->exemption_certificate_number)->toBe('218646848-RESALE');
+    expect($c->exemption_exposure_zone)->toBe('California');
+});
+
+it('store rejects expires_at before signed_date', function () {
+    $admin = adminUser();
+
+    $this->actingAs($admin)
+        ->post(route('customers.store'), customerPayload([
+            'tax_exempt' => '1',
+            'entity_use_code' => 'G',
+            'exemption_certificate_number' => 'CERT-X',
+            'exemption_signed_date' => '2026-06-01',
+            'exemption_expires_at' => '2026-01-01',  // BEFORE signed_date
+            'exemption_exposure_zone' => 'California',
+        ]))
+        ->assertSessionHasErrors('exemption_expires_at');
+});
+
+it('store rejects invalid entity_use_code', function () {
+    $admin = adminUser();
+
+    $this->actingAs($admin)
+        ->post(route('customers.store'), customerPayload([
+            'tax_exempt' => '1',
+            'entity_use_code' => 'Z',  // not in valid set
+            'exemption_certificate_number' => 'CERT-X',
+            'exemption_signed_date' => '2026-01-01',
+            'exemption_expires_at' => '2027-01-01',
+            'exemption_exposure_zone' => 'California',
+        ]))
+        ->assertSessionHasErrors('entity_use_code');
+});
+
+it('store rejects tax_identification_number with invalid characters', function () {
+    $admin = adminUser();
+
+    $this->actingAs($admin)
+        ->post(route('customers.store'), customerPayload([
+            'tax_identification_number' => 'BAD<script>',
+        ]))
+        ->assertSessionHasErrors('tax_identification_number');
+});
+
+it('store rejects exemption_certificate_number with invalid characters', function () {
+    $admin = adminUser();
+
+    $this->actingAs($admin)
+        ->post(route('customers.store'), customerPayload([
+            'tax_exempt' => '1',
+            'entity_use_code' => 'G',
+            'exemption_certificate_number' => 'CERT;DROP',
+            'exemption_signed_date' => '2026-01-15',
+            'exemption_expires_at' => '2027-01-15',
+            'exemption_exposure_zone' => 'California',
+        ]))
+        ->assertSessionHasErrors('exemption_certificate_number');
+});
+
+it('strips tax_exempt fields when user lacks manageTaxExemption permission', function () {
+    $user = customerEditorWithoutTaxPermission();
+
+    $this->actingAs($user)
+        ->post(route('customers.store'), customerPayload([
+            'email' => 'notax-'.time().'@example.com',
+            'tax_exempt' => '1',
+            'tax_identification_number' => '218646848',
+            'entity_use_code' => 'G',
+            'exemption_certificate_number' => 'CERT-1',
+            'exemption_signed_date' => '2026-01-15',
+            'exemption_expires_at' => '2027-01-15',
+            'exemption_exposure_zone' => 'California',
+        ]))
+        ->assertRedirect(route('customers.index'));
+
+    $c = Customer::where('email', 'like', 'notax-%')->latest()->first();
+    expect($c->tax_exempt)->toBeFalse();
+    expect($c->entity_use_code)->toBeNull();
+    expect($c->tax_identification_number)->toBeNull();
+});
+
+it('keeps tax_exempt fields when user has manageTaxExemption permission', function () {
+    $user = adminUser();
+    $user->givePermissionTo('customers.manageTaxExemption');
+
+    $this->actingAs($user)
+        ->post(route('customers.store'), customerPayload([
+            'email' => 'taxok-'.time().'@example.com',
+            'tax_exempt' => '1',
+            'tax_identification_number' => '218646848',
+            'entity_use_code' => 'G',
+            'exemption_certificate_number' => 'CERT-1',
+            'exemption_signed_date' => '2026-01-15',
+            'exemption_expires_at' => '2027-01-15',
+            'exemption_exposure_zone' => 'California',
+        ]))
+        ->assertRedirect(route('customers.index'));
+
+    $c = Customer::where('email', 'like', 'taxok-%')->latest()->first();
+    expect($c->tax_exempt)->toBeTrue();
+    expect($c->entity_use_code)->toBe('G');
 });

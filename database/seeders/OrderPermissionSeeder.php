@@ -4,9 +4,8 @@ declare(strict_types=1);
 
 namespace Database\Seeders;
 
-use App\Enums\Permission;
 use Illuminate\Database\Seeder;
-use Spatie\Permission\Models\Permission as SpatiePermission;
+use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 use Spatie\Permission\PermissionRegistrar;
 
@@ -16,21 +15,32 @@ class OrderPermissionSeeder extends Seeder
     {
         app()[PermissionRegistrar::class]->forgetCachedPermissions();
 
-        $all = [
-            Permission::ORDERS_VIEW,
-            Permission::ORDERS_CREATE,
-            Permission::ORDERS_MANAGE,
+        $permissions = [
+            'orders.viewAny',
+            'orders.view',
+            'orders.create',
+            'orders.update',
+            'orders.delete',
+            'orders.recordPayment',
+            'orders.complete',
         ];
 
-        foreach ($all as $permission) {
-            SpatiePermission::firstOrCreate(['name' => $permission, 'guard_name' => 'web']);
+        foreach ($permissions as $name) {
+            Permission::firstOrCreate([
+                'name' => $name,
+                'guard_name' => 'web',
+            ]);
         }
 
-        Role::where('name', 'super-admin')->first()?->givePermissionTo($all);
-        Role::where('name', 'admin')->first()?->givePermissionTo($all);
-        Role::where('name', 'manager')->first()?->givePermissionTo($all);
-        Role::where('name', 'sales')->first()?->givePermissionTo([
-            Permission::ORDERS_VIEW,
-        ]);
+        // super-admin, admin, manager get everything
+        foreach (['super-admin', 'admin', 'manager'] as $roleName) {
+            Role::where('name', $roleName)->first()?->givePermissionTo($permissions);
+        }
+
+        // sales gets everything EXCEPT orders.delete
+        Role::where('name', 'sales')->first()?->givePermissionTo(array_filter(
+            $permissions,
+            fn ($p) => $p !== 'orders.delete'
+        ));
     }
 }

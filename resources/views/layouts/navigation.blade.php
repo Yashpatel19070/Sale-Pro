@@ -22,7 +22,7 @@
                         </x-nav-link>
                     @endif
 
-                    @can('view-orders')
+                    @can('orders.viewAny')
                         <x-nav-link :href="route('orders.index')" :active="request()->routeIs('orders.*')">
                             {{ __('Orders') }}
                         </x-nav-link>
@@ -207,7 +207,7 @@
                 </x-responsive-nav-link>
             @endif
 
-            @can('view-orders')
+            @can('orders.viewAny')
                 <x-responsive-nav-link :href="route('orders.index')" :active="request()->routeIs('orders.*')">
                     {{ __('Orders') }}
                 </x-responsive-nav-link>
