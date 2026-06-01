@@ -27,7 +27,7 @@ Single source of truth for the `ex-*` examples. Read this first. Examples = data
 | `orders.payment_status` | `unpaid` · `paid` |
 | `orders.source` | `walk_in` · `phone` · `web` · … |
 | `orders.origin` | `online` · `admin` · `web_admin` |
-| `inventory_serials.status` | `in_stock` · `reserved` · `sold` · `under_examination` · `to_rebuild` |
+| `inventory_serials.status` | `in_stock` · `reserved` · `sold` · `under_examination` · `to_rebuild` (order-flow subset of the **shared** `SerialStatus`; inventory also has `damaged`·`missing`·`assigned`·`expected_return`·`scrapped`) |
 | `inventory_movements.type` | `receive` · `sale` · `return_in` · `transfer` · `adjustment` · `replacement_out` |
 | `order_events.event` | `order_placed` · `processing` · `ready_for_pickup` · `payment_received` · `shipped` · `completed` · `order_cancelled` · `complaint_opened` · `complaint_examined` · `complaint_closed` · `replacement_issued` · `return_requested` · `refunded` · `return_closed` |
 | `order_notes.type` | `private` · `customer` |
