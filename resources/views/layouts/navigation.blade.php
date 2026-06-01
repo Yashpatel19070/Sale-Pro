@@ -22,12 +22,6 @@
                         </x-nav-link>
                     @endif
 
-                    @can('orders.viewAny')
-                        <x-nav-link :href="route('orders.index')" :active="request()->routeIs('orders.*')">
-                            {{ __('Orders') }}
-                        </x-nav-link>
-                    @endcan
-
                     @canany(['products.view-any', 'product_categories.viewAny'])
                         <div class="relative flex items-stretch" x-data="{ open: false }" @click.outside="open = false">
                             <button @click="open = !open" class="inline-flex items-center px-1 pt-1 border-b-2 {{ request()->routeIs('products.*') || request()->routeIs('product-categories.*') ? 'border-indigo-400 text-gray-900' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300' }} text-sm font-medium leading-5 focus:outline-none transition duration-150 ease-in-out">
@@ -206,12 +200,6 @@
                     {{ __('Customers') }}
                 </x-responsive-nav-link>
             @endif
-
-            @can('orders.viewAny')
-                <x-responsive-nav-link :href="route('orders.index')" :active="request()->routeIs('orders.*')">
-                    {{ __('Orders') }}
-                </x-responsive-nav-link>
-            @endcan
 
             @canany(['products.view-any', 'product_categories.viewAny'])
                 <div class="px-4 pt-2 pb-1 text-xs font-semibold text-gray-400 uppercase tracking-wider">{{ __('Catalog') }}</div>

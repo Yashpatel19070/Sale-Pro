@@ -14,7 +14,6 @@ use App\Models\InventoryLocation;
 use App\Models\InventoryMovement;
 use App\Models\InventorySerial;
 use App\Models\Invoice;
-use App\Models\Order;
 use App\Models\Product;
 use App\Models\ProductCategory;
 use App\Models\ProductListing;
@@ -32,7 +31,6 @@ use App\Policies\InventoryLocationPolicy;
 use App\Policies\InventoryMovementPolicy;
 use App\Policies\InventorySerialPolicy;
 use App\Policies\InvoicePolicy;
-use App\Policies\OrderPolicy;
 use App\Policies\ProductCategoryPolicy;
 use App\Policies\ProductListingPolicy;
 use App\Policies\ProductPolicy;
@@ -47,7 +45,6 @@ use Illuminate\Auth\Events\Verified;
 use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Auth\Notifications\VerifyEmail;
 use Illuminate\Cache\RateLimiting\Limit;
-use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Event;
@@ -84,11 +81,6 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(PurchaseOrder::class, PurchaseOrderPolicy::class);
         Gate::policy(GoodsReceipt::class, GoodsReceiptPolicy::class);
         Gate::policy(Invoice::class, InvoicePolicy::class);
-        Gate::policy(Order::class, OrderPolicy::class);
-
-        Relation::morphMap([
-            'order' => Order::class,
-        ]);
 
         // Auth event listeners — log login, logout, failed attempts
         Event::listen(Login::class, [LogAuthActivity::class, 'handleLogin']);

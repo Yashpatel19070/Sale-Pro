@@ -8,7 +8,6 @@ use App\Models\Customer;
 use App\Models\Department;
 use App\Models\GoodsReceipt;
 use App\Models\Invoice;
-use App\Models\Order;
 use App\Models\Product;
 use App\Models\ProductCategory;
 use App\Models\ProductListing;
@@ -37,7 +36,6 @@ class AuditLogService
         PurchaseOrder::class => 'Purchase Order',
         GoodsReceipt::class => 'Goods Receipt',
         Invoice::class => 'Invoice',
-        Order::class => 'Order',
     ];
 
     /**

@@ -37,9 +37,7 @@ class DatabaseSeeder extends Seeder
             SupplierPermissionSeeder::class,
             SupplierSeeder::class,
             PurchaseOrderPermissionSeeder::class,
-            OrderPermissionSeeder::class,
             CustomerAddressPermissionSeeder::class,
-            OrderSeeder::class,
             AvaTaxTestSeeder::class,
         ]);
 
